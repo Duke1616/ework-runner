@@ -7,6 +7,7 @@
 package ioc
 
 import (
+	"github.com/Duke1616/ecmdb/internal/runner"
 	"github.com/Duke1616/ecmdb/internal/worker"
 	"github.com/google/wire"
 )
@@ -17,14 +18,21 @@ func InitApp() (*App, error) {
 	v := InitGinMiddlewares()
 	viper := InitViper()
 	mq := InitMQ(viper)
-	module, err := worker.InitModule(mq)
+	module, err := runner.InitModule(mq)
 	if err != nil {
 		return nil, err
 	}
-	handler := module.Hdl
+	workerModule, err := worker.InitModule(mq, module)
+	if err != nil {
+		return nil, err
+	}
+	handler := workerModule.Hdl
 	engine := InitWebServer(v, handler)
+	service := workerModule.Svc
 	app := &App{
-		Web: engine,
+		Web:       engine,
+		WorkerSvc: service,
+		Viper:     viper,
 	}
 	return app, nil
 }

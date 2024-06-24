@@ -13,6 +13,19 @@ const (
 	STOPPING Status = 2
 )
 
+type Action uint8
+
+func (s Action) ToUint8() uint8 {
+	return uint8(s)
+}
+
+const (
+	// Register 注册
+	Register Action = 1
+	// UnRegister 注销
+	UnRegister Action = 2
+)
+
 type Worker struct {
 	Name   string
 	Desc   string

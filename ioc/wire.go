@@ -3,6 +3,7 @@
 package ioc
 
 import (
+	"github.com/Duke1616/ecmdb/internal/runner"
 	"github.com/Duke1616/ecmdb/internal/worker"
 	"github.com/google/wire"
 )
@@ -14,6 +15,8 @@ func InitApp() (*App, error) {
 		BaseSet,
 		InitWebServer,
 		InitGinMiddlewares,
+		runner.InitModule,
+		wire.FieldsOf(new(*worker.Module), "Svc"),
 		worker.InitModule,
 		wire.FieldsOf(new(*worker.Module), "Hdl"),
 	)

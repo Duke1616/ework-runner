@@ -7,25 +7,32 @@
 package worker
 
 import (
+	"github.com/Duke1616/ecmdb/internal/runner"
 	"github.com/Duke1616/ecmdb/internal/worker/internal/event"
 	"github.com/Duke1616/ecmdb/internal/worker/internal/service"
 	"github.com/Duke1616/ecmdb/internal/worker/internal/web"
 	"github.com/ecodeclub/mq-api"
+	"github.com/google/wire"
 )
 
 // Injectors from wire.go:
 
-func InitModule(q mq.MQ) (*Module, error) {
+func InitModule(q mq.MQ, runnerSvc *runner.Module) (*Module, error) {
 	taskWorkerEventProducer, err := event.NewTaskWorkerEventProducer(q)
 	if err != nil {
 		return nil, err
 	}
-	serviceService := service.NewService(q, taskWorkerEventProducer)
-	handler := web.NewHandler(serviceService)
+	serviceService := runnerSvc.Svc
+	service2 := service.NewService(q, taskWorkerEventProducer, serviceService)
+	handler := web.NewHandler(service2)
 	module := &Module{
 		Hdl:   handler,
-		Svc:   serviceService,
+		Svc:   service2,
 		Event: taskWorkerEventProducer,
 	}
 	return module, nil
 }
+
+// wire.go:
+
+var ProviderSet = wire.NewSet(service.NewService, web.NewHandler)

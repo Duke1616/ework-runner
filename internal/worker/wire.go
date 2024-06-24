@@ -3,6 +3,7 @@
 package worker
 
 import (
+	"github.com/Duke1616/ecmdb/internal/runner"
 	"github.com/Duke1616/ecmdb/internal/worker/internal/event"
 	"github.com/Duke1616/ecmdb/internal/worker/internal/service"
 	"github.com/Duke1616/ecmdb/internal/worker/internal/web"
@@ -10,42 +11,16 @@ import (
 	"github.com/google/wire"
 )
 
-func InitModule(q mq.MQ) (*Module, error) {
+var ProviderSet = wire.NewSet(
+	service.NewService,
+	web.NewHandler)
+
+func InitModule(q mq.MQ, runnerSvc *runner.Module) (*Module, error) {
 	wire.Build(
+		ProviderSet,
 		event.NewTaskWorkerEventProducer,
-		service.NewService,
-		web.NewHandler,
+		wire.FieldsOf(new(*runner.Module), "Svc"),
 		wire.Struct(new(Module), "*"),
 	)
 	return new(Module), nil
 }
-
-//var (
-//	taskOnce = sync.Once{}
-//	svc      Service
-//)
-//
-//func initRegister(q mq.MQ, p event.TaskWorkerEventProducer, viper *viper.Viper) service.Service {
-//	taskOnce.Do(func() {
-//		type Config struct {
-//			Name  string `yaml:"name"`
-//			Desc  string `yaml:"desc"`
-//			Topic string `yaml:"topic"`
-//		}
-//
-//		var cfg Config
-//		if err := viper.UnmarshalKey("worker", &cfg); err != nil {
-//			panic(fmt.Errorf("unable to decode into struct: %v", err))
-//		}
-//		worker := Worker{
-//			Name:  cfg.Name,
-//			Desc:  cfg.Desc,
-//			Topic: cfg.Topic,
-//		}
-//
-//		svc = service.NewService(q, p)
-//		svc.Register(context.Background(), worker)
-//	})
-//
-//	return svc
-//}
