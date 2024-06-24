@@ -1,0 +1,17 @@
+version: '3'
+services:
+  ework-runner:
+    restart: always
+    container_name: ework-runner
+    image: duke1616/ework-runner:latest
+    command: ./ework-runner
+    ports:
+      - 8668:8001
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./prod.yaml:/app/config/prod.yaml
+networks:
+  default:
+    external:
+      name: sre

@@ -50,7 +50,19 @@ func (s *service) Stop(ctx context.Context, req domain.Worker) error {
 		return err
 	}
 
-	return consumer.Stop(context.Background())
+	err = s.stop(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		err = consumer.Stop(context.Background())
+		if err != nil {
+			return
+		}
+	}()
+
+	return nil
 }
 
 func (s *service) start(ctx context.Context, req domain.Worker) error {
