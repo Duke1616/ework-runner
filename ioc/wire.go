@@ -8,7 +8,7 @@ import (
 	"github.com/google/wire"
 )
 
-var BaseSet = wire.NewSet(InitViper, InitMQ)
+var BaseSet = wire.NewSet(InitViper, InitMQ, InitEtcdClient)
 
 func InitApp() (*App, error) {
 	wire.Build(wire.Struct(new(App), "*"),

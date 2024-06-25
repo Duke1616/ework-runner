@@ -29,14 +29,16 @@ func InitApp() (*App, error) {
 	handler := workerModule.Hdl
 	engine := InitWebServer(v, handler)
 	service := workerModule.Svc
+	client := InitEtcdClient(viper)
 	app := &App{
-		Web:       engine,
-		WorkerSvc: service,
-		Viper:     viper,
+		Web:        engine,
+		WorkerSvc:  service,
+		Viper:      viper,
+		EtcdClient: client,
 	}
 	return app, nil
 }
 
 // wire.go:
 
-var BaseSet = wire.NewSet(InitViper, InitMQ)
+var BaseSet = wire.NewSet(InitViper, InitMQ, InitEtcdClient)
