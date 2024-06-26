@@ -1,6 +1,7 @@
 package ioc
 
 import (
+	"github.com/Duke1616/ecmdb/internal/runner"
 	"github.com/Duke1616/ecmdb/internal/worker"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -8,13 +9,13 @@ import (
 	"time"
 )
 
-func InitWebServer(mdls []gin.HandlerFunc, workerHdl *worker.Handler) *gin.Engine {
+func InitWebServer(mdls []gin.HandlerFunc, workerHdl *worker.Handler, runnerHdl *runner.Handler) *gin.Engine {
 	server := gin.Default()
 
 	server.Use(mdls...)
 
 	workerHdl.RegisterRoutes(server)
-	//callback.PublicRegisterRoutes(server)
+	runnerHdl.RegisterRoutes(server)
 	return server
 }
 

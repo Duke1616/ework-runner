@@ -16,9 +16,9 @@ func InitApp() (*App, error) {
 		InitWebServer,
 		InitGinMiddlewares,
 		runner.InitModule,
-		wire.FieldsOf(new(*worker.Module), "Svc"),
+		wire.FieldsOf(new(*worker.Module), "Svc", "Hdl"),
 		worker.InitModule,
-		wire.FieldsOf(new(*worker.Module), "Hdl"),
+		wire.FieldsOf(new(*runner.Module), "Hdl"),
 	)
 	return new(App), nil
 }

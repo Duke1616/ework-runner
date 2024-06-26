@@ -26,7 +26,8 @@ func InitApp() (*App, error) {
 		return nil, err
 	}
 	handler := workerModule.Hdl
-	engine := InitWebServer(v, handler)
+	webHandler := module.Hdl
+	engine := InitWebServer(v, handler, webHandler)
 	service := workerModule.Svc
 	client := InitEtcdClient()
 	app := &App{
