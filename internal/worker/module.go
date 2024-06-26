@@ -7,7 +7,7 @@ import (
 )
 
 type Module struct {
-	Hdl   *web.Handler
-	Svc   service.Service
-	Event event.TaskWorkerEventProducer
+	Hdl *web.Handler
+	Svc service.Service
+	c   *event.WorkerConsumer
 }

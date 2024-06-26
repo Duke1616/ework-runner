@@ -24,9 +24,9 @@ func (h *Handler) RegisterRoutes(server *gin.Engine) {
 }
 
 func (h *Handler) StartWorker(ctx *gin.Context, req WorkerReq) (ginx.Result, error) {
-	if err := h.svc.Start(ctx, h.toDomain(req)); err != nil {
-		return ginx.Result{}, err
-	}
+	//if err := h.svc.Start(ctx, h.toDomain(req)); err != nil {
+	//	return ginx.Result{}, err
+	//}
 
 	return ginx.Result{
 		Msg: "启动服务成功",

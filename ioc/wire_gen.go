@@ -16,8 +16,7 @@ import (
 
 func InitApp() (*App, error) {
 	v := InitGinMiddlewares()
-	viper := InitViper()
-	mq := InitMQ(viper)
+	mq := InitMQ()
 	module, err := runner.InitModule(mq)
 	if err != nil {
 		return nil, err
@@ -29,11 +28,10 @@ func InitApp() (*App, error) {
 	handler := workerModule.Hdl
 	engine := InitWebServer(v, handler)
 	service := workerModule.Svc
-	client := InitEtcdClient(viper)
+	client := InitEtcdClient()
 	app := &App{
 		Web:        engine,
 		WorkerSvc:  service,
-		Viper:      viper,
 		EtcdClient: client,
 	}
 	return app, nil
@@ -41,4 +39,4 @@ func InitApp() (*App, error) {
 
 // wire.go:
 
-var BaseSet = wire.NewSet(InitViper, InitMQ, InitEtcdClient)
+var BaseSet = wire.NewSet(InitMQ, InitEtcdClient)

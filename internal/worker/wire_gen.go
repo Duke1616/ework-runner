@@ -7,28 +7,28 @@
 package worker
 
 import (
+	"context"
 	"github.com/Duke1616/ecmdb/internal/runner"
 	"github.com/Duke1616/ecmdb/internal/worker/internal/event"
 	"github.com/Duke1616/ecmdb/internal/worker/internal/service"
 	"github.com/Duke1616/ecmdb/internal/worker/internal/web"
+	"github.com/Duke1616/ecmdb/pkg/registry"
 	"github.com/ecodeclub/mq-api"
 	"github.com/google/wire"
+	"github.com/spf13/viper"
 )
 
 // Injectors from wire.go:
 
 func InitModule(q mq.MQ, runnerSvc *runner.Module) (*Module, error) {
-	taskWorkerEventProducer, err := event.NewTaskWorkerEventProducer(q)
-	if err != nil {
-		return nil, err
-	}
 	serviceService := runnerSvc.Svc
-	service2 := service.NewService(q, taskWorkerEventProducer, serviceService)
+	service2 := service.NewService(q, serviceService)
 	handler := web.NewHandler(service2)
+	workerConsumer := initWorkerConsumer(q, service2)
 	module := &Module{
-		Hdl:   handler,
-		Svc:   service2,
-		Event: taskWorkerEventProducer,
+		Hdl: handler,
+		Svc: service2,
+		c:   workerConsumer,
 	}
 	return module, nil
 }
@@ -36,3 +36,16 @@ func InitModule(q mq.MQ, runnerSvc *runner.Module) (*Module, error) {
 // wire.go:
 
 var ProviderSet = wire.NewSet(service.NewService, web.NewHandler)
+
+func initWorkerConsumer(q mq.MQ, svc service.Service) *event.WorkerConsumer {
+	var cfg registry.Instance
+	err := viper.UnmarshalKey("worker", &cfg)
+
+	consumer, err := event.NewWorkerConsumer(q, svc, cfg.Topic)
+	if err != nil {
+		panic(err)
+	}
+
+	consumer.Start(context.Background())
+	return consumer
+}
