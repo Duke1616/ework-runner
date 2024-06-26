@@ -94,6 +94,7 @@ func (r *Registry) Subscribe(name string) <-chan registry.Event {
 				if resp.Canceled {
 					return
 				}
+
 				if resp.Err() != nil {
 					continue
 				}

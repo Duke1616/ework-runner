@@ -51,7 +51,7 @@ func (c *WorkerConsumer) Consume(ctx context.Context) error {
 		return fmt.Errorf("解析消息失败: %w", err)
 	}
 
-	if err = c.svc.Start(ctx, evt); err != nil {
+	if err = c.svc.Receive(ctx, evt); err != nil {
 		slog.Error("执行任务失败", err)
 	}
 
