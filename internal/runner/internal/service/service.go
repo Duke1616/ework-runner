@@ -19,9 +19,14 @@ func NewService() Service {
 }
 
 func (s *service) Start(ctx context.Context, req domain.Runner) error {
+	shell := "/bin/bash"
+	if _, err := exec.LookPath(shell); err != nil {
+		shell = "/bin/sh"
+	}
+
 	var cmd *exec.Cmd
 	if req.Language == "shell" {
-		cmd = exec.Command("/bin/bash", "-c", req.Code)
+		cmd = exec.Command(shell, "-c", req.Code)
 	} else {
 		// 执行其他语言的脚本
 		cmd = exec.Command(req.Language, req.Code)
