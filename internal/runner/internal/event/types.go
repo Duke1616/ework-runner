@@ -16,9 +16,9 @@ const (
 )
 
 type TaskRunnerEvent struct {
-	TaskIdentifier string
-	TaskSecret     string
-	WorkName       string
+	CodebookUid    string
+	CodebookSecret string
+	WorkerName     string
 	Name           string
 	Tags           []string
 	Desc           string
