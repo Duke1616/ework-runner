@@ -8,7 +8,7 @@ package ioc
 
 import (
 	"github.com/Duke1616/ecmdb/internal/runner"
-	"github.com/Duke1616/ecmdb/internal/worker"
+	"github.com/Duke1616/ecmdb/internal/execute"
 	"github.com/google/wire"
 )
 
@@ -21,7 +21,7 @@ func InitApp() (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	workerModule, err := worker.InitModule(mq, module)
+	workerModule, err := execute.InitModule(mq, module)
 	if err != nil {
 		return nil, err
 	}

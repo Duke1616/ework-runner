@@ -11,5 +11,5 @@ type TaskRunnerEventProducer interface {
 }
 
 func NewTaskRunnerEventProducer(q mq.MQ) (TaskRunnerEventProducer, error) {
-	return mqx.NewGeneralProducer[TaskRunnerEvent](q, TaskRunnerEventName)
+	return mqx.NewGeneralProducer[TaskRunnerEvent](q, TaskRegisterRunnerEventName)
 }

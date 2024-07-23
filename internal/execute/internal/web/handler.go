@@ -1,8 +1,8 @@
 package web
 
 import (
-	"github.com/Duke1616/ecmdb/internal/worker/internal/domain"
-	"github.com/Duke1616/ecmdb/internal/worker/internal/service"
+	"github.com/Duke1616/ecmdb/internal/execute/internal/domain"
+	"github.com/Duke1616/ecmdb/internal/execute/internal/service"
 	"github.com/Duke1616/ecmdb/pkg/ginx"
 	"github.com/gin-gonic/gin"
 )
@@ -18,7 +18,7 @@ func NewHandler(svc service.Service) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(server *gin.Engine) {
-	g := server.Group("/api/worker")
+	g := server.Group("/api/execute")
 	g.POST("/start", ginx.WrapBody[WorkerReq](h.StartWorker))
 	g.POST("/stop", ginx.WrapBody[WorkerReq](h.StopWorker))
 }

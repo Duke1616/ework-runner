@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 	"fmt"
+	"github.com/Duke1616/ecmdb/internal/execute/internal/domain"
 	"github.com/Duke1616/ecmdb/internal/runner"
-	"github.com/Duke1616/ecmdb/internal/worker/internal/domain"
 	"github.com/ecodeclub/mq-api"
 	"os/exec"
 )

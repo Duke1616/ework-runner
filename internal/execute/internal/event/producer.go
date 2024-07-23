@@ -11,5 +11,5 @@ type TaskWorkerEventProducer interface {
 }
 
 func NewTaskWorkerEventProducer(q mq.MQ) (TaskWorkerEventProducer, error) {
-	return mqx.NewGeneralProducer[WorkerEvent](q, TaskWorkerEventName)
+	return mqx.NewGeneralProducer[WorkerEvent](q, ResultWorkerEventName)
 }

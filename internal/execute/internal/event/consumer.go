@@ -4,32 +4,32 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/Duke1616/ecmdb/internal/worker/internal/domain"
-	"github.com/Duke1616/ecmdb/internal/worker/internal/service"
+	"github.com/Duke1616/ecmdb/internal/execute/internal/domain"
+	"github.com/Duke1616/ecmdb/internal/execute/internal/service"
 	"log/slog"
 
 	"github.com/ecodeclub/mq-api"
 )
 
-type WorkerConsumer struct {
+type ExecuteConsumer struct {
 	consumer mq.Consumer
 	svc      service.Service
 }
 
-func NewWorkerConsumer(q mq.MQ, svc service.Service, topic string) (*WorkerConsumer, error) {
-	groupID := "runner"
+func NewExecuteConsumer(q mq.MQ, svc service.Service, topic string) (*ExecuteConsumer, error) {
+	groupID := "worker"
 
 	consumer, err := q.Consumer(topic, groupID)
 	if err != nil {
 		return nil, err
 	}
-	return &WorkerConsumer{
+	return &ExecuteConsumer{
 		consumer: consumer,
 		svc:      svc,
 	}, nil
 }
 
-func (c *WorkerConsumer) Start(ctx context.Context) {
+func (c *ExecuteConsumer) Start(ctx context.Context) {
 	go func() {
 		for {
 			err := c.Consume(ctx)
@@ -40,7 +40,7 @@ func (c *WorkerConsumer) Start(ctx context.Context) {
 	}()
 }
 
-func (c *WorkerConsumer) Consume(ctx context.Context) error {
+func (c *ExecuteConsumer) Consume(ctx context.Context) error {
 	cm, err := c.consumer.Consume(ctx)
 	if err != nil {
 		return fmt.Errorf("获取消息失败: %w", err)
@@ -58,6 +58,6 @@ func (c *WorkerConsumer) Consume(ctx context.Context) error {
 	return err
 }
 
-func (c *WorkerConsumer) Stop(_ context.Context) error {
+func (c *ExecuteConsumer) Stop(_ context.Context) error {
 	return c.consumer.Close()
 }

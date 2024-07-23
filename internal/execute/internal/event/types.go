@@ -1,6 +1,6 @@
 package event
 
-const TaskWorkerEventName = "task_worker_events"
+const ResultWorkerEventName = "result_worker_events"
 
 type Status uint8
 
