@@ -7,23 +7,11 @@ func (s Status) ToUint8() uint8 {
 }
 
 const (
-	// RUNNING 启用
-	RUNNING Status = 1
-	// STOPPING 停止
-	STOPPING Status = 2
-)
-
-type Action uint8
-
-func (s Action) ToUint8() uint8 {
-	return uint8(s)
-}
-
-const (
-	// Register 注册
-	Register Action = 1
-	// UnRegister 注销
-	UnRegister Action = 2
+	// SUCCESS 成功
+	SUCCESS Status = 1
+	// FAILED 失败
+	failed
+	FAILED Status = 2
 )
 
 type Worker struct {
@@ -33,9 +21,8 @@ type Worker struct {
 	Status Status
 }
 
-type Message struct {
-	Name     string // 执行名称
-	UUID     string // 唯一标识
-	Language string // 语言
-	Code     string // 代码
+type ExecuteReceive struct {
+	TaskId   int64
+	Language string
+	Code     string
 }

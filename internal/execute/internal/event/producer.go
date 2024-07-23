@@ -6,10 +6,10 @@ import (
 	"github.com/ecodeclub/mq-api"
 )
 
-type TaskWorkerEventProducer interface {
-	Produce(ctx context.Context, evt WorkerEvent) error
+type TaskExecuteResultProducer interface {
+	Produce(ctx context.Context, evt ExecuteResultEvent) error
 }
 
-func NewTaskWorkerEventProducer(q mq.MQ) (TaskWorkerEventProducer, error) {
-	return mqx.NewGeneralProducer[WorkerEvent](q, ResultWorkerEventName)
+func NewExecuteResultEventProducer(q mq.MQ) (TaskExecuteResultProducer, error) {
+	return mqx.NewGeneralProducer[ExecuteResultEvent](q, ExecuteResultEventName)
 }

@@ -1,6 +1,6 @@
 package event
 
-const ResultWorkerEventName = "result_worker_events"
+const ExecuteResultEventName = "result_execute_events"
 
 type Status uint8
 
@@ -9,15 +9,21 @@ func (s Status) ToUint8() uint8 {
 }
 
 const (
-	// RUNNING 启用
-	RUNNING Status = 1
-	// STOPPING 停止
-	STOPPING Status = 2
+	// SUCCESS 成功
+	SUCCESS Status = 1
+	// FAILED 失败
+	failed
+	FAILED Status = 2
 )
 
-type WorkerEvent struct {
-	Name   string `json:"name"`
-	Desc   string `json:"desc"`
-	Topic  string `json:"topic"`
-	Status Status
+type ExecuteResultEvent struct {
+	TaskId int64  `json:"task_id"`
+	Result string `json:"result"`
+	Status Status `json:"status"`
+}
+
+type ExecuteReceive struct {
+	TaskId   int64  `json:"task_id"`
+	Language string `json:"language"`
+	Code     string `json:"code"`
 }

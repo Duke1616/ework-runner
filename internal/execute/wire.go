@@ -22,17 +22,18 @@ func InitModule(q mq.MQ, runnerSvc *runner.Module) (*Module, error) {
 	wire.Build(
 		ProviderSet,
 		initExecuteConsumer,
+		event.NewExecuteResultEventProducer,
 		wire.FieldsOf(new(*runner.Module), "Svc"),
 		wire.Struct(new(Module), "*"),
 	)
 	return new(Module), nil
 }
 
-func initExecuteConsumer(q mq.MQ, svc service.Service) *event.ExecuteConsumer {
+func initExecuteConsumer(q mq.MQ, svc service.Service, producer event.TaskExecuteResultProducer) *event.ExecuteConsumer {
 	var cfg registry.Instance
 	err := viper.UnmarshalKey("worker", &cfg)
 
-	consumer, err := event.NewExecuteConsumer(q, svc, cfg.Topic)
+	consumer, err := event.NewExecuteConsumer(q, svc, cfg.Topic, producer)
 	if err != nil {
 		panic(err)
 	}

@@ -24,7 +24,11 @@ func InitModule(q mq.MQ, runnerSvc *runner.Module) (*Module, error) {
 	serviceService := runnerSvc.Svc
 	service2 := service.NewService(q, serviceService)
 	handler := web.NewHandler(service2)
-	executeConsumer := initExecuteConsumer(q, service2)
+	taskExecuteResultProducer, err := event.NewExecuteResultEventProducer(q)
+	if err != nil {
+		return nil, err
+	}
+	executeConsumer := initExecuteConsumer(q, service2, taskExecuteResultProducer)
 	module := &Module{
 		Hdl: handler,
 		Svc: service2,
@@ -37,11 +41,11 @@ func InitModule(q mq.MQ, runnerSvc *runner.Module) (*Module, error) {
 
 var ProviderSet = wire.NewSet(service.NewService, web.NewHandler)
 
-func initExecuteConsumer(q mq.MQ, svc service.Service) *event.ExecuteConsumer {
+func initExecuteConsumer(q mq.MQ, svc service.Service, producer event.TaskExecuteResultProducer) *event.ExecuteConsumer {
 	var cfg registry.Instance
 	err := viper.UnmarshalKey("worker", &cfg)
 
-	consumer, err := event.NewExecuteConsumer(q, svc, cfg.Topic)
+	consumer, err := event.NewExecuteConsumer(q, svc, cfg.Topic, producer)
 	if err != nil {
 		panic(err)
 	}

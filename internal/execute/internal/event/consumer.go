@@ -13,18 +13,20 @@ import (
 
 type ExecuteConsumer struct {
 	consumer mq.Consumer
+	producer TaskExecuteResultProducer
 	svc      service.Service
 }
 
-func NewExecuteConsumer(q mq.MQ, svc service.Service, topic string) (*ExecuteConsumer, error) {
-	groupID := "worker"
-
+func NewExecuteConsumer(q mq.MQ, svc service.Service, topic string, producer TaskExecuteResultProducer) (
+	*ExecuteConsumer, error) {
+	groupID := "task_receive_execute"
 	consumer, err := q.Consumer(topic, groupID)
 	if err != nil {
 		return nil, err
 	}
 	return &ExecuteConsumer{
 		consumer: consumer,
+		producer: producer,
 		svc:      svc,
 	}, nil
 }
@@ -45,15 +47,22 @@ func (c *ExecuteConsumer) Consume(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("获取消息失败: %w", err)
 	}
-
-	var evt domain.Message
+	var evt ExecuteReceive
 	if err = json.Unmarshal(cm.Value, &evt); err != nil {
 		return fmt.Errorf("解析消息失败: %w", err)
 	}
 
-	if err = c.svc.Receive(ctx, evt); err != nil {
-		slog.Error("执行任务失败", err)
-	}
+	output, status, _ := c.svc.Receive(ctx, domain.ExecuteReceive{
+		TaskId:   evt.TaskId,
+		Language: evt.Language,
+		Code:     evt.Code,
+	})
+
+	err = c.producer.Produce(ctx, ExecuteResultEvent{
+		TaskId: evt.TaskId,
+		Result: output,
+		Status: Status(status),
+	})
 
 	return err
 }

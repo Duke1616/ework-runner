@@ -2,7 +2,6 @@ package execute
 
 import (
 	"github.com/Duke1616/ecmdb/internal/execute/internal/domain"
-	"github.com/Duke1616/ecmdb/internal/execute/internal/event"
 	"github.com/Duke1616/ecmdb/internal/execute/internal/service"
 	"github.com/Duke1616/ecmdb/internal/execute/internal/web"
 )
@@ -10,7 +9,5 @@ import (
 type Service = service.Service
 
 type Worker = domain.Worker
-
-type Event = event.TaskWorkerEventProducer
 
 type Handler = web.Handler
