@@ -30,8 +30,8 @@ func (h *Handler) Register(ctx *gin.Context, req RegisterRunnerReq) (ginx.Result
 
 func (h *Handler) toDomain(req RegisterRunnerReq) domain.Runner {
 	return domain.Runner{
-		TaskIdentifier: req.TaskIdentifier,
-		TaskSecret:     req.TaskSecret,
+		CodebookUid:    req.CodebookUid,
+		CodebookSecret: req.CodebookSecret,
 		Name:           req.Name,
 		Tags:           req.Tags,
 		Desc:           req.Desc,

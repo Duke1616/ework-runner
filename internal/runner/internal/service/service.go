@@ -31,9 +31,9 @@ func (s *service) Register(ctx context.Context, req domain.Runner) error {
 	}
 
 	err := s.producer.Produce(ctx, event.TaskRunnerEvent{
-		TaskIdentifier: req.TaskIdentifier,
-		TaskSecret:     req.TaskSecret,
-		WorkName:       cfg.Name,
+		CodebookUid:    req.CodebookUid,
+		CodebookSecret: req.CodebookSecret,
+		WorkerName:     cfg.Name,
 		Name:           req.Name,
 		Tags:           req.Tags,
 		Action:         event.REGISTER,
