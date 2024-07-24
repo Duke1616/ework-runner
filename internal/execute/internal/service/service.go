@@ -8,6 +8,7 @@ import (
 	"github.com/Duke1616/ecmdb/internal/runner"
 	"github.com/ecodeclub/mq-api"
 	"io"
+	"os"
 	"os/exec"
 	"sync"
 )
@@ -34,14 +35,22 @@ func (s *service) Receive(ctx context.Context, req domain.ExecuteReceive) (strin
 
 func isLanguage(language string, code string, args string) *exec.Cmd {
 	var cmd *exec.Cmd
+	// 创建临时文件
+	tempFile := createTempFile(code)
+	defer os.Remove(tempFile)
+
+	// 判断语言处理逻辑
 	switch language {
 	case "shell":
+
+		// 判断系统是否有bash、如果没有降级为sh
 		shell := "/bin/bash"
 		if _, err := exec.LookPath(shell); err != nil {
 			shell = "/bin/sh"
 		}
 
-		cmd = exec.Command(shell, "-c", code, args)
+		// 执行指令
+		cmd = exec.Command(shell, "-c", tempFile, args)
 	case "python":
 
 	}
@@ -49,6 +58,29 @@ func isLanguage(language string, code string, args string) *exec.Cmd {
 	return cmd
 }
 
+func createTempFile(code string) string {
+	// 创建临时文件
+	tmpFile, err := os.CreateTemp("", "scripts-*.sh")
+	if err != nil {
+		fmt.Println("Error creating temporary file:", err)
+	}
+
+	// 写入临时文件
+	content := []byte(code)
+	if _, err = tmpFile.Write(content); err != nil {
+		fmt.Println("Error writing to temporary file:", err)
+	}
+
+	// 关闭临时文件
+	if err = tmpFile.Close(); err != nil {
+		fmt.Println("Error closing temporary file:", err)
+	}
+
+	// 查看临时文件
+	fmt.Println("Temporary file created:", tmpFile.Name())
+
+	return tmpFile.Name()
+}
 func (s *service) combined(cmd *exec.Cmd) (string, domain.Status, error) {
 	// 运行命令并获取输出
 	output, err := cmd.CombinedOutput()
