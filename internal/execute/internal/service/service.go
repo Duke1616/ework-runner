@@ -8,6 +8,7 @@ import (
 	"github.com/Duke1616/ecmdb/internal/runner"
 	"github.com/ecodeclub/mq-api"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"sync"
@@ -35,14 +36,12 @@ func (s *service) Receive(ctx context.Context, req domain.ExecuteReceive) (strin
 
 func isLanguage(language string, code string, args string) *exec.Cmd {
 	var cmd *exec.Cmd
-	// 创建临时文件
-	tempFile := createTempFile(code)
-	defer os.Remove(tempFile)
+	// 创建临时文件, 为了兼容Python，没有bash -c
+	tempFile := createTempFile(code, language)
 
 	// 判断语言处理逻辑
 	switch language {
 	case "shell":
-
 		// 判断系统是否有bash、如果没有降级为sh
 		shell := "/bin/bash"
 		if _, err := exec.LookPath(shell); err != nil {
@@ -50,7 +49,7 @@ func isLanguage(language string, code string, args string) *exec.Cmd {
 		}
 
 		// 执行指令
-		cmd = exec.Command(shell, "-c", tempFile, args)
+		cmd = exec.Command(shell, tempFile, args)
 	case "python":
 
 	}
@@ -58,36 +57,56 @@ func isLanguage(language string, code string, args string) *exec.Cmd {
 	return cmd
 }
 
-func createTempFile(code string) string {
+func createTempFile(code string, language string) string {
+	// 判断文件后缀
+	fileName := ""
+	switch language {
+	case "shell":
+		fileName = "scripts-*.sh"
+	case "python":
+		fileName = "scripts-*.py"
+	}
+
 	// 创建临时文件
-	tmpFile, err := os.CreateTemp("", "scripts-*.sh")
+	tmpFile, err := os.CreateTemp("", fileName)
 	if err != nil {
-		fmt.Println("Error creating temporary file:", err)
+		slog.Error("creating temporary file:", slog.Any("错误信息", err))
 	}
 
 	// 写入临时文件
 	content := []byte(code)
 	if _, err = tmpFile.Write(content); err != nil {
-		fmt.Println("Error writing to temporary file:", err)
+		slog.Error("writing to temporary file:", slog.Any("错误信息", err))
 	}
 
 	// 关闭临时文件
 	if err = tmpFile.Close(); err != nil {
-		fmt.Println("Error closing temporary file:", err)
+		slog.Error("closing temporary file:", slog.Any("错误信息", err))
 	}
 
-	// 查看临时文件
-	fmt.Println("Temporary file created:", tmpFile.Name())
+	// 设置临时文件权限为可执行
+	if err = os.Chmod(tmpFile.Name(), 0700); err != nil {
+		slog.Error("setting temporary file permissions:", slog.Any("错误信息", err))
+	}
 
 	return tmpFile.Name()
 }
+
 func (s *service) combined(cmd *exec.Cmd) (string, domain.Status, error) {
 	// 运行命令并获取输出
 	output, err := cmd.CombinedOutput()
 	if err != nil {
+		// 删除临时文件
+		if tempFile := cmd.Args[1]; tempFile != "" {
+			os.Remove(tempFile)
+		}
 		return string(output), domain.FAILED, err
 	}
 
+	// 删除临时文件
+	if tempFile := cmd.Args[1]; tempFile != "" {
+		os.Remove(tempFile)
+	}
 	return string(output), domain.SUCCESS, err
 }
 
