@@ -58,18 +58,26 @@ func (c *ExecuteConsumer) Consume(ctx context.Context) error {
 		return err
 	}
 
-	output, status, _ := c.svc.Receive(ctx, domain.ExecuteReceive{
+	output, status, err := c.svc.Receive(ctx, domain.ExecuteReceive{
 		TaskId:   evt.TaskId,
 		Language: evt.Language,
 		Code:     evt.Code,
 		Args:     string(args),
 	})
 
+	if err != nil {
+		slog.Error("执行任务失败", slog.Any("错误", err), slog.Any("任务ID", evt.TaskId))
+	}
+
 	err = c.producer.Produce(ctx, ExecuteResultEvent{
 		TaskId: evt.TaskId,
 		Result: output,
 		Status: Status(status),
 	})
+
+	if err != nil {
+		slog.Error("发送消息队列失败", slog.Any("错误", err), slog.Any("任务ID", evt.TaskId))
+	}
 
 	return err
 }
