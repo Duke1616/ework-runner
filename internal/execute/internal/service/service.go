@@ -36,7 +36,7 @@ func (s *service) Receive(ctx context.Context, req domain.ExecuteReceive) (strin
 
 func isLanguage(language string, code string, args string) *exec.Cmd {
 	var cmd *exec.Cmd
-	// 创建临时文件, 为了兼容Python，没有bash -c
+	// 创建临时文件
 	tempFile := createTempFile(code, language)
 
 	// 判断语言处理逻辑
@@ -51,7 +51,7 @@ func isLanguage(language string, code string, args string) *exec.Cmd {
 		// 执行指令
 		cmd = exec.Command(shell, tempFile, args)
 	case "python":
-
+		cmd = exec.Command("python", tempFile, args)
 	}
 
 	return cmd
