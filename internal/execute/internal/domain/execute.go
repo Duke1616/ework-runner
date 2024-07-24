@@ -25,4 +25,5 @@ type ExecuteReceive struct {
 	TaskId   int64
 	Language string
 	Code     string
+	Args     string
 }

@@ -52,10 +52,17 @@ func (c *ExecuteConsumer) Consume(ctx context.Context) error {
 		return fmt.Errorf("解析消息失败: %w", err)
 	}
 
+	// 封转成 Json 数据
+	args, err := json.Marshal(evt.Args)
+	if err != nil {
+		return err
+	}
+
 	output, status, _ := c.svc.Receive(ctx, domain.ExecuteReceive{
 		TaskId:   evt.TaskId,
 		Language: evt.Language,
 		Code:     evt.Code,
+		Args:     string(args),
 	})
 
 	err = c.producer.Produce(ctx, ExecuteResultEvent{

@@ -29,10 +29,10 @@ func NewService(mq mq.MQ, runnerSvc runner.Service) Service {
 }
 
 func (s *service) Receive(ctx context.Context, req domain.ExecuteReceive) (string, domain.Status, error) {
-	return s.combined(isLanguage(req.Language, req.Code))
+	return s.combined(isLanguage(req.Language, req.Code, req.Args))
 }
 
-func isLanguage(language string, code string) *exec.Cmd {
+func isLanguage(language string, code string, args string) *exec.Cmd {
 	var cmd *exec.Cmd
 	switch language {
 	case "shell":
@@ -41,12 +41,7 @@ func isLanguage(language string, code string) *exec.Cmd {
 			shell = "/bin/sh"
 		}
 
-		if language == "shell" {
-			cmd = exec.Command(shell, "-c", code)
-		} else {
-			// 执行其他语言的脚本
-			cmd = exec.Command(language, code)
-		}
+		cmd = exec.Command(shell, "-c", code, args)
 	case "python":
 
 	}
