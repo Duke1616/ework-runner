@@ -22,8 +22,14 @@ type Worker struct {
 }
 
 type ExecuteReceive struct {
-	TaskId   int64
-	Language string
-	Code     string
-	Args     string
+	TaskId    int64
+	Language  string
+	Code      string
+	Args      string
+	Variables string
+}
+
+type Variable struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }

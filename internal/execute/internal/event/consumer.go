@@ -59,10 +59,11 @@ func (c *ExecuteConsumer) Consume(ctx context.Context) error {
 	}
 
 	output, status, err := c.svc.Receive(ctx, domain.ExecuteReceive{
-		TaskId:   evt.TaskId,
-		Language: evt.Language,
-		Code:     evt.Code,
-		Args:     string(args),
+		TaskId:    evt.TaskId,
+		Language:  evt.Language,
+		Code:      evt.Code,
+		Args:      string(args),
+		Variables: evt.Variables,
 	})
 
 	if err != nil {

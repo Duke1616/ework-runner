@@ -3,6 +3,7 @@ package service
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/Duke1616/ecmdb/internal/execute/internal/domain"
 	"github.com/Duke1616/ecmdb/internal/runner"
@@ -31,13 +32,16 @@ func NewService(mq mq.MQ, runnerSvc runner.Service) Service {
 }
 
 func (s *service) Receive(ctx context.Context, req domain.ExecuteReceive) (string, domain.Status, error) {
-	return s.combined(isLanguage(req.Language, req.Code, req.Args))
+	return s.combined(isLanguage(req.Language, req.Code, req.Args, req.Variables))
 }
 
-func isLanguage(language string, code string, args string) *exec.Cmd {
+func isLanguage(language, code, args, variables string) *exec.Cmd {
 	var cmd *exec.Cmd
 	// 创建临时文件
 	tempFile := createTempFile(code, language)
+
+	// 变量临时文件
+	varsFile := createVariablesTempFile(variables)
 
 	// 判断语言处理逻辑
 	switch language {
@@ -49,12 +53,46 @@ func isLanguage(language string, code string, args string) *exec.Cmd {
 		}
 
 		// 执行指令
-		cmd = exec.Command(shell, tempFile, args)
+		cmd = exec.Command(shell, tempFile, args, varsFile)
 	case "python":
-		cmd = exec.Command("python", tempFile, args)
+		cmd = exec.Command("python", tempFile, args, varsFile)
 	}
 
 	return cmd
+}
+
+func createVariablesTempFile(vars string) string {
+	// 用于存储解析后的 JSON 数据
+	var variables []domain.Variable
+
+	// 解析 JSON 数据
+	json.Unmarshal([]byte(vars), &variables)
+
+	// 打开文件用于写入
+	tmpFile, err := os.CreateTemp("", "scripts-*.vars")
+	if err != nil {
+		slog.Error("creating temporary file:", slog.Any("错误信息", err))
+	}
+
+	// 遍历数据并写入文件
+	for _, item := range variables {
+		_, err = tmpFile.WriteString(fmt.Sprintf("%s=%s\n", item.Key, item.Value))
+		if err != nil {
+			slog.Error("writing to temporary file:", slog.Any("错误信息", err))
+		}
+	}
+
+	// 关闭临时文件
+	if err = tmpFile.Close(); err != nil {
+		slog.Error("closing temporary file:", slog.Any("错误信息", err))
+	}
+
+	// 设置临时文件权限为可执行
+	if err = os.Chmod(tmpFile.Name(), 0700); err != nil {
+		slog.Error("setting temporary file permissions:", slog.Any("错误信息", err))
+	}
+
+	return tmpFile.Name()
 }
 
 func createTempFile(code string, language string) string {
@@ -96,18 +134,23 @@ func (s *service) combined(cmd *exec.Cmd) (string, domain.Status, error) {
 	// 运行命令并获取输出
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		// 删除临时文件
-		if tempFile := cmd.Args[1]; tempFile != "" {
-			os.Remove(tempFile)
-		}
+		removeTempFile(cmd)
 		return string(output), domain.FAILED, err
 	}
 
+	removeTempFile(cmd)
+	return string(output), domain.SUCCESS, err
+}
+
+func removeTempFile(cmd *exec.Cmd) {
 	// 删除临时文件
 	if tempFile := cmd.Args[1]; tempFile != "" {
 		os.Remove(tempFile)
 	}
-	return string(output), domain.SUCCESS, err
+
+	if tempFile := cmd.Args[3]; tempFile != "" {
+		os.Remove(tempFile)
+	}
 }
 
 // 实时输出
