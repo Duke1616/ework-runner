@@ -55,7 +55,7 @@ func isLanguage(language, code, args, variables string) *exec.Cmd {
 		// 执行指令
 		cmd = exec.Command(shell, tempFile, args, varsFile)
 	case "python":
-		cmd = exec.Command("python", tempFile, args, varsFile)
+		cmd = exec.Command("python", tempFile, args, variables)
 	}
 
 	return cmd
