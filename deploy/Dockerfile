@@ -6,7 +6,7 @@ ENV GOPROXY="https://goproxy.cn,direct"
 # ENV GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 RUN go mod tidy
 RUN go build -a -o dist/ework-runner -ldflags="-w -s" main.go
-FROM alpine:latest as deploy
+FROM python:3.9.19-slim as deploy
 WORKDIR /app
 COPY --from=build /app/dist/ework-runner .
 EXPOSE 8000
