@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <module type="WEB_MODULE" version="4">
+  <component name="FacetManager">
+    <facet type="Python" name="Python facet">
+      <configuration sdkName="ecmdb" />
+    </facet>
+  </component>
   <component name="Go" enabled="true">
     <buildTags>
       <option name="customFlags">
@@ -13,5 +18,6 @@
     <content url="file://$MODULE_DIR$" />
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="library" name="ecmdb interpreter library" level="application" />
   </component>
 </module>
