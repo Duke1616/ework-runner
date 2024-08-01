@@ -1,2 +1,7 @@
 config/prod.toml
 config/prod.yaml
+
+third_party/base/main.py
+third_party/base/__pycache__
+
+.idea
