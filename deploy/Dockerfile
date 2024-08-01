@@ -9,7 +9,7 @@ RUN go build -a -o dist/ework-runner -ldflags="-w -s" main.go
 FROM python:3.12.4-slim as deploy
 WORKDIR /app
 COPY --from=build /app/dist/ework-runner .
-COPY ./third_party .
+COPY ./third_party ./third_party
 RUN pip install --upgrade pip -i https://pypi.tuna.tsinghua.edu.cn/simple --no-cache-dir \
     && pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -r /app/third_party/requirements.txt
 EXPOSE 8000
