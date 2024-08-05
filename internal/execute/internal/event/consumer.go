@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"github.com/Duke1616/ecmdb/internal/execute/internal/domain"
 	"github.com/Duke1616/ecmdb/internal/execute/internal/service"
-	"log/slog"
-
 	"github.com/ecodeclub/mq-api"
+	"github.com/gotomicro/ego/core/elog"
 )
 
 type ExecuteConsumer struct {
 	consumer mq.Consumer
 	producer TaskExecuteResultProducer
 	svc      service.Service
+	logger   *elog.Component
 }
 
 func NewExecuteConsumer(q mq.MQ, svc service.Service, topic string, producer TaskExecuteResultProducer) (
@@ -28,6 +28,7 @@ func NewExecuteConsumer(q mq.MQ, svc service.Service, topic string, producer Tas
 		consumer: consumer,
 		producer: producer,
 		svc:      svc,
+		logger:   elog.DefaultLogger,
 	}, nil
 }
 
@@ -36,7 +37,7 @@ func (c *ExecuteConsumer) Start(ctx context.Context) {
 		for {
 			err := c.Consume(ctx)
 			if err != nil {
-				slog.Error("同步事件失败", err)
+				c.logger.Error("同步事件失败", elog.Any("错误信息: ", err))
 			}
 		}
 	}()
@@ -58,6 +59,8 @@ func (c *ExecuteConsumer) Consume(ctx context.Context) error {
 		return err
 	}
 
+	c.logger.Info("开始执行任务", elog.Int64("任务ID", evt.TaskId))
+
 	output, status, err := c.svc.Receive(ctx, domain.ExecuteReceive{
 		TaskId:    evt.TaskId,
 		Language:  evt.Language,
@@ -67,7 +70,9 @@ func (c *ExecuteConsumer) Consume(ctx context.Context) error {
 	})
 
 	if err != nil {
-		slog.Error("执行任务失败", slog.Any("错误", err), slog.Any("任务ID", evt.TaskId))
+		c.logger.Error("执行任务失败", elog.Any("错误", err), elog.Any("任务ID", evt.TaskId))
+	} else {
+		c.logger.Info("执行任务完成", elog.Int64("任务ID", evt.TaskId))
 	}
 
 	err = c.producer.Produce(ctx, ExecuteResultEvent{
@@ -77,7 +82,7 @@ func (c *ExecuteConsumer) Consume(ctx context.Context) error {
 	})
 
 	if err != nil {
-		slog.Error("发送消息队列失败", slog.Any("错误", err), slog.Any("任务ID", evt.TaskId))
+		c.logger.Error("发送消息队列失败", elog.Any("错误", err), elog.Any("任务ID", evt.TaskId))
 	}
 
 	return err
