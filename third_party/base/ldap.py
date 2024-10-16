@@ -1,11 +1,12 @@
 from ldap3 import Server, Connection, ALL, SUBTREE, DEREF_ALWAYS, ObjectDef, AttrDef
 import logging
+
 logger = logging.getLogger(__name__)
 
 
 class Ldap:
     def __init__(self, base_dn: str, url: str):
-        self.conn = Connection
+        self.conn = None
         self.base_dn = base_dn
         self.url = url
         self.search_user_filter = '(&(objectclass=person)(sAMAccountName={}))'
@@ -24,6 +25,20 @@ class Ldap:
     def unbind(self):
         self.conn.unbind()
 
+    def find_or_create_user(self, account_name: str, username: str, ou: str, default_pwd: str):
+        try:
+            if self.search_user(account_name):
+                print(f"用户 {account_name} 已经存在, 无需创建")
+                return None
+            else:
+                # 执行创建用户的逻辑
+                self.create_user(account_name, username, ou, default_pwd)
+                print(f"用户 {account_name} 创建成功")
+                return None
+        except Exception as e:
+            print(f"创建用户 {account_name} 失败，错误信息: {str(e)}")
+            return e
+
     def search_user(self, account_name: str):
         formatted_filter = self.search_user_filter.format(account_name)
         self.conn.search(search_base=self.base_dn, search_filter=formatted_filter,
@@ -39,10 +54,6 @@ class Ldap:
         return self.conn.entries
 
     def create_user(self, account_name: str, username: str, ou: str, default_pwd: str):
-        # 如果账号存在，则直接返回
-        if self.search_user(account_name):
-            return
-
         # 如果名字4字以上，一律按照阜新复姓 上官、独孤
         if len(username) > 3:
             compound_family_name = username[:2]
@@ -70,18 +81,13 @@ class Ldap:
 
         # 添加用户
         user_dn = 'cn={},ou={},{}'.format(username, ou, self.base_dn)
-        print(user_dn)
-        result = self.conn.add(user_dn, attributes=user_attributes)
+        result = self.conn.add(dn=user_dn, attributes=user_attributes)
 
         # 检查添加结果
         if result:
             self.modify_password(user_dn, default_pwd)
         else:
-            error_message = self.conn.result['message']
-            print(f"用户添加失败，, 错误消息：{error_message}")
-
-        # 关闭连接
-        self.unbind()
+            return self.conn.result['message']
 
     def add_members_to_groups(self, user_dn, group_dn):
         # 不处理错误情况
@@ -98,7 +104,7 @@ class Ldap:
 
         result = self.conn.modify(user_dn, user_attributes)
         if result:
-            print("修改用户成功")
+            print("修改用户密码成功")
         else:
             error_message = self.conn.result['message']
             print(f"用户添加密码，, 错误消息：{error_message}")

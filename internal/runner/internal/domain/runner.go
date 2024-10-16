@@ -7,5 +7,4 @@ type Runner struct {
 	Desc           string   // 详细信息
 	CodebookUid    string   // 任务模版唯一标识
 	CodebookSecret string   // 任务模版密钥
-
 }

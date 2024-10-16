@@ -66,7 +66,10 @@ func createVariablesTempFile(vars string) string {
 	var variables []domain.Variable
 
 	// 解析 JSON 数据
-	json.Unmarshal([]byte(vars), &variables)
+	err := json.Unmarshal([]byte(vars), &variables)
+	if err != nil {
+		slog.Error("unmarshal error:", slog.Any("错误信息", err))
+	}
 
 	// 打开文件用于写入
 	tmpFile, err := os.CreateTemp("", "scripts-*.vars")
