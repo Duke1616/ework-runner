@@ -4,6 +4,9 @@ config/prod.yaml
 third_party/base/main.py
 third_party/base/test.json
 third_party/base/__pycache__
+third_party/private
+main.py
+main.py
 
 .logs/
 .idea

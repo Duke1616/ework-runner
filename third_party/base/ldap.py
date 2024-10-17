@@ -25,14 +25,14 @@ class Ldap:
     def unbind(self):
         self.conn.unbind()
 
-    def find_or_create_user(self, account_name: str, username: str, ou: str, default_pwd: str):
+    def find_or_create_user(self, account_name: str, username: str, ou: str, title: str, default_pwd: str):
         try:
             if self.search_user(account_name):
                 print(f"用户 {account_name} 已经存在, 无需创建")
                 return None
             else:
                 # 执行创建用户的逻辑
-                self.create_user(account_name, username, ou, default_pwd)
+                self.create_user(account_name, username, ou, title, default_pwd)
                 print(f"用户 {account_name} 创建成功")
                 return None
         except Exception as e:
@@ -53,7 +53,7 @@ class Ldap:
 
         return self.conn.entries
 
-    def create_user(self, account_name: str, username: str, ou: str, default_pwd: str):
+    def create_user(self, account_name: str, username: str, ou: str, title: str, default_pwd: str):
         # 如果名字4字以上，一律按照阜新复姓 上官、独孤
         if len(username) > 3:
             compound_family_name = username[:2]
@@ -73,6 +73,7 @@ class Ldap:
             'givenName': given_name,
             'name': account_name,
             'mail': mail,
+            'title': title,
             'userPrincipalName': mail,
             'SAMAccountName': account_name,
             'displayName': username,
@@ -104,7 +105,7 @@ class Ldap:
 
         result = self.conn.modify(user_dn, user_attributes)
         if result:
-            print("修改用户密码成功")
+            print("初始化用户密码成功")
         else:
             error_message = self.conn.result['message']
             print(f"用户添加密码，, 错误消息：{error_message}")
