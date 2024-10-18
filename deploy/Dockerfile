@@ -12,5 +12,6 @@ ENV EGO_DEBUG=true
 COPY --from=build /app/dist/ework-runner .
 COPY ./third_party ./third_party
 RUN pip install --upgrade pip -i https://pypi.tuna.tsinghua.edu.cn/simple --no-cache-dir \
-    && pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -r /app/third_party/requirements.txt
+    && pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -r /app/third_party/requirements.txt \
+    && apt-get update && apt-get install vim -y
 EXPOSE 8000

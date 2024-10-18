@@ -72,7 +72,7 @@ func createVariablesTempFile(vars string) string {
 	}
 
 	// 打开文件用于写入
-	tmpFile, err := os.CreateTemp("", "scripts-*.vars")
+	tmpFile, err := os.CreateTemp("/app", "scripts-*.vars")
 	if err != nil {
 		slog.Error("creating temporary file:", slog.Any("错误信息", err))
 	}
@@ -109,7 +109,7 @@ func createTempFile(code string, language string) string {
 	}
 
 	// 创建临时文件
-	tmpFile, err := os.CreateTemp("", fileName)
+	tmpFile, err := os.CreateTemp("/app", fileName)
 	if err != nil {
 		slog.Error("creating temporary file:", slog.Any("错误信息", err))
 	}
