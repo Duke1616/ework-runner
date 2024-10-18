@@ -12,8 +12,12 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
+	"time"
 )
+
+const TEMPDIR = "/app"
 
 type Service interface {
 	Receive(ctx context.Context, req domain.ExecuteReceive) (string, domain.Status, error)
@@ -32,13 +36,13 @@ func NewService(mq mq.MQ, runnerSvc runner.Service) Service {
 }
 
 func (s *service) Receive(ctx context.Context, req domain.ExecuteReceive) (string, domain.Status, error) {
-	return s.combined(isLanguage(req.Language, req.Code, req.Args, req.Variables))
+	return s.combined(isLanguage(req.Language, req.Code, req.Args, req.Variables), req.TaskId)
 }
 
 func isLanguage(language, code, args, variables string) *exec.Cmd {
 	var cmd *exec.Cmd
 	// 创建临时文件
-	tempFile := createTempFile(code, language)
+	codeFile := createCodeTempFile(code, language)
 
 	// 变量临时文件
 	varsFile := createVariablesTempFile(variables)
@@ -53,9 +57,9 @@ func isLanguage(language, code, args, variables string) *exec.Cmd {
 		}
 
 		// 执行指令
-		cmd = exec.Command(shell, tempFile, args, varsFile)
+		cmd = exec.Command(shell, codeFile, args, varsFile)
 	case "python":
-		cmd = exec.Command("python", tempFile, args, variables)
+		cmd = exec.Command("python", codeFile, args, variables)
 	}
 
 	return cmd
@@ -72,7 +76,7 @@ func createVariablesTempFile(vars string) string {
 	}
 
 	// 打开文件用于写入
-	tmpFile, err := os.CreateTemp("/app", "scripts-*.vars")
+	tmpFile, err := os.CreateTemp(TEMPDIR, "scripts-*.vars")
 	if err != nil {
 		slog.Error("creating temporary file:", slog.Any("错误信息", err))
 	}
@@ -98,7 +102,7 @@ func createVariablesTempFile(vars string) string {
 	return tmpFile.Name()
 }
 
-func createTempFile(code string, language string) string {
+func createCodeTempFile(code string, language string) string {
 	// 判断文件后缀
 	fileName := ""
 	switch language {
@@ -109,7 +113,7 @@ func createTempFile(code string, language string) string {
 	}
 
 	// 创建临时文件
-	tmpFile, err := os.CreateTemp("/app", fileName)
+	tmpFile, err := os.CreateTemp(TEMPDIR, fileName)
 	if err != nil {
 		slog.Error("creating temporary file:", slog.Any("错误信息", err))
 	}
@@ -133,26 +137,65 @@ func createTempFile(code string, language string) string {
 	return tmpFile.Name()
 }
 
-func (s *service) combined(cmd *exec.Cmd) (string, domain.Status, error) {
+func (s *service) combined(cmd *exec.Cmd, taskId int64) (string, domain.Status, error) {
 	// 运行命令并获取输出
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		removeTempFile(cmd)
+		moveTempFile(cmd, taskId)
 		return string(output), domain.FAILED, err
 	}
 
-	removeTempFile(cmd)
+	moveTempFile(cmd, taskId)
 	return string(output), domain.SUCCESS, err
+}
+
+func moveTempFile(cmd *exec.Cmd, taskId int64) {
+	// 获取当前时间到秒
+	currentTime := time.Now().Format("20060102_150405")
+
+	// 拼接新的文件名
+	newFileName := fmt.Sprintf("%d_%s", taskId, currentTime)
+
+	// 获取临时文件路径并移动
+	if tempFile := cmd.Args[1]; tempFile != "" {
+		// 新的目标文件路径
+		newFilePath := filepath.Join(TEMPDIR, newFileName+filepath.Ext(tempFile))
+
+		// 移动文件
+		err := os.Rename(tempFile, newFilePath)
+		if err != nil {
+			fmt.Printf("移动文件 %s 失败: %v\n", tempFile, err)
+			return
+		}
+	}
+
+	if varFile := cmd.Args[2]; varFile != "" {
+		// 新的目标文件路径
+		newVarFilePath := filepath.Join(TEMPDIR, newFileName+filepath.Ext(varFile))
+
+		// 移动文件
+		err := os.Rename(varFile, newVarFilePath)
+		if err != nil {
+			fmt.Printf("移动文件 %s 失败: %v\n", varFile, err)
+			return
+		}
+	}
 }
 
 func removeTempFile(cmd *exec.Cmd) {
 	// 删除临时文件
 	if tempFile := cmd.Args[1]; tempFile != "" {
-		os.Remove(tempFile)
+		err := os.Remove(tempFile)
+		if err != nil {
+			return
+		}
 	}
 
-	if tempFile := cmd.Args[3]; tempFile != "" {
-		os.Remove(tempFile)
+	if varFile := cmd.Args[3]; varFile != "" {
+		err := os.Remove(varFile)
+		if err != nil {
+			return
+		}
 	}
 }
 

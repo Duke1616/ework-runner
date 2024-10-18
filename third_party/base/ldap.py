@@ -1,4 +1,4 @@
-from ldap3 import Server, Connection, ALL, SUBTREE, DEREF_ALWAYS, ObjectDef, AttrDef
+from ldap3 import Server, Connection, ALL, SUBTREE, DEREF_ALWAYS
 import logging
 
 logger = logging.getLogger(__name__)
@@ -33,11 +33,10 @@ class Ldap:
             else:
                 # 执行创建用户的逻辑
                 self.create_user(account_name, username, ou, title, default_pwd)
-                print(f"用户 {account_name} 创建成功")
                 return None
         except Exception as e:
-            print(f"创建用户 {account_name} 失败，错误信息: {str(e)}")
-            return e
+            error_message = f"用户名 => [{account_name}]，错误信息 => {str(e)}"
+            return Exception(error_message)
 
     def search_user(self, account_name: str):
         formatted_filter = self.search_user_filter.format(account_name)
@@ -87,8 +86,9 @@ class Ldap:
         # 检查添加结果
         if result:
             self.modify_password(user_dn, default_pwd)
+            print(f"用户 {account_name} 创建成功")
         else:
-            return self.conn.result['message']
+            raise Exception(self.conn.result['message'])
 
     def add_members_to_groups(self, user_dn, group_dn):
         # 不处理错误情况
@@ -107,5 +107,4 @@ class Ldap:
         if result:
             print("初始化用户密码成功")
         else:
-            error_message = self.conn.result['message']
-            print(f"用户添加密码，, 错误消息：{error_message}")
+            raise Exception(f"初始化用户密码失败: {self.conn.result['message']}")
