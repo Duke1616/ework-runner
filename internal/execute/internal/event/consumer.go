@@ -8,6 +8,7 @@ import (
 	"github.com/Duke1616/ecmdb/internal/execute/internal/service"
 	"github.com/ecodeclub/mq-api"
 	"github.com/gotomicro/ego/core/elog"
+	"strings"
 )
 
 type ExecuteConsumer struct {
@@ -76,9 +77,10 @@ func (c *ExecuteConsumer) Consume(ctx context.Context) error {
 	}
 
 	err = c.producer.Produce(ctx, ExecuteResultEvent{
-		TaskId: evt.TaskId,
-		Result: output,
-		Status: Status(status),
+		TaskId:     evt.TaskId,
+		WantResult: c.wantResult(output),
+		Result:     output,
+		Status:     Status(status),
 	})
 
 	if err != nil {
@@ -86,6 +88,33 @@ func (c *ExecuteConsumer) Consume(ctx context.Context) error {
 	}
 
 	return err
+}
+
+func (c *ExecuteConsumer) wantResult(output string) string {
+	outputStr := strings.TrimSpace(output)
+	// 检查输出是否为空
+	if outputStr == "" {
+		c.logger.Info("No output from command.")
+	}
+
+	// 分割输出为多行并过滤掉空行
+	lines := strings.Split(outputStr, "\n")
+	var validLines []string
+	for _, line := range lines {
+		if strings.TrimSpace(line) != "" {
+			validLines = append(validLines, line)
+		}
+	}
+
+	// 检查 validLines 是否为空
+	if len(validLines) == 0 {
+		c.logger.Info("No valid output lines.")
+	}
+
+	// 获取最后一行
+	lastLine := validLines[len(validLines)-1]
+
+	return lastLine
 }
 
 func (c *ExecuteConsumer) Stop(_ context.Context) error {

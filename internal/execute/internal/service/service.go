@@ -1,23 +1,20 @@
 package service
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/Duke1616/ecmdb/internal/execute/internal/domain"
 	"github.com/Duke1616/ecmdb/internal/runner"
 	"github.com/ecodeclub/mq-api"
-	"io"
 	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sync"
 	"time"
 )
 
-const TEMPDIR = "/app"
+const TEMPDIR = "./app"
 
 type Service interface {
 	Receive(ctx context.Context, req domain.ExecuteReceive) (string, domain.Status, error)
@@ -151,105 +148,47 @@ func (s *service) combined(cmd *exec.Cmd, taskId int64) (string, domain.Status, 
 
 func moveTempFile(cmd *exec.Cmd, taskId int64) {
 	// 获取当前时间到秒
-	currentTime := time.Now().Format("20060102_150405")
+	currentTime := time.Now().Format("20060102150405")
 
-	// 拼接新的文件名
-	newFileName := fmt.Sprintf("%d_%s", taskId, currentTime)
+	// 创建以 taskId 和当前时间为名的新目录
+	dirName := fmt.Sprintf("%d_%s", taskId, currentTime)
+	newDirPath := filepath.Join(TEMPDIR, dirName)
 
-	// 获取临时文件路径并移动
+	// 创建目录
+	if err := os.MkdirAll(newDirPath, os.ModePerm); err != nil {
+		fmt.Printf("创建目录 %s 失败: %v\n", newDirPath, err)
+		return
+	}
+
+	// 移动临时文件
 	if tempFile := cmd.Args[1]; tempFile != "" {
-		// 新的目标文件路径
-		newFilePath := filepath.Join(TEMPDIR, newFileName+filepath.Ext(tempFile))
+		newFilePath := filepath.Join(newDirPath, dirName+filepath.Ext(tempFile))
 
 		// 移动文件
-		err := os.Rename(tempFile, newFilePath)
-		if err != nil {
+		if err := os.Rename(tempFile, newFilePath); err != nil {
 			fmt.Printf("移动文件 %s 失败: %v\n", tempFile, err)
 			return
 		}
 	}
 
-	if varFile := cmd.Args[2]; varFile != "" {
-		// 新的目标文件路径
-		newVarFilePath := filepath.Join(TEMPDIR, newFileName+filepath.Ext(varFile))
+	if args := cmd.Args[2]; args != "" {
+		newVarFilePath := filepath.Join(newDirPath, dirName+filepath.Ext(args)+".args")
 
+		// 将内容写入新文件
+		content := []byte(args)
+		if err := os.WriteFile(newVarFilePath, content, 0644); err != nil {
+			fmt.Printf("写入文件 %s 失败: %v\n", newVarFilePath, err)
+			return
+		}
+	}
+
+	// 移动变量文件
+	if varFile := cmd.Args[3]; varFile != "" {
+		newVarFilePath := filepath.Join(newDirPath, dirName+filepath.Ext(varFile))
 		// 移动文件
-		err := os.Rename(varFile, newVarFilePath)
-		if err != nil {
+		if err := os.Rename(varFile, newVarFilePath); err != nil {
 			fmt.Printf("移动文件 %s 失败: %v\n", varFile, err)
 			return
 		}
 	}
-}
-
-func removeTempFile(cmd *exec.Cmd) {
-	// 删除临时文件
-	if tempFile := cmd.Args[1]; tempFile != "" {
-		err := os.Remove(tempFile)
-		if err != nil {
-			return
-		}
-	}
-
-	if varFile := cmd.Args[3]; varFile != "" {
-		err := os.Remove(varFile)
-		if err != nil {
-			return
-		}
-	}
-}
-
-// 实时输出
-func stdoutPipe(cmd *exec.Cmd) error {
-	var wg sync.WaitGroup
-	wg.Add(2)
-	//捕获标准输出
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return err
-	}
-	readout := bufio.NewReader(stdout)
-	go func() {
-		defer wg.Done()
-		getOutput(readout)
-	}()
-
-	//捕获标准错误
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return err
-	}
-	reader := bufio.NewReader(stderr)
-	go func() {
-		defer wg.Done()
-		getOutput(reader)
-	}()
-
-	//执行命令
-	if err = cmd.Run(); err != nil {
-		return err
-	}
-
-	wg.Wait()
-
-	return nil
-}
-
-func getOutput(reader *bufio.Reader) {
-	var sumOutput string
-	outputBytes := make([]byte, 200)
-	for {
-		n, err := reader.Read(outputBytes)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			fmt.Println(err)
-			sumOutput += err.Error()
-		}
-		output := string(outputBytes[:n])
-		fmt.Print(output)
-		sumOutput += output
-	}
-	return
 }
