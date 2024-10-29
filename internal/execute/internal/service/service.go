@@ -41,9 +41,6 @@ func isLanguage(language, code, args, variables string) *exec.Cmd {
 	// 创建临时文件
 	codeFile := createCodeTempFile(code, language)
 
-	// 变量临时文件
-	varsFile := createVariablesTempFile(variables)
-
 	// 判断语言处理逻辑
 	switch language {
 	case "shell":
@@ -52,6 +49,9 @@ func isLanguage(language, code, args, variables string) *exec.Cmd {
 		if _, err := exec.LookPath(shell); err != nil {
 			shell = "/bin/sh"
 		}
+
+		// 变量临时文件
+		varsFile := createVariablesTempFile(variables)
 
 		// 执行指令
 		cmd = exec.Command(shell, codeFile, args, varsFile)
@@ -162,33 +162,37 @@ func moveTempFile(cmd *exec.Cmd, taskId int64) {
 
 	// 移动临时文件
 	if tempFile := cmd.Args[1]; tempFile != "" {
-		newFilePath := filepath.Join(newDirPath, "scripts"+filepath.Ext(tempFile))
-
-		// 移动文件
-		if err := os.Rename(tempFile, newFilePath); err != nil {
+		newTempFilePath := filepath.Join(newDirPath, "scripts"+filepath.Ext(tempFile))
+		if err := os.Rename(tempFile, newTempFilePath); err != nil {
 			fmt.Printf("移动文件 %s 失败: %v\n", tempFile, err)
 			return
 		}
 	}
 
+	// 写入args
 	if args := cmd.Args[2]; args != "" {
-		newVarFilePath := filepath.Join(newDirPath, "scripts"+".args")
-
-		// 将内容写入新文件
+		newArgsFilePath := filepath.Join(newDirPath, "scripts.args")
 		content := []byte(args)
-		if err := os.WriteFile(newVarFilePath, content, 0644); err != nil {
-			fmt.Printf("写入文件 %s 失败: %v\n", newVarFilePath, err)
+		if err := os.WriteFile(newArgsFilePath, content, 0644); err != nil {
+			fmt.Printf("写入文件 %s 失败: %v\n", newArgsFilePath, err)
 			return
 		}
 	}
 
-	// 移动变量文件
+	// 移动 或 写入变量文件
 	if varFile := cmd.Args[3]; varFile != "" {
-		newVarFilePath := filepath.Join(newDirPath, "scripts"+filepath.Ext(varFile))
-		// 移动文件
-		if err := os.Rename(varFile, newVarFilePath); err != nil {
-			fmt.Printf("移动文件 %s 失败: %v\n", varFile, err)
-			return
+		if _, err := os.Stat(varFile); err == nil {
+			newVarsFilePath := filepath.Join(newDirPath, "scripts"+filepath.Ext(varFile))
+			if err = os.Rename(varFile, newVarsFilePath); err != nil {
+				fmt.Printf("移动文件 %s 失败: %v\n", varFile, err)
+				return
+			}
+		} else {
+			newVarsFilePath := filepath.Join(newDirPath, "scripts.vars")
+			if err = os.WriteFile(newVarsFilePath, []byte(varFile), 0644); err != nil {
+				fmt.Printf("写入文件 %s 失败: %v\n", newVarsFilePath, err)
+				return
+			}
 		}
 	}
 }
