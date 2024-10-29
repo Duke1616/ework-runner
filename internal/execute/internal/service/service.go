@@ -162,7 +162,7 @@ func moveTempFile(cmd *exec.Cmd, taskId int64) {
 
 	// 移动临时文件
 	if tempFile := cmd.Args[1]; tempFile != "" {
-		newFilePath := filepath.Join(newDirPath, dirName+filepath.Ext(tempFile))
+		newFilePath := filepath.Join(newDirPath, "scripts"+filepath.Ext(tempFile))
 
 		// 移动文件
 		if err := os.Rename(tempFile, newFilePath); err != nil {
@@ -172,7 +172,7 @@ func moveTempFile(cmd *exec.Cmd, taskId int64) {
 	}
 
 	if args := cmd.Args[2]; args != "" {
-		newVarFilePath := filepath.Join(newDirPath, dirName+filepath.Ext(args)+".args")
+		newVarFilePath := filepath.Join(newDirPath, "scripts"+".args")
 
 		// 将内容写入新文件
 		content := []byte(args)
@@ -184,7 +184,7 @@ func moveTempFile(cmd *exec.Cmd, taskId int64) {
 
 	// 移动变量文件
 	if varFile := cmd.Args[3]; varFile != "" {
-		newVarFilePath := filepath.Join(newDirPath, dirName+filepath.Ext(varFile))
+		newVarFilePath := filepath.Join(newDirPath, "scripts"+filepath.Ext(varFile))
 		// 移动文件
 		if err := os.Rename(varFile, newVarFilePath); err != nil {
 			fmt.Printf("移动文件 %s 失败: %v\n", varFile, err)
