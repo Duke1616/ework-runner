@@ -8,5 +8,6 @@ third_party/private
 main.py
 main.py
 
+.app/
 .logs/
 .idea
