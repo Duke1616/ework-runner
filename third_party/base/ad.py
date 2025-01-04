@@ -1,16 +1,16 @@
-from ldap3 import Server, Connection, ALL, SUBTREE, DEREF_ALWAYS, MODIFY_ADD, MODIFY_REPLACE
+from ldap3 import Server, Connection, ALL, SUBTREE, DEREF_ALWAYS
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-class Ldap:
+class AD:
     def __init__(self, base_dn: str, url: str):
         self.conn = None
         self.base_dn = base_dn
         self.url = url
-        self.search_user_filter = '(&(objectclass=person)(cn={}))'
-        self.ret_attrs = ['cn']
+        self.search_user_filter = '(&(objectclass=person)(sAMAccountName={}))'
+        self.ret_attrs = ['SAMAccountName', 'memberOf']
         self.size_limit = 0
         self.time_limit = 0
 
@@ -70,46 +70,41 @@ class Ldap:
         user_attributes = {
             'sn': compound_family_name,
             'givenName': given_name,
+            'name': account_name,
             'mail': mail,
             'title': title,
+            'userPrincipalName': mail,
+            'SAMAccountName': account_name,
             'displayName': username,
-            'userPassword': default_pwd,
-            'objectClass': ['top', 'person', 'organizationalPerson', 'inetOrgPerson']
+            'objectClass': ['top', 'person', 'organizationalPerson', 'user']
         }
 
         # 添加用户
-        user_dn = 'cn={},ou={},{}'.format(account_name, ou, self.base_dn)
+        user_dn = 'cn={},ou={},{}'.format(username, ou, self.base_dn)
         result = self.conn.add(dn=user_dn, attributes=user_attributes)
 
         # 检查添加结果
-        if not result:
+        if result:
+            self.modify_password(user_dn, default_pwd)
+            print(f"用户 {account_name} 创建成功")
+        else:
             raise Exception(self.conn.result['message'])
 
     def add_members_to_groups(self, user_dn, group_dn):
-        # 检查用户是否已经是组的成员
-        self.conn.search(group_dn, '(objectClass=*)', attributes=['member'])
-        if self.conn.entries:
-            group_entry = self.conn.entries[0]
-            current_members = group_entry.member.values if 'member' in group_entry else []
-            if user_dn in current_members:
-                print(f"用户 {user_dn} 已经存在组 {group_dn}. 跳过.")
-                return True
+        # 不处理错误情况
+        return self.conn.extend.microsoft.add_members_to_groups(user_dn, group_dn)
 
-        # 如果用户不是成员，则添加到组
-        changes = {
-            'member': [(MODIFY_ADD, [user_dn])]
+    def modify_password(self, user_dn: str, default_pwd: str):
+        self.conn.extend.microsoft.modify_password(user_dn, default_pwd)
+        user_attributes = {
+            # 用户状态为启用
+            'userAccountControl': [('MODIFY_REPLACE', 512)],
+            # 用户下次登录需要重置密码
+            'pwdLastSet': [('MODIFY_REPLACE', 0)]
         }
-        result = self.conn.modify(group_dn, changes)
-        if not result:
-            raise Exception(f"用户添加组失败: {self.conn.result['message']}")
-        print(f"用户 {user_dn} 成功添加到组 {group_dn}.")
-        return result
 
-    def modify_password(self, user_dn: str, new_pwd: str):
-        changes = {
-            'userPassword': [(MODIFY_REPLACE, [new_pwd])]
-        }
-        result = self.conn.modify(user_dn, changes)
-        if not result:
-            raise Exception(f"修改用户密码失败: {self.conn.result['message']}")
-        print("修改用户密码成功")
+        result = self.conn.modify(user_dn, user_attributes)
+        if result:
+            print("初始化用户密码成功")
+        else:
+            raise Exception(f"初始化用户密码失败: {self.conn.result['message']}")
