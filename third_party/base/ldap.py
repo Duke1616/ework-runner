@@ -105,7 +105,15 @@ class Ldap:
         print(f"用户 {user_dn} 成功添加到组 {group_dn}.")
         return result
 
-    def modify_password(self, user_dn: str, new_pwd: str):
+    def modify_password(self, user: str, new_pwd: str):
+        user_entry = self.search_user(user)
+        if not user_entry:
+            print(f"用户 {user} 不存在")
+            return False
+
+        # 获取用户的 DN
+        user_dn = user_entry[0].entry_dn
+
         changes = {
             'userPassword': [(MODIFY_REPLACE, [new_pwd])]
         }
@@ -113,3 +121,37 @@ class Ldap:
         if not result:
             raise Exception(f"修改用户密码失败: {self.conn.result['message']}")
         print("修改用户密码成功")
+
+    def verify_user_credentials(self, user: str, passwd: str):
+        """
+        验证用户的凭据（用户名和密码）。
+
+        :param user: 用户
+        :param passwd: 密码
+        :return: 如果凭据有效返回 True，否则返回 False
+        """
+        try:
+            # 搜索用户
+            user_entry = self.search_user(user)
+            if not user_entry:
+                print(f"用户 {user} 不存在")
+                return False
+
+            # 获取用户的 DN
+            user_dn = user_entry[0].entry_dn
+
+            # 尝试使用提供的用户名和密码绑定到 AD
+            server = Server(self.url, connect_timeout=5, use_ssl=False, get_info=ALL)
+            conn = Connection(server, user=user_dn, password=passwd)
+
+            if conn.bind():
+                print(f"用户 {user} 的凭据验证成功")
+                conn.unbind()
+                return True
+            else:
+                print(f"用户 {user} 的凭据验证失败：{conn.result['message']}")
+                return False
+
+        except Exception as e:
+            print(f"验证用户 {user} 的凭据时发生错误：{str(e)}")
+            return False

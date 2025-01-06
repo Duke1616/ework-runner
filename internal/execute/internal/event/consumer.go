@@ -95,6 +95,7 @@ func (c *ExecuteConsumer) wantResult(output string) string {
 	// 检查输出是否为空
 	if outputStr == "" {
 		c.logger.Info("No output from command.")
+		return ""
 	}
 
 	// 分割输出为多行并过滤掉空行
@@ -109,6 +110,7 @@ func (c *ExecuteConsumer) wantResult(output string) string {
 	// 检查 validLines 是否为空
 	if len(validLines) == 0 {
 		c.logger.Info("No valid output lines.")
+		return "" // 直接返回空字符串
 	}
 
 	// 获取最后一行
