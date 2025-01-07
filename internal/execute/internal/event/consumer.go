@@ -94,8 +94,8 @@ func (c *ExecuteConsumer) wantResult(output string) string {
 	outputStr := strings.TrimSpace(output)
 	// 检查输出是否为空
 	if outputStr == "" {
-		c.logger.Info("No output from command.")
-		return ""
+		c.logger.Error("No output from command.", elog.String("output", output))
+		return `{"status": "Error"}`
 	}
 
 	// 分割输出为多行并过滤掉空行
@@ -109,8 +109,8 @@ func (c *ExecuteConsumer) wantResult(output string) string {
 
 	// 检查 validLines 是否为空
 	if len(validLines) == 0 {
-		c.logger.Info("No valid output lines.")
-		return "" // 直接返回空字符串
+		c.logger.Error("No valid output lines.", elog.Any("lines", validLines))
+		return `{"status": "Error"}`
 	}
 
 	// 获取最后一行

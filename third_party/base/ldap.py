@@ -27,13 +27,11 @@ class Ldap:
 
     def find_or_create_user(self, account_name: str, username: str, ou: str, title: str, default_pwd: str):
         try:
-            if self.search_user(account_name):
-                print(f"用户 {account_name} 已经存在, 无需创建")
-                return None
-            else:
-                # 执行创建用户的逻辑
-                self.create_user(account_name, username, ou, title, default_pwd)
-                return None
+            entity = self.search_user(account_name)
+            if entity:
+                return entity
+
+            return self.create_user(account_name, username, ou, title, default_pwd)
         except Exception as e:
             error_message = f"用户名 => [{account_name}]，错误信息 => {str(e)}"
             return Exception(error_message)
@@ -44,6 +42,7 @@ class Ldap:
                          search_scope=SUBTREE, attributes=self.ret_attrs,
                          size_limit=self.size_limit, time_limit=self.time_limit,
                          types_only=False, dereference_aliases=DEREF_ALWAYS)
+
 
         # 检查获取的值是否为空或者长度是否不为1
         entries_value = getattr(self.conn, 'entries')
@@ -117,10 +116,8 @@ class Ldap:
         changes = {
             'userPassword': [(MODIFY_REPLACE, [new_pwd])]
         }
-        result = self.conn.modify(user_dn, changes)
-        if not result:
-            raise Exception(f"修改用户密码失败: {self.conn.result['message']}")
-        print("修改用户密码成功")
+        return self.conn.modify(user_dn, changes)
+
 
     def verify_user_credentials(self, user: str, passwd: str):
         """
