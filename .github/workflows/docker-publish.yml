@@ -8,6 +8,10 @@ on:
   pull_request:
     branches: [ "main" ]
 
+env:
+  REGISTRY: registry.cn-qingdao.aliyuncs.com
+  TAGS: duke1616/ework-runner
+
 jobs:
   build:
     runs-on: ubuntu-latest
