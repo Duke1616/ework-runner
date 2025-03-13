@@ -1,0 +1,10 @@
+{{- if .Values.name }}
+Your ServiceAccount has been created!
+
+To get the Secret associated with the ServiceAccount, run the following command:
+
+  kubectl get secret $(kubectl get serviceaccount {{ .Values.name }} -o jsonpath='{.secrets[0].name}') -o jsonpath='{.data.token}' | base64 --decode
+
+{{- else }}
+ServiceAccount name is not set. Please provide a name for the ServiceAccount.
+{{- end }}
