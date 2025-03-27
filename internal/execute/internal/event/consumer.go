@@ -8,6 +8,7 @@ import (
 	"github.com/Duke1616/ecmdb/internal/execute/internal/service"
 	"github.com/ecodeclub/mq-api"
 	"github.com/gotomicro/ego/core/elog"
+	"golang.org/x/sync/errgroup"
 	"strings"
 )
 
@@ -34,14 +35,25 @@ func NewExecuteConsumer(q mq.MQ, svc service.Service, topic string, producer Tas
 }
 
 func (c *ExecuteConsumer) Start(ctx context.Context) {
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(5)
+
 	go func() {
 		for {
-			err := c.Consume(ctx)
-			if err != nil {
-				c.logger.Error("同步事件失败", elog.Any("错误信息: ", err))
-			}
+			g.Go(func() error {
+				err := c.Consume(ctx)
+				if err != nil {
+					c.logger.Error("同步事件失败", elog.Any("错误信息: ", err))
+					return err
+				}
+				return nil
+			})
 		}
 	}()
+
+	if err := g.Wait(); err != nil {
+		c.logger.Error("消费者组出错", elog.Any("错误", err))
+	}
 }
 
 func (c *ExecuteConsumer) Consume(ctx context.Context) error {

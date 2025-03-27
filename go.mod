@@ -9,11 +9,11 @@ require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/google/wire v0.6.0
 	github.com/gotomicro/ego v1.2.2
-	github.com/larksuite/oapi-sdk-go/v3 v3.4.11
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.19.0
 	go.etcd.io/etcd/api/v3 v3.5.12
 	go.etcd.io/etcd/client/v3 v3.5.12
+	golang.org/x/sync v0.6.0
 )
 
 require (
