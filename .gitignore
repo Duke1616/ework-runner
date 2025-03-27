@@ -6,9 +6,8 @@ third_party/base/test.json
 third_party/base/__pycache__
 third_party/private
 main.py
-main.py
 wx.json
 
-.app/
-.logs/
+app/
+logs/
 .idea

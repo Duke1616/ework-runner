@@ -35,34 +35,51 @@ func NewExecuteConsumer(q mq.MQ, svc service.Service, topic string, producer Tas
 	}, nil
 }
 
-func (c *ExecuteConsumer) Start(ctx context.Context) {
-	workerCount := 5
-	var wg sync.WaitGroup
+func (c *ExecuteConsumer) Start(ctx context.Context) <-chan error {
+	errChan := make(chan error, 1) // 用于返回启动错误或运行期错误
 
-	for i := 0; i < workerCount; i++ {
-		wg.Add(1)
-		go func(workerID int) {
-			defer wg.Done()
-			c.logger.Info("启动任务工作协程", elog.Int("worker", workerID))
+	go func() {
+		defer close(errChan)
 
-			for {
-				select {
-				case <-ctx.Done():
-					c.logger.Info("工作协程退出", elog.Int("worker", workerID))
-					return
-				default:
-					if err := c.Consume(ctx); err != nil && !errors.Is(err, context.Canceled) {
-						c.logger.Error("处理失败",
-							elog.Int("worker", workerID),
-							elog.FieldErr(err))
+		workerCount := 5
+		var wg sync.WaitGroup
+
+		// 启动worker协程
+		for i := 0; i < workerCount; i++ {
+			wg.Add(1)
+			go func(workerID int) {
+				defer wg.Done()
+				c.logger.Info("启动任务工作协程", elog.Int("worker", workerID))
+
+				for {
+					select {
+					case <-ctx.Done():
+						c.logger.Info("工作协程退出", elog.Int("worker", workerID))
+						return
+					default:
+						if err := c.Consume(ctx); err != nil {
+							if errors.Is(err, context.Canceled) {
+								return // 正常关闭，不记录错误
+							}
+							c.logger.Error("处理失败",
+								elog.Int("worker", workerID),
+								elog.FieldErr(err))
+							// 可选：将非context错误报告到errChan
+							select {
+							case errChan <- fmt.Errorf("worker %d 处理失败: %w", workerID, err):
+							default: // 避免阻塞，只报告第一个错误
+							}
+						}
 					}
 				}
-			}
-		}(i)
-	}
+			}(i)
+		}
 
-	wg.Wait()
-	c.logger.Info("所有工作协程已退出")
+		wg.Wait()
+		c.logger.Info("所有工作协程已退出")
+	}()
+
+	return errChan
 }
 
 func (c *ExecuteConsumer) Consume(ctx context.Context) error {

@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const TEMPDIR = "/app"
+const TEMPDIR = "./app"
 
 type Service interface {
 	Receive(ctx context.Context, req domain.ExecuteReceive) (string, domain.Status, error)
