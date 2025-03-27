@@ -3,13 +3,14 @@ package event
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/Duke1616/ecmdb/internal/execute/internal/domain"
 	"github.com/Duke1616/ecmdb/internal/execute/internal/service"
 	"github.com/ecodeclub/mq-api"
 	"github.com/gotomicro/ego/core/elog"
-	"golang.org/x/sync/errgroup"
 	"strings"
+	"sync"
 )
 
 type ExecuteConsumer struct {
@@ -35,25 +36,33 @@ func NewExecuteConsumer(q mq.MQ, svc service.Service, topic string, producer Tas
 }
 
 func (c *ExecuteConsumer) Start(ctx context.Context) {
-	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(5)
+	workerCount := 5
+	var wg sync.WaitGroup
 
-	go func() {
-		for {
-			g.Go(func() error {
-				err := c.Consume(ctx)
-				if err != nil {
-					c.logger.Error("同步事件失败", elog.Any("错误信息: ", err))
-					return err
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+			c.logger.Info("启动任务工作协程", elog.Int("worker", workerID))
+
+			for {
+				select {
+				case <-ctx.Done():
+					c.logger.Info("工作协程退出", elog.Int("worker", workerID))
+					return
+				default:
+					if err := c.Consume(ctx); err != nil && !errors.Is(err, context.Canceled) {
+						c.logger.Error("处理失败",
+							elog.Int("worker", workerID),
+							elog.FieldErr(err))
+					}
 				}
-				return nil
-			})
-		}
-	}()
-
-	if err := g.Wait(); err != nil {
-		c.logger.Error("消费者组出错", elog.Any("错误", err))
+			}
+		}(i)
 	}
+
+	wg.Wait()
+	c.logger.Info("所有工作协程已退出")
 }
 
 func (c *ExecuteConsumer) Consume(ctx context.Context) error {
