@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
+	"sync"
+
 	"github.com/Duke1616/ecmdb/internal/execute/internal/domain"
 	"github.com/Duke1616/ecmdb/internal/execute/internal/service"
 	"github.com/ecodeclub/mq-api"
 	"github.com/gotomicro/ego/core/elog"
-	"strings"
-	"sync"
 )
 
 type ExecuteConsumer struct {

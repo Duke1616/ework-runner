@@ -4,13 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"sync"
 
-	"github.com/Duke1616/ecmdb/pkg/registry"
+	"github.com/Duke1616/ecmdb/pkg/grpc/registry"
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/concurrency"
+)
+
+const (
+	defaultPrefix = "/services/task_platform/executor"
 )
 
 var typesMap = map[mvccpb.Event_EventType]registry.EventType{
@@ -31,38 +34,39 @@ func NewRegistry(c *clientv3.Client) (*Registry, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return &Registry{
 		sess:   sess,
 		client: c,
 	}, nil
 }
 
-func (r *Registry) Register(ctx context.Context, si registry.Instance) error {
+func (r *Registry) Register(ctx context.Context, si registry.ServiceInstance) error {
 	val, err := json.Marshal(si)
 	if err != nil {
-		return nil
+		return err
 	}
-
 	_, err = r.client.Put(ctx, r.instanceKey(si),
 		string(val), clientv3.WithLease(r.sess.Lease()))
-
 	return err
 }
 
-func (r *Registry) UnRegister(ctx context.Context, si registry.Instance) error {
+func (r *Registry) instanceKey(s registry.ServiceInstance) string {
+	return fmt.Sprintf("%s/%s/%s", defaultPrefix, s.Name, s.Address)
+}
+
+func (r *Registry) UnRegister(ctx context.Context, si registry.ServiceInstance) error {
 	_, err := r.client.Delete(ctx, r.instanceKey(si))
 	return err
 }
 
-func (r *Registry) ListWorkers(ctx context.Context, name string) ([]registry.Instance, error) {
+func (r *Registry) ListServices(ctx context.Context, name string) ([]registry.ServiceInstance, error) {
 	resp, err := r.client.Get(ctx, r.serviceKey(name), clientv3.WithPrefix())
 	if err != nil {
 		return nil, err
 	}
-	res := make([]registry.Instance, 0, len(resp.Kvs))
+	res := make([]registry.ServiceInstance, 0, len(resp.Kvs))
 	for _, kv := range resp.Kvs {
-		var si registry.Instance
+		var si registry.ServiceInstance
 		err = json.Unmarshal(kv.Value, &si)
 		if err != nil {
 			return nil, err
@@ -72,12 +76,8 @@ func (r *Registry) ListWorkers(ctx context.Context, name string) ([]registry.Ins
 	return res, nil
 }
 
-func (r *Registry) instanceKey(s registry.Instance) string {
-	return fmt.Sprintf("/task/worker/%s", s.Name)
-}
-
 func (r *Registry) serviceKey(name string) string {
-	return fmt.Sprintf("/task/%s", name)
+	return fmt.Sprintf("%s/%s", defaultPrefix, name)
 }
 
 func (r *Registry) Subscribe(name string) <-chan registry.Event {
@@ -95,27 +95,13 @@ func (r *Registry) Subscribe(name string) <-chan registry.Event {
 				if resp.Canceled {
 					return
 				}
-
 				if resp.Err() != nil {
 					continue
 				}
-
 				for _, event := range resp.Events {
-					var instance registry.Instance
-					if event.Type == mvccpb.PUT {
-						if err := json.Unmarshal(event.Kv.Value, &instance); err != nil {
-							slog.Error("解析失败",
-								slog.Any("name", "watch task"),
-								slog.Any("error", err),
-							)
-						}
+					res <- registry.Event{
+						Type: typesMap[event.Type],
 					}
-					re := registry.Event{
-						Type:     typesMap[event.Type],
-						Key:      string(event.Kv.Key),
-						Instance: instance,
-					}
-					res <- re
 				}
 			case <-ctx.Done():
 				return
@@ -131,5 +117,6 @@ func (r *Registry) Close() error {
 		cancel()
 	}
 	r.mutex.Unlock()
+	// 因为 client 是外面传进来的，所以我们这里不能关掉它。它可能被其它的人使用着
 	return r.sess.Close()
 }

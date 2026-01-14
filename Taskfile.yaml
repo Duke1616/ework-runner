@@ -9,3 +9,7 @@ tasks:
     cmds:
       - EGO_DEBUG=true go run main.go
 
+  gen:
+    desc: 代码生成
+    cmds:
+      - buf generate api/proto

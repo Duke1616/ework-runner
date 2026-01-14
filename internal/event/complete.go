@@ -1,0 +1,11 @@
+package event
+
+import "github.com/Duke1616/ecmdb/internal/domain"
+
+type Event struct {
+	TaskID         int64                      `json:"taskId"`
+	Version        int64                      `json:"version"`
+	ScheduleNodeID string                     `json:"scheduleNodeId"`
+	ExecStatus     domain.TaskExecutionStatus `json:"execStatus"`
+	Name           string                     `json:"name"`
+}
