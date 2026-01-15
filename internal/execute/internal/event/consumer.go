@@ -8,8 +8,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Duke1616/ecmdb/internal/execute/internal/domain"
-	"github.com/Duke1616/ecmdb/internal/execute/internal/service"
+	"github.com/Duke1616/ework-runner/internal/execute/internal/domain"
+	"github.com/Duke1616/ework-runner/internal/execute/internal/service"
 	"github.com/ecodeclub/mq-api"
 	"github.com/gotomicro/ego/core/elog"
 )

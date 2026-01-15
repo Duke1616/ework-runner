@@ -2,7 +2,7 @@ version: v1
 managed:
   enabled: true
   go_package_prefix:
-    default: git.ebondhm.com/ebond-infra/ealert/api/proto/gen
+    default: github.com/Duke1616/ework-runner/api/proto/gen
 plugins:
   # 默认用最新版本
   - plugin: buf.build/protocolbuffers/go

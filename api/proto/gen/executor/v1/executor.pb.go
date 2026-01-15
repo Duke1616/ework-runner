@@ -668,8 +668,8 @@ const file_executor_v1_executor_proto_rawDesc = "" +
 	"\aExecute\x12\x1b.executor.v1.ExecuteRequest\x1a\x1c.executor.v1.ExecuteResponse\x12J\n" +
 	"\tInterrupt\x12\x1d.executor.v1.InterruptRequest\x1a\x1e.executor.v1.InterruptResponse\x12>\n" +
 	"\x05Query\x12\x19.executor.v1.QueryRequest\x1a\x1a.executor.v1.QueryResponse\x12D\n" +
-	"\aPrepare\x12\x1b.executor.v1.PrepareRequest\x1a\x1c.executor.v1.PrepareResponseB\xb6\x01\n" +
-	"\x0fcom.executor.v1B\rExecutorProtoP\x01ZGgit.ebondhm.com/ebond-infra/ealert/api/proto/gen/executor/v1;executorv1\xa2\x02\x03EXX\xaa\x02\vExecutor.V1\xca\x02\vExecutor\\V1\xe2\x02\x17Executor\\V1\\GPBMetadata\xea\x02\fExecutor::V1b\x06proto3"
+	"\aPrepare\x12\x1b.executor.v1.PrepareRequest\x1a\x1c.executor.v1.PrepareResponseB\xb4\x01\n" +
+	"\x0fcom.executor.v1B\rExecutorProtoP\x01ZEgithub.com/Duke1616/ework-runner/api/proto/gen/executor/v1;executorv1\xa2\x02\x03EXX\xaa\x02\vExecutor.V1\xca\x02\vExecutor\\V1\xe2\x02\x17Executor\\V1\\GPBMetadata\xea\x02\fExecutor::V1b\x06proto3"
 
 var (
 	file_executor_v1_executor_proto_rawDescOnce sync.Once

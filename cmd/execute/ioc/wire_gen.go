@@ -8,14 +8,18 @@ package ioc
 
 import (
 	"fmt"
-	"github.com/Duke1616/ecmdb/api/proto/gen/executor/v1"
-	"github.com/Duke1616/ecmdb/internal/grpc"
-	"github.com/Duke1616/ecmdb/ioc"
-	"github.com/Duke1616/ecmdb/pkg/grpc/registry"
-	"github.com/Duke1616/ecmdb/pkg/grpc/registry/etcd"
+	"github.com/Duke1616/ework-runner/api/proto/gen/executor/v1"
+	"github.com/Duke1616/ework-runner/api/proto/gen/reporter/v1"
+	grpc3 "github.com/Duke1616/ework-runner/internal/grpc"
+	"github.com/Duke1616/ework-runner/ioc"
+	grpc2 "github.com/Duke1616/ework-runner/pkg/grpc"
+	"github.com/Duke1616/ework-runner/pkg/grpc/registry"
+	"github.com/Duke1616/ework-runner/pkg/grpc/registry/etcd"
 	"github.com/google/wire"
 	"github.com/spf13/viper"
 	"go.etcd.io/etcd/client/v3"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // Injectors from wire.go:
@@ -23,7 +27,8 @@ import (
 func InitExecuteApp() *ExecuteApp {
 	client := ioc.InitEtcdClient()
 	registry := InitRegistry(client)
-	server := InitExecutorGRPCServer(registry)
+	reporterServiceClient := initReporterServiceClient()
+	server := InitExecutorGRPCServer(registry, reporterServiceClient)
 	executeApp := &ExecuteApp{
 		Server: server,
 	}
@@ -38,6 +43,10 @@ var (
 	grpcServerSet = wire.NewSet(
 		InitExecutorGRPCServer,
 	)
+
+	grpcClientSet = wire.NewSet(
+		initReporterServiceClient,
+	)
 )
 
 // InitRegistry 初始化注册中心
@@ -49,17 +58,30 @@ func InitRegistry(client *clientv3.Client) registry.Registry {
 	return reg
 }
 
-// InitExecutorGRPCServer 初始化 Executor gRPC 服务器
-func InitExecutorGRPCServer(reg registry.Registry) *grpc.Server {
-	var cfg ServerConfig
-	err := viper.UnmarshalKey("server.executor.grpc", &cfg)
+func initReporterServiceClient() reporterv1.ReporterServiceClient {
+
+	target := fmt.Sprintf("%s:%d", "127.0.0.1", 9002)
+
+	conn, err := grpc.NewClient(
+		target, grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+
 	if err != nil {
 		panic(err)
 	}
+	return reporterv1.NewReporterServiceClient(conn)
+}
 
-	server := grpc.NewServer(cfg.Id, cfg.Name, cfg.Addr(), reg)
+// InitExecutorGRPCServer 初始化 Executor gRPC 服务器
+func InitExecutorGRPCServer(reg registry.Registry, client reporterv1.ReporterServiceClient) *grpc2.Server {
+	var cfg ServerConfig
+	if err := viper.UnmarshalKey("server.executor.grpc", &cfg); err != nil {
+		panic(err)
+	}
 
-	executor := grpc.NewExecutor()
+	server := grpc2.NewServer(cfg.Id, cfg.Name, cfg.Addr(), reg)
+
+	executor := grpc3.NewExecutor(client)
 	executorv1.RegisterExecutorServiceServer(server.Server, executor)
 
 	return server
@@ -78,5 +100,5 @@ func (c *ServerConfig) Addr() string {
 }
 
 type ExecuteApp struct {
-	Server *grpc.Server
+	Server *grpc2.Server
 }

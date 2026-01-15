@@ -1,9 +1,9 @@
 package web
 
 import (
-	"github.com/Duke1616/ecmdb/internal/runner/internal/domain"
-	"github.com/Duke1616/ecmdb/internal/runner/internal/service"
-	"github.com/Duke1616/ecmdb/pkg/ginx"
+	"github.com/Duke1616/ework-runner/internal/runner/internal/domain"
+	"github.com/Duke1616/ework-runner/internal/runner/internal/service"
+	"github.com/Duke1616/ework-runner/pkg/ginx"
 	"github.com/gin-gonic/gin"
 )
 

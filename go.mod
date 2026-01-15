@@ -1,4 +1,4 @@
-module github.com/Duke1616/ecmdb
+module github.com/Duke1616/ework-runner
 
 go 1.23.1
 

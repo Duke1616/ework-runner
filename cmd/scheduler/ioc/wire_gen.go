@@ -7,39 +7,43 @@
 package ioc
 
 import (
-	"github.com/Duke1616/ecmdb/internal/repository"
-	"github.com/Duke1616/ecmdb/internal/repository/dao"
-	"github.com/Duke1616/ecmdb/internal/service/task"
-	"github.com/Duke1616/ecmdb/ioc"
+	"github.com/Duke1616/ework-runner/internal/grpc"
+	"github.com/Duke1616/ework-runner/internal/repository"
+	"github.com/Duke1616/ework-runner/internal/repository/dao"
+	"github.com/Duke1616/ework-runner/internal/service/task"
+	"github.com/Duke1616/ework-runner/ioc"
 	"github.com/google/wire"
 )
 
 // Injectors from wire.go:
 
 func InitSchedulerApp() *ioc.SchedulerApp {
+	client := ioc.InitEtcdClient()
+	registry := ioc.InitRegistry(client)
 	string2 := ioc.InitNodeID()
 	db := ioc.InitDB()
+	taskExecutionDAO := dao.NewGORMTaskExecutionDAO(db)
 	taskDAO := dao.NewGORMTaskDAO(db)
 	taskRepository := repository.NewTaskRepository(taskDAO)
-	service := task.NewService(taskRepository)
-	taskExecutionDAO := dao.NewGORMTaskExecutionDAO(db)
 	taskExecutionRepository := repository.NewTaskExecutionRepository(taskExecutionDAO, taskRepository)
+	service := task.NewService(taskRepository)
 	taskAcquirer := ioc.InitMySQLTaskAcquirer(taskRepository)
 	mq := ioc.InitMQ()
 	completeProducer := ioc.InitCompleteProducer(mq)
-	client := ioc.InitEtcdClient()
-	registry := ioc.InitRegistry(client)
 	executionService := task.NewExecutionService(string2, taskExecutionRepository, service, taskAcquirer, completeProducer, registry)
+	reporterServer := grpc.NewReporterServer(executionService)
+	server := ioc.InitSchedulerNodeGRPCServer(registry, reporterServer)
 	clients := ioc.InitExecutorServiceGRPCClients(registry)
 	invoker := ioc.InitInvoker(clients)
 	runner := ioc.InitRunner(string2, service, executionService, taskAcquirer, invoker, completeProducer)
-	executorNodePicker := ioc.InitExecutorNodePicker()
+	executorNodePicker := ioc.InitExecutorNodePicker(registry)
 	scheduler := ioc.InitScheduler(string2, runner, service, executionService, taskAcquirer, executorNodePicker)
 	retryCompensator := ioc.InitRetryCompensator(runner, executionService)
 	rescheduleCompensator := ioc.InitRescheduleCompensator(runner, executionService)
 	interruptCompensator := ioc.InitInterruptCompensator(clients, executionService)
 	v := ioc.InitTasks(retryCompensator, rescheduleCompensator, interruptCompensator)
 	schedulerApp := &ioc.SchedulerApp{
+		Server:    server,
 		Scheduler: scheduler,
 		Tasks:     v,
 	}

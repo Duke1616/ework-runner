@@ -3,7 +3,7 @@ package domain
 import (
 	"strconv"
 
-	executorv1 "github.com/Duke1616/ecmdb/api/proto/gen/executor/v1"
+	executorv1 "github.com/Duke1616/ework-runner/api/proto/gen/executor/v1"
 )
 
 // TaskExecutionStatus 任务执行状态

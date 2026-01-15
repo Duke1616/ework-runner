@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/Duke1616/ecmdb/internal/repository/dao"
+	"github.com/Duke1616/ework-runner/internal/repository/dao"
 	"github.com/spf13/viper"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"

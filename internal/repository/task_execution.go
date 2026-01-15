@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Duke1616/ecmdb/internal/domain"
-	"github.com/Duke1616/ecmdb/internal/repository/dao"
-	"github.com/Duke1616/ecmdb/pkg/sqlx"
+	"github.com/Duke1616/ework-runner/internal/domain"
+	"github.com/Duke1616/ework-runner/internal/repository/dao"
+	"github.com/Duke1616/ework-runner/pkg/sqlx"
 	"github.com/ecodeclub/ekit/slice"
 )
 

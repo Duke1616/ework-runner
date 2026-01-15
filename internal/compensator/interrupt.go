@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	executorv1 "github.com/Duke1616/ecmdb/api/proto/gen/executor/v1"
-	"github.com/Duke1616/ecmdb/internal/domain"
-	"github.com/Duke1616/ecmdb/internal/errs"
-	"github.com/Duke1616/ecmdb/internal/service/task"
-	"github.com/Duke1616/ecmdb/pkg/grpc"
+	executorv1 "github.com/Duke1616/ework-runner/api/proto/gen/executor/v1"
+	"github.com/Duke1616/ework-runner/internal/domain"
+	"github.com/Duke1616/ework-runner/internal/errs"
+	"github.com/Duke1616/ework-runner/internal/service/task"
+	"github.com/Duke1616/ework-runner/pkg/grpc"
 	"github.com/gotomicro/ego/core/elog"
 )
 

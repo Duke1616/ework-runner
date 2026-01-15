@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 
-	"github.com/Duke1616/ecmdb/cmd/scheduler/ioc"
+	"github.com/Duke1616/ework-runner/cmd/scheduler/ioc"
 	"github.com/gotomicro/ego"
 	"github.com/gotomicro/ego/core/elog"
 	"github.com/gotomicro/ego/server"
@@ -24,6 +24,9 @@ func main() {
 
 	// 启动服务
 	if err := egoApp.Serve(
+		func() server.Server {
+			return app.Server
+		}(),
 		func() server.Server {
 			return app.Scheduler
 		}(),

@@ -3,7 +3,7 @@ package runner
 import (
 	"context"
 
-	"github.com/Duke1616/ecmdb/internal/domain"
+	"github.com/Duke1616/ework-runner/internal/domain"
 )
 
 type Runner interface {

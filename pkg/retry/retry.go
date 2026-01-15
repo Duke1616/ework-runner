@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Duke1616/ecmdb/pkg/retry/strategy"
+	"github.com/Duke1616/ework-runner/pkg/retry/strategy"
 )
 
 // NewRetry 当配置不对的时候报错

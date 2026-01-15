@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Duke1616/ecmdb/internal/service/runner"
-	"github.com/Duke1616/ecmdb/internal/service/task"
+	"github.com/Duke1616/ework-runner/internal/service/runner"
+	"github.com/Duke1616/ework-runner/internal/service/task"
 	"github.com/gotomicro/ego/core/elog"
 )
 

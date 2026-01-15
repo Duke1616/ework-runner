@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/Duke1616/ecmdb/ioc"
-	"github.com/Duke1616/ecmdb/pkg/registry"
-	"github.com/Duke1616/ecmdb/pkg/registry/etcd"
+	"time"
+
+	"github.com/Duke1616/ework-runner/ioc"
+	"github.com/Duke1616/ework-runner/pkg/registry"
+	"github.com/Duke1616/ework-runner/pkg/registry/etcd"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"time"
 )
 
 func main() {

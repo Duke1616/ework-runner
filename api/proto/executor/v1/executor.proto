@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package executor.v1;
 
-option go_package = "executor/v1;executorv1";
+option go_package = "executor/v1;executor";
 
 enum ExecutionStatus {
   UNKNOWN = 0; // 未知状态

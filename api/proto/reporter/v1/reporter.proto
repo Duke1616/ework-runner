@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package reporter.v1;
+option go_package = "reporter/v1;scheduler";
+
+import "executor/v1/executor.proto";
+
+// ReporterService 调度节点需要实现的接口，用于接收执行节点上报的任务执行状态并按需执行重调度
+service ReporterService {
+  // 单个上报进度
+  rpc Report(ReportRequest) returns (ReportResponse);
+  // 批量上报进度
+  rpc BatchReport(BatchReportRequest) returns (BatchReportResponse);
+}
+
+// 异步 Kafka 消息定义参考这个
+message ReportRequest {
+  executor.v1.ExecutionState execution_state = 1;
+}
+
+message ReportResponse {}
+
+message BatchReportRequest {
+  repeated ReportRequest reports = 1;
+}
+
+message BatchReportResponse {}

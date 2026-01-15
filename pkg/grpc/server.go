@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/Duke1616/ecmdb/pkg/grpc/registry"
+	"github.com/Duke1616/ework-runner/pkg/grpc/registry"
 	"github.com/gotomicro/ego/core/constant"
 	"github.com/gotomicro/ego/core/elog"
 	"github.com/gotomicro/ego/server"
@@ -34,6 +34,7 @@ func NewServer(
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
 		Server: grpcServer,
+		id:     id,
 		name:   name,
 		reg:    reg,
 		addr:   addr,
@@ -77,9 +78,6 @@ func (s *Server) Start() error {
 		return err
 	}
 
-	s.logger.Info("gRPC 服务器启动", elog.String("地址", listener.Addr().String()))
-
-	// NOTE: 在独立 goroutine 中启动 gRPC server，避免阻塞
 	go func() {
 		if err = s.Server.Serve(listener); err != nil {
 			s.logger.Error("gRPC 服务器错误", elog.FieldErr(err))
@@ -94,9 +92,6 @@ func (s *Server) Stop() error {
 	s.logger.Info("停止 gRPC 服务器")
 	s.cancel()
 	s.Server.Stop()
-	if s.listener != nil {
-		return s.listener.Close()
-	}
 	return nil
 }
 
@@ -105,9 +100,6 @@ func (s *Server) GracefulStop(_ context.Context) error {
 	s.logger.Info("优雅停止 gRPC 服务器")
 	s.cancel()
 	s.Server.GracefulStop()
-	if s.listener != nil {
-		return s.listener.Close()
-	}
 	return nil
 }
 
@@ -116,7 +108,10 @@ func (s *Server) Info() *server.ServiceInfo {
 	info := server.ApplyOptions(
 		server.WithName(s.Name()),
 		server.WithKind(constant.ServiceProvider),
+		server.WithScheme("grpc"),
+		server.WithAddress(s.addr),
 	)
+
 	info.Healthy = s.ctx.Err() == nil
 	return &info
 }

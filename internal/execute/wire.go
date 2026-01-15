@@ -5,11 +5,11 @@ package execute
 import (
 	"context"
 
-	"github.com/Duke1616/ecmdb/internal/execute/internal/event"
-	"github.com/Duke1616/ecmdb/internal/execute/internal/service"
-	"github.com/Duke1616/ecmdb/internal/execute/internal/web"
-	"github.com/Duke1616/ecmdb/internal/runner"
-	"github.com/Duke1616/ecmdb/pkg/registry"
+	"github.com/Duke1616/ework-runner/internal/execute/internal/event"
+	"github.com/Duke1616/ework-runner/internal/execute/internal/service"
+	"github.com/Duke1616/ework-runner/internal/execute/internal/web"
+	"github.com/Duke1616/ework-runner/internal/runner"
+	"github.com/Duke1616/ework-runner/pkg/registry"
 	"github.com/ecodeclub/mq-api"
 	"github.com/google/wire"
 	"github.com/spf13/viper"

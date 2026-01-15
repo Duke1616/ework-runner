@@ -6,14 +6,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Duke1616/ecmdb/internal/domain"
-	"github.com/Duke1616/ecmdb/internal/errs"
-	"github.com/Duke1616/ecmdb/internal/event"
-	"github.com/Duke1616/ecmdb/internal/repository"
-	"github.com/Duke1616/ecmdb/internal/service/acquirer"
-	"github.com/Duke1616/ecmdb/pkg/grpc/registry"
-	"github.com/Duke1616/ecmdb/pkg/grpc/registry/etcd"
-	"github.com/Duke1616/ecmdb/pkg/retry"
+	"github.com/Duke1616/ework-runner/internal/domain"
+	"github.com/Duke1616/ework-runner/internal/errs"
+	"github.com/Duke1616/ework-runner/internal/event"
+	"github.com/Duke1616/ework-runner/internal/repository"
+	"github.com/Duke1616/ework-runner/internal/service/acquirer"
+	"github.com/Duke1616/ework-runner/pkg/grpc/registry"
+	"github.com/Duke1616/ework-runner/pkg/retry"
 	"github.com/gotomicro/ego/core/elog"
 	"go.uber.org/multierr"
 )
@@ -65,7 +64,7 @@ func NewExecutionService(
 	taskSvc Service,
 	taskAcquirer acquirer.TaskAcquirer,
 	producer event.CompleteProducer,
-	registry *etcd.Registry,
+	registry registry.Registry,
 ) ExecutionService {
 	return &executionService{
 		nodeID:       nodeID,

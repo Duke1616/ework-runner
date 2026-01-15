@@ -6,7 +6,8 @@ import (
 	"strconv"
 	"time"
 
-	executorv1 "github.com/Duke1616/ecmdb/api/proto/gen/executor/v1"
+	executorv1 "github.com/Duke1616/ework-runner/api/proto/gen/executor/v1"
+	reporterv1 "github.com/Duke1616/ework-runner/api/proto/gen/reporter/v1"
 	"github.com/ecodeclub/ekit/syncx"
 	"github.com/gotomicro/ego/core/elog"
 )
@@ -16,13 +17,15 @@ type Executor struct {
 
 	states  *syncx.Map[int64, *executorv1.ExecutionState]
 	cancels *syncx.Map[int64, context.CancelFunc]
+	client  reporterv1.ReporterServiceClient
 	logger  *elog.Component
 }
 
-func NewExecutor() *Executor {
+func NewExecutor(client reporterv1.ReporterServiceClient) *Executor {
 	return &Executor{
 		states:  &syncx.Map[int64, *executorv1.ExecutionState]{},
 		cancels: &syncx.Map[int64, context.CancelFunc]{},
+		client:  client,
 		logger:  elog.DefaultLogger,
 	}
 }
@@ -71,6 +74,8 @@ func (s *Executor) runTask(ctx context.Context, eid int64, start, end int) {
 			cur, _ := s.states.Load(eid)
 			cur.Status = executorv1.ExecutionStatus_FAILED_RESCHEDULABLE
 			s.states.Store(eid, cur)
+			c := cur
+			_, _ = s.client.Report(context.Background(), &reporterv1.ReportRequest{ExecutionState: c})
 			return
 		case <-incTicker.C:
 			if progressUnits < total {
@@ -82,10 +87,23 @@ func (s *Executor) runTask(ctx context.Context, eid int64, start, end int) {
 					cur.Status = executorv1.ExecutionStatus_SUCCESS
 					cur.RunningProgress = 100
 					s.states.Store(eid, cur)
+					_, err := s.client.Report(context.Background(), &reporterv1.ReportRequest{ExecutionState: cur})
+					if err != nil {
+						s.logger.Error("上报失败", elog.FieldErr(err))
+					}
 					return
 				}
 				s.logger.Info(fmt.Sprintf("现进度：%d", progressUnits))
 				s.states.Store(eid, cur)
+			}
+		case <-reportTicker.C:
+			cur, _ := s.states.Load(eid)
+			c := cur
+			_, err := s.client.Report(context.Background(), &reporterv1.ReportRequest{ExecutionState: c})
+			if err != nil {
+				s.logger.Error("上报失败", elog.FieldErr(err))
+			} else {
+				s.logger.Info(fmt.Sprintf("上报成功进度 %d", c.RunningProgress))
 			}
 		}
 	}

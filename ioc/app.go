@@ -3,8 +3,9 @@ package ioc
 import (
 	"context"
 
-	"github.com/Duke1616/ecmdb/internal/execute"
-	"github.com/Duke1616/ecmdb/internal/service/scheduler"
+	"github.com/Duke1616/ework-runner/internal/execute"
+	"github.com/Duke1616/ework-runner/internal/service/scheduler"
+	grpcpkg "github.com/Duke1616/ework-runner/pkg/grpc"
 	"github.com/gin-gonic/gin"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
@@ -21,6 +22,7 @@ type Task interface {
 }
 
 type SchedulerApp struct {
+	Server    *grpcpkg.Server
 	Scheduler *scheduler.Scheduler
 	Tasks     []Task
 }

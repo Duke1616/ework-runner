@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Duke1616/ecmdb/internal/domain"
-	"github.com/Duke1616/ecmdb/internal/errs"
-	"github.com/Duke1616/ecmdb/pkg/sqlx"
+	"github.com/Duke1616/ework-runner/internal/domain"
+	"github.com/Duke1616/ework-runner/internal/errs"
+	"github.com/Duke1616/ework-runner/pkg/sqlx"
 	"gorm.io/gorm"
 )
 
@@ -35,8 +35,6 @@ type TaskExecution struct {
 	TaskVersion             int64                               `gorm:"type:bigint;not null;comment:'创建时Task的版本号'"`
 	TaskScheduleNodeID      string                              `gorm:"type:varchar(255);not null;comment:'创建此执行的调度节点ID'"`
 	TaskScheduleParams      sqlx.JSONColumn[map[string]string]  `gorm:"type:json;comment:'创建时Task的调度参数快照'"`
-	TaskPlanExecID          int64                               `gorm:"type:bigint;not null;comment:'对应Plan的执行计划'"`
-	TaskPlanID              int64                               `gorm:"type:bigint;not null;comment:'对应Plan的ID'"`
 
 	// 下面这些是 TaskExecution 的自身信息
 	ExecutorNodeID  sql.NullString `gorm:"type:varchar(255);comment:'执行节点的 nodeID，用于记录是哪个节点处理了任务'"`

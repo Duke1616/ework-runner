@@ -3,7 +3,7 @@ package domain
 import (
 	"time"
 
-	"github.com/Duke1616/ecmdb/pkg/retry"
+	"github.com/Duke1616/ework-runner/pkg/retry"
 	"github.com/robfig/cron/v3"
 )
 

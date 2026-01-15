@@ -3,10 +3,11 @@
 package ioc
 
 import (
-	"github.com/Duke1616/ecmdb/internal/repository"
-	"github.com/Duke1616/ecmdb/internal/repository/dao"
-	"github.com/Duke1616/ecmdb/internal/service/task"
-	"github.com/Duke1616/ecmdb/ioc"
+	"github.com/Duke1616/ework-runner/internal/grpc"
+	"github.com/Duke1616/ework-runner/internal/repository"
+	"github.com/Duke1616/ework-runner/internal/repository/dao"
+	"github.com/Duke1616/ework-runner/internal/service/task"
+	"github.com/Duke1616/ework-runner/ioc"
 	"github.com/google/wire"
 )
 
@@ -74,8 +75,8 @@ func InitSchedulerApp() *ioc.SchedulerApp {
 		producerSet,
 		grpcSet,
 		// GRPC服务器
-		//grpcapi.NewReporterServer,
-		//ioc.InitSchedulerNodeGRPCServer,
+		grpc.NewReporterServer,
+		ioc.InitSchedulerNodeGRPCServer,
 		ioc.InitTasks,
 		wire.Struct(new(ioc.SchedulerApp), "*"),
 	)

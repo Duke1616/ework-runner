@@ -2,7 +2,7 @@ package event
 
 import (
 	"context"
-	"github.com/Duke1616/ecmdb/pkg/mpx"
+	"github.com/Duke1616/ework-runner/pkg/mpx"
 	"github.com/ecodeclub/mq-api"
 )
 

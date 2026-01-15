@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Duke1616/ecmdb/internal/domain"
-	"github.com/Duke1616/ecmdb/internal/service/acquirer"
-	"github.com/Duke1616/ecmdb/internal/service/picker"
-	"github.com/Duke1616/ecmdb/internal/service/runner"
-	"github.com/Duke1616/ecmdb/internal/service/task"
-	"github.com/Duke1616/ecmdb/pkg/grpc/balancer"
+	"github.com/Duke1616/ework-runner/internal/domain"
+	"github.com/Duke1616/ework-runner/internal/service/acquirer"
+	"github.com/Duke1616/ework-runner/internal/service/picker"
+	"github.com/Duke1616/ework-runner/internal/service/runner"
+	"github.com/Duke1616/ework-runner/internal/service/task"
+	"github.com/Duke1616/ework-runner/pkg/grpc/balancer"
 	"github.com/gotomicro/ego/core/constant"
 	"github.com/gotomicro/ego/core/elog"
 	"github.com/gotomicro/ego/server"
@@ -62,7 +62,7 @@ func NewScheduler(
 		executorNodePicker: executorNodePicker,
 		ctx:                ctx,
 		cancel:             cancel,
-		logger:             elog.DefaultLogger.With(elog.FieldComponentName("SchedulerV2")),
+		logger:             elog.DefaultLogger.With(elog.FieldComponentName("Scheduler")),
 	}
 }
 

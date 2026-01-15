@@ -3,9 +3,9 @@ package service
 import (
 	"context"
 	"fmt"
-	"github.com/Duke1616/ecmdb/internal/runner/internal/domain"
-	"github.com/Duke1616/ecmdb/internal/runner/internal/event"
-	"github.com/Duke1616/ecmdb/pkg/registry"
+	"github.com/Duke1616/ework-runner/internal/runner/internal/domain"
+	"github.com/Duke1616/ework-runner/internal/runner/internal/event"
+	"github.com/Duke1616/ework-runner/pkg/registry"
 	"github.com/spf13/viper"
 	"log/slog"
 )

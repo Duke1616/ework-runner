@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/Duke1616/ecmdb/pkg/grpc/registry"
+	"github.com/Duke1616/ework-runner/pkg/grpc/registry"
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/concurrency"

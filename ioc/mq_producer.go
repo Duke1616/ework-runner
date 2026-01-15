@@ -1,7 +1,7 @@
 package ioc
 
 import (
-	"github.com/Duke1616/ecmdb/internal/event"
+	"github.com/Duke1616/ework-runner/internal/event"
 	"github.com/ecodeclub/mq-api"
 )
 

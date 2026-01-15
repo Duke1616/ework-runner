@@ -1,8 +1,8 @@
 package ioc
 
 import (
-	"github.com/Duke1616/ecmdb/internal/execute"
-	"github.com/Duke1616/ecmdb/internal/runner"
+	"github.com/Duke1616/ework-runner/internal/execute"
+	"github.com/Duke1616/ework-runner/internal/runner"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"strings"

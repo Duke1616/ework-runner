@@ -1,11 +1,11 @@
 package ioc
 
 import (
-	"github.com/Duke1616/ecmdb/internal/service/acquirer"
-	"github.com/Duke1616/ecmdb/internal/service/picker"
-	"github.com/Duke1616/ecmdb/internal/service/runner"
-	"github.com/Duke1616/ecmdb/internal/service/scheduler"
-	"github.com/Duke1616/ecmdb/internal/service/task"
+	"github.com/Duke1616/ework-runner/internal/service/acquirer"
+	"github.com/Duke1616/ework-runner/internal/service/picker"
+	"github.com/Duke1616/ework-runner/internal/service/runner"
+	"github.com/Duke1616/ework-runner/internal/service/scheduler"
+	"github.com/Duke1616/ework-runner/internal/service/task"
 	"github.com/google/uuid"
 	"github.com/spf13/viper"
 )

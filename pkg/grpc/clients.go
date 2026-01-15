@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Duke1616/ecmdb/pkg/grpc/balancer"
-	"github.com/Duke1616/ecmdb/pkg/grpc/registry"
+	"github.com/Duke1616/ework-runner/pkg/grpc/balancer"
+	"github.com/Duke1616/ework-runner/pkg/grpc/registry"
 	"github.com/ecodeclub/ekit/syncx"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

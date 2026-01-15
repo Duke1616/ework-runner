@@ -3,7 +3,7 @@ package grpc
 import (
 	"time"
 
-	"github.com/Duke1616/ecmdb/pkg/grpc/registry"
+	"github.com/Duke1616/ework-runner/pkg/grpc/registry"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/attributes"
 	"google.golang.org/grpc/resolver"
