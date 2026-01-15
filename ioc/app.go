@@ -21,7 +21,6 @@ type Task interface {
 }
 
 type SchedulerApp struct {
-	//GRPC      *grpc.Component
 	Scheduler *scheduler.Scheduler
 	Tasks     []Task
 }

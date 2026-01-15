@@ -1,0 +1,83 @@
+//go:build wireinject
+
+package ioc
+
+import (
+	"fmt"
+
+	executorv1 "github.com/Duke1616/ecmdb/api/proto/gen/executor/v1"
+	"github.com/Duke1616/ecmdb/internal/grpc"
+	"github.com/Duke1616/ecmdb/ioc"
+	"github.com/Duke1616/ecmdb/pkg/grpc/registry"
+	"github.com/Duke1616/ecmdb/pkg/grpc/registry/etcd"
+	"github.com/google/wire"
+	"github.com/spf13/viper"
+	clientv3 "go.etcd.io/etcd/client/v3"
+)
+
+var (
+	BaseSet = wire.NewSet(
+		ioc.InitEtcdClient,
+		InitRegistry,
+	)
+
+	grpcServerSet = wire.NewSet(
+		InitExecutorGRPCServer,
+	)
+)
+
+func InitExecuteApp() *ExecuteApp {
+	wire.Build(
+		// 基础设施
+		BaseSet,
+
+		// gRPC 服务器
+		grpcServerSet,
+
+		wire.Struct(new(ExecuteApp), "*"),
+	)
+
+	return new(ExecuteApp)
+}
+
+// InitRegistry 初始化注册中心
+func InitRegistry(client *clientv3.Client) registry.Registry {
+	reg, err := etcd.NewRegistry(client)
+	if err != nil {
+		panic(err)
+	}
+	return reg
+}
+
+// InitExecutorGRPCServer 初始化 Executor gRPC 服务器
+func InitExecutorGRPCServer(reg registry.Registry) *grpc.Server {
+	var cfg ServerConfig
+	err := viper.UnmarshalKey("server.executor.grpc", &cfg)
+	if err != nil {
+		panic(err)
+	}
+
+	server := grpc.NewServer(cfg.Id, cfg.Name, cfg.Addr(), reg)
+
+	// 创建并注册 Executor 服务
+	executor := grpc.NewExecutor()
+	executorv1.RegisterExecutorServiceServer(server.Server, executor)
+
+	return server
+}
+
+type ServerConfig struct {
+	Id   string `mapstructure:"id"`
+	Name string `mapstructure:"name"`
+	Host string `mapstructure:"host"`
+	Port int    `mapstructure:"port"`
+}
+
+// Addr 返回服务器地址
+func (c *ServerConfig) Addr() string {
+	return fmt.Sprintf("%s:%d", c.Host, c.Port)
+}
+
+type ExecuteApp struct {
+	Server *grpc.Server
+}

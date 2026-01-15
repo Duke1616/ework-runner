@@ -2,9 +2,9 @@ version: '3'
 services:
   ework-runner:
     restart: always
-    container_name: ework-runner
+    container_name: ework-execute
     image: duke1616/ework-runner:latest
-    command: ./ework-runner
+    command: ./ework-execute
     ports:
       - 8668:8001
     environment:

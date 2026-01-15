@@ -1,5 +1,7 @@
 config/prod.toml
 config/prod.yaml
+config/config.toml
+config/config.yaml
 
 third_party/base/main.py
 third_party/base/test.json

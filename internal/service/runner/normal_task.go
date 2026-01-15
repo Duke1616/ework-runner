@@ -42,7 +42,7 @@ func NewNormalTaskRunner(
 		taskAcquirer: taskAcquirer,
 		invoker:      invoker,
 		producer:     producer,
-		logger:       elog.DefaultLogger.With(elog.FieldComponentName("runner.NormalTaskRunner")),
+		logger:       elog.DefaultLogger.With(elog.FieldComponentName("execute.NormalTaskRunner")),
 	}
 }
 

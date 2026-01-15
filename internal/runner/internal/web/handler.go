@@ -18,7 +18,7 @@ func NewHandler(svc service.Service) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(server *gin.Engine) {
-	g := server.Group("/api/runner")
+	g := server.Group("/api/execute")
 	g.POST("/register", ginx.WrapBody[RegisterRunnerReq](h.Register))
 }
 

@@ -7,7 +7,7 @@ import (
 	"github.com/Duke1616/ecmdb/internal/service/scheduler"
 	"github.com/Duke1616/ecmdb/internal/service/task"
 	"github.com/google/uuid"
-	"github.com/gotomicro/ego/core/econf"
+	"github.com/spf13/viper"
 )
 
 func InitNodeID() string {
@@ -23,7 +23,7 @@ func InitScheduler(
 	nodePicker picker.ExecutorNodePicker,
 ) *scheduler.Scheduler {
 	var cfg scheduler.Config
-	err := econf.UnmarshalKey("scheduler", &cfg)
+	err := viper.UnmarshalKey("scheduler", &cfg)
 	if err != nil {
 		panic(err)
 	}

@@ -304,7 +304,7 @@ func (g *GORMTaskExecutionDAO) FindReschedulableExecutions(ctx context.Context, 
 	var executions []TaskExecution
 	// 查找可重调度的执行记录
 	err := g.db.WithContext(ctx).
-		Where("status = ? AND (sharding_parent_id IS NULL OR sharding_parent_id > 0) ", TaskExecutionStatusFailedRescheduled).
+		Where("status = ?", TaskExecutionStatusFailedRescheduled).
 		Order("utime ASC").
 		Limit(limit).
 		Find(&executions).Error

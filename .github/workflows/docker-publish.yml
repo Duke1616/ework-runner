@@ -10,7 +10,7 @@ on:
 
 env:
   REGISTRY: registry.cn-qingdao.aliyuncs.com
-  TAGS: duke1616/ework-runner
+  TAGS: duke1616/ework-execute
 
 jobs:
   build:
