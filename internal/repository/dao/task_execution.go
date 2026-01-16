@@ -27,6 +27,7 @@ type TaskExecution struct {
 	// 下面都是创建当前 TaskExecution 时从对应的Task直接拷贝过来的冗余信息
 	TaskID                  int64                               `gorm:"type:bigint;not null;comment:'任务ID'"`
 	TaskName                string                              `gorm:"type:varchar(255);not null;comment:'任务名称'"`
+	TaskType                string                              `gorm:"type:ENUM('RECURRING', 'ONE_TIME');not null;default:'RECURRING';comment:'任务类型: RECURRING-定时任务(循环执行), ONE_TIME-一次性任务(执行一次后停止)'"`
 	TaskCronExpr            string                              `gorm:"type:varchar(100);not null;comment:'cron表达式'"`
 	TaskGrpcConfig          sqlx.JSONColumn[domain.GrpcConfig]  `gorm:"type:json;comment:'gRPC配置：{\"serviceName\": \"user-service\"}'"`
 	TaskHTTPConfig          sqlx.JSONColumn[domain.HTTPConfig]  `gorm:"type:json;comment:'HTTP配置：{\"endpoint\": \"https://host:port/api\"}'"`

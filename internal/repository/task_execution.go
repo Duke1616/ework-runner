@@ -196,6 +196,7 @@ func (r *taskExecutionRepository) toEntity(execution domain.TaskExecution) dao.T
 		// 从Task展开的冗余字段
 		TaskID:                  execution.Task.ID,
 		TaskName:                execution.Task.Name,
+		TaskType:                execution.Task.Type.String(),
 		TaskCronExpr:            execution.Task.CronExpr,
 		TaskGrpcConfig:          grpcConfig,
 		TaskHTTPConfig:          httpConfig,
@@ -250,6 +251,7 @@ func (r *taskExecutionRepository) toDomain(daoExecution dao.TaskExecution) domai
 		Task: domain.Task{
 			ID:                  daoExecution.TaskID,
 			Name:                daoExecution.TaskName,
+			Type:                domain.TaskType(daoExecution.TaskType),
 			CronExpr:            daoExecution.TaskCronExpr,
 			GrpcConfig:          taskGrpcConfig,
 			HTTPConfig:          taskHTTPConfig,
