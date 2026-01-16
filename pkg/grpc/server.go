@@ -18,7 +18,7 @@ import (
 
 const (
 	// ServicePrefix 服务注册路径前缀
-	ServicePrefix = "service/"
+	ServicePrefix = "service"
 	// ComponentName 日志组件名
 	ComponentName = "grpc.server"
 	// DefaultPort 默认端口
@@ -104,7 +104,7 @@ func (s *Server) Serve() error {
 
 func (s *Server) register(ctx context.Context, port string) error {
 	cli := s.EtcdClient
-	serviceName := ServicePrefix + s.ServiceName
+	serviceName := fmt.Sprintf("%s/%s", ServicePrefix, s.ServiceName)
 
 	em, err := endpoints.NewManager(cli, serviceName)
 	if err != nil {

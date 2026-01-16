@@ -101,7 +101,7 @@ func (e *Executor) initComponents() error {
 	// NOTE: Reporter 可能有多个节点,使用 resolver 自动发现和负载均衡
 	// NOTE: 使用 executor:// scheme (自定义resolver),服务名包含 service/ 前缀
 	reporterConn, err := grpc.NewClient(
-		fmt.Sprintf("executor:///service/%s", e.config.ReporterServiceName),
+		fmt.Sprintf("executor:///%s/%s", grpcpkg.ServicePrefix, e.config.ReporterServiceName),
 		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"round_robin"}`),
 		grpc.WithResolvers(grpcpkg.NewResolverBuilder(reg, 10*time.Second)),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
