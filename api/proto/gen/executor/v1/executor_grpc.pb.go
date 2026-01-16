@@ -31,7 +31,7 @@ const (
 //
 // ExecutorService 执行节点需要实现的接口，以便调度节点可以通知执行节点执行任务、中断任务及查询任务执行状态。
 type ExecutorServiceClient interface {
-	// 执行一个任务（或分片）
+	// 执行一个任务
 	Execute(ctx context.Context, in *ExecuteRequest, opts ...grpc.CallOption) (*ExecuteResponse, error)
 	// 中断一个正在执行的任务
 	Interrupt(ctx context.Context, in *InterruptRequest, opts ...grpc.CallOption) (*InterruptResponse, error)
@@ -95,7 +95,7 @@ func (c *executorServiceClient) Prepare(ctx context.Context, in *PrepareRequest,
 //
 // ExecutorService 执行节点需要实现的接口，以便调度节点可以通知执行节点执行任务、中断任务及查询任务执行状态。
 type ExecutorServiceServer interface {
-	// 执行一个任务（或分片）
+	// 执行一个任务
 	Execute(context.Context, *ExecuteRequest) (*ExecuteResponse, error)
 	// 中断一个正在执行的任务
 	Interrupt(context.Context, *InterruptRequest) (*InterruptResponse, error)

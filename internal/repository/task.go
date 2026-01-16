@@ -66,7 +66,7 @@ func (r *taskRepository) GetByID(ctx context.Context, id int64) (domain.Task, er
 }
 
 func (r *taskRepository) SchedulableTasks(ctx context.Context, preemptedTimeoutMs int64, limit int) ([]domain.Task, error) {
-	tasks, err := r.dao.FindSchedulableTasks(ctx, preemptedTimeoutMs, limit)
+	tasks, err := r.dao.FindScheduleTasks(ctx, preemptedTimeoutMs, limit)
 	if err != nil {
 		return nil, err
 	}

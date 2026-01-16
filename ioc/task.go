@@ -7,11 +7,13 @@ import (
 func InitTasks(
 	t1 *compensator.RetryCompensator,
 	t2 *compensator.RescheduleCompensator,
-	t4 *compensator.InterruptCompensator,
+	t3 *compensator.InterruptCompensator,
+	t4 *CompleteConsumer,
 ) []Task {
 	return []Task{
 		t1,
 		t2,
+		t3,
 		t4,
 	}
 }

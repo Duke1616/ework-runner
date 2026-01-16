@@ -38,7 +38,7 @@ message ExecutionState {
 
 // ExecutorService 执行节点需要实现的接口，以便调度节点可以通知执行节点执行任务、中断任务及查询任务执行状态。
 service ExecutorService {
-  // 执行一个任务（或分片）
+  // 执行一个任务
   rpc Execute(ExecuteRequest) returns (ExecuteResponse);
   // 中断一个正在执行的任务
   rpc Interrupt(InterruptRequest) returns (InterruptResponse);

@@ -6,7 +6,7 @@ import (
 )
 
 func InitCompleteProducer(q mq.MQ) event.CompleteProducer {
-	producer, err := q.Producer("")
+	producer, err := q.Producer("complete_topic")
 	if err != nil {
 		panic(err)
 	}

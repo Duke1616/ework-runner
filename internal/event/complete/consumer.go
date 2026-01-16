@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
+	"github.com/Duke1616/ework-runner/internal/domain"
 	"github.com/Duke1616/ework-runner/internal/event"
 	"github.com/Duke1616/ework-runner/internal/service/acquirer"
 	"github.com/Duke1616/ework-runner/internal/service/task"
@@ -44,7 +46,21 @@ func (c *Consumer) Consume(ctx context.Context, message *mq.Message) error {
 	return c.handleTask(ctx, evt)
 }
 
-func (c *Consumer) handleTask(_ context.Context, _ event.Event) error {
-	// 普通的任务,暂时啥也不做
-	return nil
+func (c *Consumer) handleTask(ctx context.Context, evt event.Event) error {
+	var err error
+	if evt.ExecStatus.IsSuccess() {
+		err = c.execSvc.UpdateScheduleResult(ctx, evt.ExecID, domain.TaskExecutionStatusSuccess, number100, time.Now().UnixMilli(), nil, "")
+	} else {
+		err = c.execSvc.UpdateScheduleResult(ctx, evt.ExecID, domain.TaskExecutionStatusFailed, number0, time.Now().UnixMilli(), nil, "")
+	}
+	if err != nil {
+		return err
+	}
+	_, err = c.taskSvc.UpdateNextTime(ctx, evt.TaskID)
+	if err != nil {
+		return err
+	}
+	// 释放plan
+	err = c.acquire.Release(ctx, evt.TaskID, evt.ScheduleNodeID)
+	return err
 }

@@ -328,8 +328,11 @@ func (s *executionService) sendCompletedEvent(ctx context.Context, state domain.
 		return
 	}
 	err := s.producer.Produce(ctx, event.Event{
-		TaskID: execution.Task.ID,
-		Name:   execution.Task.Name,
+		ExecID:         execution.ID,
+		ScheduleNodeID: execution.Task.ScheduleNodeID,
+		ExecStatus:     state.Status,
+		TaskID:         execution.Task.ID,
+		Name:           execution.Task.Name,
 	})
 	if err != nil {
 		s.logger.Error("发送完成事件失败", elog.Int64("taskID", execution.Task.ID), elog.FieldErr(err))

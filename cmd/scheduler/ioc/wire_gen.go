@@ -41,7 +41,8 @@ func InitSchedulerApp() *ioc.SchedulerApp {
 	retryCompensator := ioc.InitRetryCompensator(runner, executionService)
 	rescheduleCompensator := ioc.InitRescheduleCompensator(runner, executionService)
 	interruptCompensator := ioc.InitInterruptCompensator(clients, executionService)
-	v := ioc.InitTasks(retryCompensator, rescheduleCompensator, interruptCompensator)
+	completeConsumer := ioc.InitCompleteEventConsumer(mq, service, executionService, taskAcquirer, string2)
+	v := ioc.InitTasks(retryCompensator, rescheduleCompensator, interruptCompensator, completeConsumer)
 	schedulerApp := &ioc.SchedulerApp{
 		Server:    server,
 		Scheduler: scheduler,
@@ -66,4 +67,6 @@ var (
 	producerSet = wire.NewSet(ioc.InitCompleteProducer)
 
 	grpcSet = wire.NewSet(ioc.InitExecutorServiceGRPCClients)
+
+	consumerSet = wire.NewSet(ioc.InitCompleteEventConsumer)
 )

@@ -56,10 +56,9 @@ var (
 		ioc.InitExecutorServiceGRPCClients,
 	)
 
-	//consumerSet = wire.NewSet(
-	//	ioc.InitExecutionReportEventConsumer,
-	//	ioc.InitExecutionBatchReportEventConsumer,
-	//)
+	consumerSet = wire.NewSet(
+		ioc.InitCompleteEventConsumer,
+	)
 )
 
 func InitSchedulerApp() *ioc.SchedulerApp {
@@ -71,7 +70,7 @@ func InitSchedulerApp() *ioc.SchedulerApp {
 		taskExecutionSet,
 		schedulerSet,
 		compensatorSet,
-		//consumerSet,
+		consumerSet,
 		producerSet,
 		grpcSet,
 		// GRPC服务器

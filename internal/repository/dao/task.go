@@ -49,9 +49,9 @@ type TaskDAO interface {
 	GetByID(ctx context.Context, id int64) (*Task, error)
 	// FindByPlanID 根据计划ID获取所有子任务
 	FindByPlanID(ctx context.Context, planID int64) ([]*Task, error)
-	// FindSchedulableTasks 查询可调度的任务列表
+	// FindScheduleTasks 查询可调度的任务列表
 	// preemptedTimeoutMs: PREEMPTED状态任务的超时时间（毫秒），超过此时间未续约的任务可被重新抢占
-	FindSchedulableTasks(ctx context.Context, preemptedTimeoutMs int64, limit int) ([]*Task, error)
+	FindScheduleTasks(ctx context.Context, preemptedTimeoutMs int64, limit int) ([]*Task, error)
 	// Acquire 抢占任务
 	Acquire(ctx context.Context, id, version int64, scheduleNodeID string) (*Task, error)
 	// Renew 续约所有被抢占的任务任务
@@ -100,7 +100,7 @@ func (g *GORMTaskDAO) GetByID(ctx context.Context, id int64) (*Task, error) {
 	return &task, nil
 }
 
-func (g *GORMTaskDAO) FindSchedulableTasks(ctx context.Context, preemptedTimeoutMs int64, limit int) ([]*Task, error) {
+func (g *GORMTaskDAO) FindScheduleTasks(ctx context.Context, preemptedTimeoutMs int64, limit int) ([]*Task, error) {
 	var tasks []*Task
 	now := time.Now().UnixMilli()
 	// 获取所有可调度的任务
