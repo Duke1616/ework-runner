@@ -3,9 +3,11 @@ package executor
 import (
 	"context"
 	"fmt"
+	"time"
 
 	executorv1 "github.com/Duke1616/ework-runner/api/proto/gen/executor/v1"
 	reporterv1 "github.com/Duke1616/ework-runner/api/proto/gen/reporter/v1"
+	grpcpkg "github.com/Duke1616/ework-runner/pkg/grpc"
 	"github.com/Duke1616/ework-runner/pkg/grpc/registry/etcd"
 	"github.com/ecodeclub/ekit/syncx"
 	"github.com/gotomicro/ego/core/elog"
@@ -95,9 +97,13 @@ func (e *Executor) initComponents() error {
 		return fmt.Errorf("创建服务注册失败: %w", err)
 	}
 
-	// 2. 创建 Reporter 客户端
+	// 2. 创建 Reporter 客户端 - 使用 resolver 方式支持服务发现和负载均衡
+	// NOTE: Reporter 可能有多个节点,使用 resolver 自动发现和负载均衡
+	// NOTE: 使用 executor:// scheme (自定义resolver),服务名包含 service/ 前缀
 	reporterConn, err := grpc.NewClient(
-		e.config.ReporterAddr,
+		fmt.Sprintf("executor:///service/%s", e.config.ReporterServiceName),
+		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"round_robin"}`),
+		grpc.WithResolvers(grpcpkg.NewResolverBuilder(reg, 10*time.Second)),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
