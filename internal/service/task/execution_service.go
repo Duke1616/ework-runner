@@ -178,17 +178,18 @@ func (s *executionService) UpdateState(ctx context.Context, state domain.Executi
 	case state.Status.IsFailedRetryable():
 		err = s.updateRetryState(ctx, execution, state)
 		if err != nil {
+			// 达到最大重试次数
+			if errors.Is(err, errs.ErrExecutionMaxRetriesExceeded) {
+				// NOTE: 只发送完成事件,由消费者统一更新终止状态
+				s.sendCompletedEvent(ctx, state, execution)
+				return nil
+			}
+			// 其他错误才记录并返回
 			s.logger.Error("更新任务执行记录的重试结果失败",
 				elog.Int64("taskID", state.TaskID),
 				elog.String("taskName", state.TaskName),
 				elog.Any("state", state),
 				elog.FieldErr(err))
-
-			// 达到最大重试次数
-			if errors.Is(err, errs.ErrExecutionMaxRetriesExceeded) {
-				// 发送完成事件
-				s.sendCompletedEvent(ctx, state, execution)
-			}
 			return err
 		}
 		return nil
@@ -203,13 +204,9 @@ func (s *executionService) UpdateState(ctx context.Context, state domain.Executi
 		}
 		return nil
 	case state.Status.IsTerminalStatus():
-		var err1 error
-		if err2 := s.updateState(ctx, execution, state); err2 != nil {
-			err1 = multierr.Append(err1, fmt.Errorf("更新任务执行记录的调度结果失败：%w", err2))
-		}
-		// 发送完成事件
+		// NOTE: 只发送完成事件,由消费者统一更新终止状态,避免重复更新
 		s.sendCompletedEvent(ctx, state, execution)
-		return err1
+		return nil
 	default:
 		s.logger.Error("非法上报状态",
 			elog.Int64("taskID", execution.Task.ID),
@@ -250,16 +247,16 @@ func (s *executionService) updateRetryState(ctx context.Context, execution domai
 	// 计算出下次重试时间
 	retryStrategy, _ := retry.NewRetry(execution.Task.RetryConfig.ToRetryComponentConfig())
 	duration, shouldRetry := retryStrategy.NextWithRetries(int32(execution.RetryCount + 1))
-	if shouldRetry {
-		// 当前不是最后一次重试，计算下次重试时间
-		execution.NextRetryTime = time.Now().Add(duration).UnixMilli()
-		// 增加重试计数
-		execution.RetryCount++
-	} else if !state.Status.IsTerminalStatus() {
-		// 当前是最后一次重试，只要不是终止状态一律设置为失败
-		state.Status = domain.TaskExecutionStatusFailed
+
+	if !shouldRetry {
+		// NOTE: 达到最大重试次数,状态更新交由消费者统一处理,这里只返回标记错误
+		return errs.ErrExecutionMaxRetriesExceeded
 	}
-	// 不管是否达到最大重试次数，都要更新状态（主要是重试次数），这样下次重试补偿任务会因其超过最大重试次数而不再重试
+
+	// 还可以重试:计算下次重试时间并更新重试计数
+	execution.NextRetryTime = time.Now().Add(duration).UnixMilli()
+	execution.RetryCount++
+
 	err := s.UpdateRetryResult(ctx,
 		state.ID,
 		execution.RetryCount,
@@ -275,14 +272,9 @@ func (s *executionService) updateRetryState(ctx context.Context, execution domai
 			elog.String("taskName", execution.Task.Name),
 			elog.Any("result", state),
 			elog.FieldErr(err))
-		if !shouldRetry {
-			return fmt.Errorf("%w: %w", errs.ErrExecutionMaxRetriesExceeded, err)
-		}
 		return err
 	}
-	if !shouldRetry {
-		return errs.ErrExecutionMaxRetriesExceeded
-	}
+
 	s.logger.Info("更新重试状态成功",
 		elog.Int64("taskID", execution.Task.ID),
 		elog.String("taskName", execution.Task.Name),
