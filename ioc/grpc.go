@@ -8,26 +8,26 @@ import (
 	reporterv1 "github.com/Duke1616/ework-runner/api/proto/gen/reporter/v1"
 	grpcapi "github.com/Duke1616/ework-runner/internal/grpc"
 	grpcpkg "github.com/Duke1616/ework-runner/pkg/grpc"
-	"github.com/Duke1616/ework-runner/pkg/grpc/registry"
+	registrysdk "github.com/Duke1616/ework-runner/pkg/grpc/registry"
 	"github.com/spf13/viper"
-
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
 )
 
 // InitSchedulerNodeGRPCServer 初始化 Scheduler gRPC 服务器
-func InitSchedulerNodeGRPCServer(reg registry.Registry, reporter *grpcapi.ReporterServer) *grpcpkg.Server {
+func InitSchedulerNodeGRPCServer(etcdClient *clientv3.Client, reporter *grpcapi.ReporterServer) *grpcpkg.Server {
 	var cfg ServerConfig
 	if err := viper.UnmarshalKey("server.scheduler.grpc", &cfg); err != nil {
 		panic(err)
 	}
 
-	server := grpcpkg.NewServer(cfg.Id, cfg.Name, cfg.Addr(), reg)
+	server := grpcpkg.NewServer(cfg.Name, cfg.Addr(), etcdClient)
 	reporterv1.RegisterReporterServiceServer(server.Server, reporter)
 
 	return server
 }
 
-func InitExecutorServiceGRPCClients(registry registry.Registry) *grpcpkg.Clients[executorv1.ExecutorServiceClient] {
+func InitExecutorServiceGRPCClients(registry registrysdk.Registry) *grpcpkg.Clients[executorv1.ExecutorServiceClient] {
 	const defaultTimeout = time.Second
 	return grpcpkg.NewClients(
 		registry,

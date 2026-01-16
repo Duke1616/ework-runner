@@ -19,7 +19,6 @@ import (
 
 func InitSchedulerApp() *ioc.SchedulerApp {
 	client := ioc.InitEtcdClient()
-	registry := ioc.InitRegistry(client)
 	string2 := ioc.InitNodeID()
 	db := ioc.InitDB()
 	taskExecutionDAO := dao.NewGORMTaskExecutionDAO(db)
@@ -30,9 +29,10 @@ func InitSchedulerApp() *ioc.SchedulerApp {
 	taskAcquirer := ioc.InitMySQLTaskAcquirer(taskRepository)
 	mq := ioc.InitMQ()
 	completeProducer := ioc.InitCompleteProducer(mq)
+	registry := ioc.InitRegistry(client)
 	executionService := task.NewExecutionService(string2, taskExecutionRepository, service, taskAcquirer, completeProducer, registry)
 	reporterServer := grpc.NewReporterServer(executionService)
-	server := ioc.InitSchedulerNodeGRPCServer(registry, reporterServer)
+	server := ioc.InitSchedulerNodeGRPCServer(client, reporterServer)
 	clients := ioc.InitExecutorServiceGRPCClients(registry)
 	invoker := ioc.InitInvoker(clients)
 	runner := ioc.InitRunner(string2, service, executionService, taskAcquirer, invoker, completeProducer)

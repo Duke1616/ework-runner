@@ -9,9 +9,9 @@ import (
 	reporterv1 "github.com/Duke1616/ework-runner/api/proto/gen/reporter/v1"
 	grpcapi "github.com/Duke1616/ework-runner/internal/grpc"
 	"github.com/Duke1616/ework-runner/ioc"
-	grpcpkg "github.com/Duke1616/ework-runner/pkg/grpc"
 	"github.com/Duke1616/ework-runner/pkg/grpc/registry"
 	"github.com/Duke1616/ework-runner/pkg/grpc/registry/etcd"
+	"github.com/Duke1616/ework-runner/sdk/executor"
 	"github.com/google/wire"
 	"github.com/spf13/viper"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -76,17 +76,17 @@ func initReporterServiceClient() reporterv1.ReporterServiceClient {
 }
 
 // InitExecutorGRPCServer 初始化 Executor gRPC 服务器
-func InitExecutorGRPCServer(reg registry.Registry, client reporterv1.ReporterServiceClient) *grpcpkg.Server {
+func InitExecutorGRPCServer(reg registry.Registry, client reporterv1.ReporterServiceClient) *executor.Server {
 	var cfg ServerConfig
 	if err := viper.UnmarshalKey("server.executor.grpc", &cfg); err != nil {
 		panic(err)
 	}
 
-	server := grpcpkg.NewServer(cfg.Id, cfg.Name, cfg.Addr(), reg)
+	server := executor.NewServer(cfg.Id, cfg.Name, cfg.Addr(), reg)
 
 	// 创建并注册 Executor 服务
-	executor := grpcapi.NewExecutor(client)
-	executorv1.RegisterExecutorServiceServer(server.Server, executor)
+	exec := grpcapi.NewExecutor(client)
+	executorv1.RegisterExecutorServiceServer(server.Server, exec)
 
 	return server
 }
@@ -104,5 +104,5 @@ func (c *ServerConfig) Addr() string {
 }
 
 type ExecuteApp struct {
-	Server *grpcpkg.Server
+	Server *executor.Server
 }

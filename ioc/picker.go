@@ -8,5 +8,5 @@ import (
 // InitExecutorNodePicker 初始化执行节点选择器
 func InitExecutorNodePicker(reg registry.Registry) picker.ExecutorNodePicker {
 	// 创建并返回随机选择器
-	return picker.NewBasePicker(reg)
+	return picker.NewRandomPicker(reg)
 }

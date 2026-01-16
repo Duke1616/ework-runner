@@ -32,7 +32,7 @@ func TestStart(t *testing.T) {
 		GrpcConfig: sqlx.JSONColumn[domain.GrpcConfig]{
 			Valid: true,
 			Val: domain.GrpcConfig{
-				ServiceName: "builder",
+				ServiceName: "sync_data",
 			},
 		},
 		ScheduleParams: sqlx.JSONColumn[map[string]string]{

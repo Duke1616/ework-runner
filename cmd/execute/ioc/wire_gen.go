@@ -10,11 +10,11 @@ import (
 	"fmt"
 	"github.com/Duke1616/ework-runner/api/proto/gen/executor/v1"
 	"github.com/Duke1616/ework-runner/api/proto/gen/reporter/v1"
-	grpc3 "github.com/Duke1616/ework-runner/internal/grpc"
+	grpc2 "github.com/Duke1616/ework-runner/internal/grpc"
 	"github.com/Duke1616/ework-runner/ioc"
-	grpc2 "github.com/Duke1616/ework-runner/pkg/grpc"
 	"github.com/Duke1616/ework-runner/pkg/grpc/registry"
 	"github.com/Duke1616/ework-runner/pkg/grpc/registry/etcd"
+	"github.com/Duke1616/ework-runner/sdk/executor"
 	"github.com/google/wire"
 	"github.com/spf13/viper"
 	"go.etcd.io/etcd/client/v3"
@@ -73,16 +73,16 @@ func initReporterServiceClient() reporterv1.ReporterServiceClient {
 }
 
 // InitExecutorGRPCServer 初始化 Executor gRPC 服务器
-func InitExecutorGRPCServer(reg registry.Registry, client reporterv1.ReporterServiceClient) *grpc2.Server {
+func InitExecutorGRPCServer(reg registry.Registry, client reporterv1.ReporterServiceClient) *executor.Server {
 	var cfg ServerConfig
 	if err := viper.UnmarshalKey("server.executor.grpc", &cfg); err != nil {
 		panic(err)
 	}
 
-	server := grpc2.NewServer(cfg.Id, cfg.Name, cfg.Addr(), reg)
+	server := executor.NewServer(cfg.Id, cfg.Name, cfg.Addr(), reg)
 
-	executor := grpc3.NewExecutor(client)
-	executorv1.RegisterExecutorServiceServer(server.Server, executor)
+	exec := grpc2.NewExecutor(client)
+	executorv1.RegisterExecutorServiceServer(server.Server, exec)
 
 	return server
 }
@@ -100,5 +100,5 @@ func (c *ServerConfig) Addr() string {
 }
 
 type ExecuteApp struct {
-	Server *grpc2.Server
+	Server *executor.Server
 }

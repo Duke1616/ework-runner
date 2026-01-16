@@ -7,6 +7,7 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
+// InitEtcdClient 初始化 etcd 客户端（返回标准 clientv3.Client）
 func InitEtcdClient() *clientv3.Client {
 	var cfg clientv3.Config
 
