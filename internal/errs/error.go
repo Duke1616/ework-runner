@@ -8,6 +8,7 @@ var (
 	ErrTaskReleaseFailed              = errors.New("任务释放失败")
 	ErrTaskUpdateNextTimeFailed       = errors.New("任务更新下次执行时间失败")
 	ErrTaskUpdateScheduleParamsFailed = errors.New("任务更新调度参数失败")
+	ErrTaskUpdateStatusFailed         = errors.New("任务更新状态失败")
 
 	ErrExecutionNotFound            = errors.New("执行记录不存在")
 	ErrInvalidTaskExecutionStatus   = errors.New("执行记录状态非法")

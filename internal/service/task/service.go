@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/Duke1616/ework-runner/internal/domain"
 	"github.com/Duke1616/ework-runner/internal/errs"
@@ -54,15 +55,27 @@ func (s *service) UpdateNextTime(ctx context.Context, id int64) (domain.Task, er
 	if err != nil {
 		return domain.Task{}, err
 	}
-	// 计算并设置下次执行时间
+
+	// 一次性任务：如果 NextTime 在过去，说明已执行完成，直接设置为 INACTIVE
+	// NOTE: 这样可以避免 CalculateNextTime 计算出下一次时间
+	if task.Type.IsOneTime() && task.NextTime > 0 && task.NextTime < time.Now().UnixMilli() {
+		return s.repo.UpdateStatus(ctx, id, domain.TaskStatusInactive)
+	}
+
+	// 计算下次执行时间
 	nextTime, err := task.CalculateNextTime()
 	if err != nil {
 		return domain.Task{}, fmt.Errorf("%w: %w", errs.ErrInvalidTaskCronExpr, err)
 	}
+
+	// 如果下次执行时间为零值
 	if nextTime.IsZero() {
-		// 不需要继续执行了
+		// 一次性任务：已经是 INACTIVE 状态（由上面的判断设置）
+		// 定时任务：cron 不再触发，直接返回（保持原状态）
 		return task, nil
 	}
+
+	// 更新下次执行时间
 	task.NextTime = nextTime.UnixMilli()
 	return s.repo.UpdateNextTime(ctx, task.ID, task.Version, task.NextTime)
 }

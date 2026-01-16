@@ -29,6 +29,8 @@ type TaskRepository interface {
 	UpdateScheduleParams(ctx context.Context, id, version int64, scheduleParams map[string]string) (domain.Task, error)
 	// FindByPlanID 根据计划ID获取所有子任务
 	FindByPlanID(ctx context.Context, planID int64) ([]domain.Task, error)
+	// UpdateStatus 更新任务状态
+	UpdateStatus(ctx context.Context, id int64, status domain.TaskStatus) (domain.Task, error)
 }
 
 type taskRepository struct {
@@ -111,6 +113,15 @@ func (r *taskRepository) UpdateScheduleParams(ctx context.Context, id, version i
 	return r.toDomain(task), nil
 }
 
+// UpdateStatus 更新任务状态
+func (r *taskRepository) UpdateStatus(ctx context.Context, id int64, status domain.TaskStatus) (domain.Task, error) {
+	task, err := r.dao.UpdateStatus(ctx, id, status.String())
+	if err != nil {
+		return domain.Task{}, err
+	}
+	return r.toDomain(task), nil
+}
+
 // toEntity 将领域模型转换为DAO模型
 func (r *taskRepository) toEntity(task domain.Task) dao.Task {
 	var scheduleNodeID sql.NullString
@@ -141,6 +152,7 @@ func (r *taskRepository) toEntity(task domain.Task) dao.Task {
 	return dao.Task{
 		ID:                  task.ID,
 		Name:                task.Name,
+		Type:                task.Type.String(),
 		CronExpr:            task.CronExpr,
 		GrpcConfig:          grpcConfig,
 		HTTPConfig:          httpConfig,
@@ -186,6 +198,7 @@ func (r *taskRepository) toDomain(daoTask *dao.Task) domain.Task {
 	return domain.Task{
 		ID:                  daoTask.ID,
 		Name:                daoTask.Name,
+		Type:                domain.TaskType(daoTask.Type),
 		CronExpr:            daoTask.CronExpr,
 		GrpcConfig:          grpcConfig,
 		HTTPConfig:          httpConfig,

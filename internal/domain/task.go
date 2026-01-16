@@ -20,10 +20,33 @@ func (t TaskStatus) String() string {
 	return string(t)
 }
 
+// TaskType 任务类型
+type TaskType string
+
+const (
+	TaskTypeRecurring TaskType = "RECURRING" // 定时任务（循环执行）
+	TaskTypeOneTime   TaskType = "ONE_TIME"  // 一次性任务（执行一次后停止）
+)
+
+func (tt TaskType) String() string {
+	return string(tt)
+}
+
+// IsOneTime 判断是否为一次性任务
+func (tt TaskType) IsOneTime() bool {
+	return tt == TaskTypeOneTime
+}
+
+// IsRecurring 判断是否为定时任务
+func (tt TaskType) IsRecurring() bool {
+	return tt == TaskTypeRecurring
+}
+
 type Task struct {
 	ID                  int64
 	Name                string
-	CronExpr            string
+	Type                TaskType // 任务类型: RECURRING-定时任务, ONE_TIME-一次性任务
+	CronExpr            string   // cron 表达式（定时任务必填，一次性任务可选用于定时触发）
 	GrpcConfig          *GrpcConfig
 	HTTPConfig          *HTTPConfig
 	RetryConfig         *RetryConfig
@@ -67,7 +90,22 @@ type HTTPConfig struct {
 	Params   map[string]string `json:"params"`
 }
 
+// CalculateNextTime 计算下次执行时间
+// - RECURRING 任务: 使用 cron 表达式计算下次执行时间
+// - ONE_TIME 任务: 首次使用 cron 计算定时触发时间，执行后返回零值表示不再执行
 func (t *Task) CalculateNextTime() (time.Time, error) {
+	// 一次性任务：执行完成后不再计算下次时间
+	// NOTE: Service 层会在执行完成时将状态设置为 INACTIVE
+	if t.Type.IsOneTime() && t.Status == TaskStatusInactive {
+		return time.Time{}, nil
+	}
+
+	// 如果没有 cron 表达式，返回零值
+	if t.CronExpr == "" {
+		return time.Time{}, nil
+	}
+
+	// 使用 cron 表达式计算下次执行时间
 	p := cron.NewParser(
 		cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
 	)
@@ -75,6 +113,7 @@ func (t *Task) CalculateNextTime() (time.Time, error) {
 	if err != nil {
 		return time.Time{}, err
 	}
+
 	return s.Next(time.Now()), nil
 }
 

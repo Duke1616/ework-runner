@@ -56,11 +56,16 @@ func (c *Consumer) handleTask(ctx context.Context, evt event.Event) error {
 	if err != nil {
 		return err
 	}
-	_, err = c.taskSvc.UpdateNextTime(ctx, evt.TaskID)
+	t, err := c.taskSvc.UpdateNextTime(ctx, evt.TaskID)
 	if err != nil {
 		return err
 	}
-	// 释放plan
-	err = c.acquire.Release(ctx, evt.TaskID, evt.ScheduleNodeID)
-	return err
+
+	// 只有状态还是 PREEMPTED 的任务才需要释放
+	// 一次性任务已经变为 INACTIVE，不需要释放
+	if t.Status == domain.TaskStatusPreempted {
+		return c.acquire.Release(ctx, evt.TaskID, evt.ScheduleNodeID)
+	}
+
+	return nil
 }

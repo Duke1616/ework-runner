@@ -27,7 +27,8 @@ func TestStart(t *testing.T) {
 	taskName := fmt.Sprintf("task_%s", uuid.New().String())
 	_, err := taskDAO.Create(t.Context(), dao.Task{
 		Name:     taskName,
-		CronExpr: "0 */5 * * * *",
+		CronExpr: "0 0 * * * ?",
+		Type:     domain.TaskTypeOneTime.String(),
 		GrpcConfig: sqlx.JSONColumn[domain.GrpcConfig]{
 			Valid: true,
 			Val: domain.GrpcConfig{
@@ -38,7 +39,7 @@ func TestStart(t *testing.T) {
 			Valid: true,
 			Val: map[string]string{
 				"start": "0",
-				"end":   "100",
+				"end":   "33",
 			},
 		},
 		Status:   domain.TaskStatusActive.String(),

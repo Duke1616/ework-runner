@@ -23,6 +23,7 @@ type Task struct {
 	ID                  int64                               `gorm:"type:bigint;primaryKey;autoIncrement;"`
 	BizID               int64                               `gorm:"type:bigint unsigned;not null;default:0;comment:biz_id"`
 	Name                string                              `gorm:"type:varchar(255);not null;uniqueIndex:uniq_idx_name;comment:'任务名称'"`
+	Type                string                              `gorm:"type:ENUM('RECURRING', 'ONE_TIME');not null;default:'RECURRING';comment:'任务类型: RECURRING-定时任务(循环执行), ONE_TIME-一次性任务(执行一次后停止)'"`
 	CronExpr            string                              `gorm:"type:varchar(100);not null;comment:'cron表达式'"`
 	GrpcConfig          sqlx.JSONColumn[domain.GrpcConfig]  `gorm:"type:json;comment:'gRPC配置：{\"serviceName\": \"user-service\"}'"`
 	HTTPConfig          sqlx.JSONColumn[domain.HTTPConfig]  `gorm:"type:json;comment:'HTTP配置：{\"endpoint\": \"https://host:port/api\"}'"`
@@ -62,6 +63,8 @@ type TaskDAO interface {
 	UpdateNextTime(ctx context.Context, id, version, nextTime int64) (*Task, error)
 	// UpdateScheduleParams 更新调度参数（CAS操作）
 	UpdateScheduleParams(ctx context.Context, id, version int64, scheduleParams map[string]string) (*Task, error)
+	// UpdateStatus 更新任务状态
+	UpdateStatus(ctx context.Context, id int64, status string) (*Task, error)
 }
 
 type GORMTaskDAO struct {
@@ -243,6 +246,38 @@ func (g *GORMTaskDAO) UpdateScheduleParams(ctx context.Context, id, version int6
 		if result.RowsAffected == 0 {
 			return errs.ErrTaskUpdateScheduleParamsFailed
 		}
+		var task Task
+		if err := tx.Where("id = ?", id).First(&task).Error; err != nil {
+			return err
+		}
+		updatedTask = &task
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return updatedTask, nil
+}
+
+// UpdateStatus 更新任务状态
+func (g *GORMTaskDAO) UpdateStatus(ctx context.Context, id int64, status string) (*Task, error) {
+	var updatedTask *Task
+	err := g.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&Task{}).
+			Where("id = ?", id).
+			Updates(map[string]any{
+				"status":  status,
+				"version": gorm.Expr("version + 1"),
+				"utime":   time.Now().UnixMilli(),
+			})
+
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return errs.ErrTaskUpdateStatusFailed
+		}
+
 		var task Task
 		if err := tx.Where("id = ?", id).First(&task).Error; err != nil {
 			return err
