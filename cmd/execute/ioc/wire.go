@@ -3,20 +3,15 @@
 package ioc
 
 import (
-	"fmt"
-
-	executorv1 "github.com/Duke1616/ework-runner/api/proto/gen/executor/v1"
-	reporterv1 "github.com/Duke1616/ework-runner/api/proto/gen/reporter/v1"
-	grpcapi "github.com/Duke1616/ework-runner/internal/grpc"
+	"github.com/Duke1616/ework-runner/internal/grpc"
 	"github.com/Duke1616/ework-runner/ioc"
+	grpcpkg "github.com/Duke1616/ework-runner/pkg/grpc"
 	"github.com/Duke1616/ework-runner/pkg/grpc/registry"
 	"github.com/Duke1616/ework-runner/pkg/grpc/registry/etcd"
 	"github.com/Duke1616/ework-runner/sdk/executor"
 	"github.com/google/wire"
 	"github.com/spf13/viper"
 	clientv3 "go.etcd.io/etcd/client/v3"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 var (
@@ -25,12 +20,10 @@ var (
 		InitRegistry,
 	)
 
-	grpcServerSet = wire.NewSet(
-		InitExecutorGRPCServer,
-	)
-
-	grpcClientSet = wire.NewSet(
-		initReporterServiceClient,
+	ExecutorSet = wire.NewSet(
+		InitConfig,
+		InitExecutor,
+		InitExecutorServer,
 	)
 )
 
@@ -38,13 +31,8 @@ func InitExecuteApp() *ExecuteApp {
 	wire.Build(
 		// 基础设施
 		BaseSet,
-
-		// gRPC 服务器
-		grpcServerSet,
-
-		// gRPC 客户端
-		grpcClientSet,
-
+		// Executor 组件
+		ExecutorSet,
 		wire.Struct(new(ExecuteApp), "*"),
 	)
 
@@ -53,56 +41,47 @@ func InitExecuteApp() *ExecuteApp {
 
 // InitRegistry 初始化注册中心
 func InitRegistry(client *clientv3.Client) registry.Registry {
-	reg, err := etcd.NewRegistry(client)
+	// NOTE: 统一使用 service 前缀
+	reg, err := etcd.NewRegistryWithPrefix(client, "service")
 	if err != nil {
 		panic(err)
 	}
 	return reg
 }
 
-func initReporterServiceClient() reporterv1.ReporterServiceClient {
-	// 直接使用 IP:Port 地址
-	target := fmt.Sprintf("%s:%d", "127.0.0.1", 9002)
+// InitConfig 初始化配置
+func InitConfig() *executor.Config {
+	return &executor.Config{
+		NodeID:              viper.GetString("server.executor.grpc.id"),
+		ServiceName:         viper.GetString("server.executor.grpc.name"),
+		Addr:                viper.GetString("server.executor.grpc.host") + ":" + viper.GetString("server.executor.grpc.port"),
+		ReporterServiceName: "scheduler",
+	}
+}
 
-	conn, err := grpc.NewClient(
-		target,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
-
+// InitExecutor 初始化 SDK Executor 实例
+func InitExecutor(cfg *executor.Config, reg registry.Registry) *executor.Executor {
+	exec, err := executor.NewExecutor(cfg, reg)
 	if err != nil {
 		panic(err)
 	}
-	return reporterv1.NewReporterServiceClient(conn)
-}
 
-// InitExecutorGRPCServer 初始化 Executor gRPC 服务器
-func InitExecutorGRPCServer(reg registry.Registry, client reporterv1.ReporterServiceClient) *executor.Server {
-	var cfg ServerConfig
-	if err := viper.UnmarshalKey("server.executor.grpc", &cfg); err != nil {
+	// 注册处理函数
+	exec.RegisterHandler(&grpc.DemoTaskHandler{})
+
+	// 初始化内部组件(连接Reporter等)
+	if err = exec.Init(); err != nil {
 		panic(err)
 	}
 
-	server := executor.NewServer(cfg.Id, cfg.Name, cfg.Addr(), reg)
-
-	// 创建并注册 Executor 服务
-	exec := grpcapi.NewExecutor(client)
-	executorv1.RegisterExecutorServiceServer(server.Server, exec)
-
-	return server
+	return exec
 }
 
-type ServerConfig struct {
-	Id   string `mapstructure:"id"`
-	Name string `mapstructure:"name"`
-	Host string `mapstructure:"host"`
-	Port int    `mapstructure:"port"`
-}
-
-// Addr 返回服务器地址
-func (c *ServerConfig) Addr() string {
-	return fmt.Sprintf("%s:%d", c.Host, c.Port)
+// InitExecutorServer 从 Executor 中提取 ego Server
+func InitExecutorServer(exec *executor.Executor) *grpcpkg.Server {
+	return exec.Server()
 }
 
 type ExecuteApp struct {
-	Server *executor.Server
+	Server *grpcpkg.Server
 }

@@ -8,10 +8,9 @@ import (
 	executorv1 "github.com/Duke1616/ework-runner/api/proto/gen/executor/v1"
 	reporterv1 "github.com/Duke1616/ework-runner/api/proto/gen/reporter/v1"
 	grpcpkg "github.com/Duke1616/ework-runner/pkg/grpc"
-	"github.com/Duke1616/ework-runner/pkg/grpc/registry/etcd"
+	"github.com/Duke1616/ework-runner/pkg/grpc/registry"
 	"github.com/ecodeclub/ekit/syncx"
 	"github.com/gotomicro/ego/core/elog"
-	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -20,8 +19,9 @@ import (
 type Executor struct {
 	executorv1.UnimplementedExecutorServiceServer
 
-	config  *Config
-	handler func(*Context) error
+	config   *Config
+	registry registry.Registry
+	handlers map[string]TaskHandler
 
 	// 内部组件
 	server         *grpcpkg.Server
@@ -34,22 +34,24 @@ type Executor struct {
 }
 
 // NewExecutor 创建 Executor
-func NewExecutor(cfg *Config) (*Executor, error) {
+func NewExecutor(cfg *Config, reg registry.Registry) (*Executor, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
 	return &Executor{
-		config:  cfg,
-		logger:  elog.DefaultLogger.With(elog.FieldComponentName("executor")),
-		states:  &syncx.Map[int64, *executorv1.ExecutionState]{},
-		cancels: &syncx.Map[int64, context.CancelFunc]{},
+		config:   cfg,
+		registry: reg,
+		handlers: make(map[string]TaskHandler),
+		logger:   elog.DefaultLogger.With(elog.FieldComponentName("executor")),
+		states:   &syncx.Map[int64, *executorv1.ExecutionState]{},
+		cancels:  &syncx.Map[int64, context.CancelFunc]{},
 	}, nil
 }
 
 // MustNewExecutor 创建 Executor (panic on error)
-func MustNewExecutor(cfg *Config) *Executor {
-	exec, err := NewExecutor(cfg)
+func MustNewExecutor(cfg *Config, reg registry.Registry) *Executor {
+	exec, err := NewExecutor(cfg, reg)
 	if err != nil {
 		panic(err)
 	}
@@ -57,67 +59,23 @@ func MustNewExecutor(cfg *Config) *Executor {
 }
 
 // RegisterHandler 注册任务处理函数
-func (e *Executor) RegisterHandler(handler func(*Context) error) *Executor {
-	e.handler = handler
+// name: 任务名称,需要与调度中心下发的 taskName 匹配
+// RegisterHandler 注册任务处理函数
+func (e *Executor) RegisterHandler(handler TaskHandler) *Executor {
+	e.handlers[handler.Name()] = handler
 	return e
 }
 
-// Start 启动 Executor
-func (e *Executor) Start() error {
-	if e.handler == nil {
-		return fmt.Errorf("未注册处理函数,请先调用 RegisterHandler")
-	}
-
-	// 初始化组件
-	if err := e.initComponents(); err != nil {
-		return err
-	}
-
-	e.logger.Info("Executor 启动成功",
-		elog.String("nodeID", e.config.NodeID),
-		elog.String("serviceName", e.config.ServiceName),
-		elog.String("addr", e.config.Addr))
-
-	// 启动 gRPC Server
-	if err := e.server.Start(); err != nil {
-		return err
-	}
-
-	// 阻塞等待
-	select {}
-}
-
-// initComponents 初始化所有组件
-func (e *Executor) initComponents() error {
-	// 1. 创建 etcd 客户端
-	etcdClient, err := clientv3.New(clientv3.Config{
-		Endpoints: e.config.EtcdEndpoints,
-	})
-	if err != nil {
-		return fmt.Errorf("创建 etcd 客户端失败: %w", err)
-	}
-
-	// 2. 创建服务注册中心
-	// NOTE: Executor 使用默认前缀 /services/etask/executor
-	reg, err := etcd.NewRegistry(etcdClient)
-	if err != nil {
-		return fmt.Errorf("创建服务注册失败: %w", err)
-	}
-
-	// 3. 连接 Reporter - 使用 Resolver 服务发现模式
+// Init 初始化组件
+func (e *Executor) Init() error {
+	// 1. 连接 Reporter - 使用 Resolver 服务发现模式
 	serviceName := e.config.ReporterServiceName
 	e.logger.Info("使用服务发现连接 Reporter",
 		elog.String("serviceName", serviceName))
 
-	// NOTE: Scheduler 注册在 "service" 前缀下
-	reporterReg, err := etcd.NewRegistryWithPrefix(etcdClient, "service")
-	if err != nil {
-		return fmt.Errorf("创建 Reporter 发现注册表失败: %w", err)
-	}
-
 	reporterConn, err := grpc.NewClient(
 		fmt.Sprintf("executor:///%s", serviceName),
-		grpc.WithResolvers(grpcpkg.NewResolverBuilder(reporterReg, 10*time.Second)),
+		grpc.WithResolvers(grpcpkg.NewResolverBuilder(e.registry, 10*time.Second)),
 		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"round_robin"}`),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
@@ -126,23 +84,23 @@ func (e *Executor) initComponents() error {
 	}
 	e.reporterClient = reporterv1.NewReporterServiceClient(reporterConn)
 
-	// 4. 创建 gRPC Server
-	e.server = grpcpkg.NewServer(e.config.NodeID, e.config.ServiceName, e.config.Addr, reg)
+	// 2. 创建 gRPC Server
+	e.server = grpcpkg.NewServer(e.config.NodeID, e.config.ServiceName, e.config.Addr, e.registry)
 
-	// 5. 注册 Executor 服务
+	// 3. 注册 Executor 服务
 	executorv1.RegisterExecutorServiceServer(e.server.Server, e)
 
 	return nil
 }
 
+// Server 获取内部 gRPC Server (用于 ego 启动)
+func (e *Executor) Server() *grpcpkg.Server {
+	return e.server
+}
+
 // Execute 实现 ExecutorServiceServer.Execute
 func (e *Executor) Execute(ctx context.Context, req *executorv1.ExecuteRequest) (*executorv1.ExecuteResponse, error) {
 	eid := req.GetEid()
-
-	e.logger.Info("收到执行请求",
-		elog.Int64("eid", eid),
-		elog.Int64("taskId", req.GetTaskId()),
-		elog.String("taskName", req.GetTaskName()))
 
 	// 检查是否已经在执行
 	if state, ok := e.states.Load(eid); ok {
@@ -183,8 +141,16 @@ func (e *Executor) executeTask(runCtx context.Context, taskCtx *Context, eid int
 
 	logger := taskCtx.Logger()
 
-	// 调用用户处理函数
-	err := e.handler(taskCtx)
+	// 查找处理函数
+	handler, exists := e.handlers[taskCtx.TaskName]
+
+	var err error
+	if !exists {
+		err = fmt.Errorf("未找到任务处理器: %s", taskCtx.TaskName)
+	} else {
+		// 调用用户处理函数
+		err = handler.Run(taskCtx)
+	}
 
 	// 确定最终状态
 	var finalStatus executorv1.ExecutionStatus

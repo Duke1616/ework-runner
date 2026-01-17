@@ -1,9 +1,10 @@
 package main
 
 import (
-	"github.com/Duke1616/ework-runner/internal/grpc"
-	"github.com/Duke1616/ework-runner/sdk/executor"
+	"github.com/Duke1616/ework-runner/cmd/execute/ioc"
+	"github.com/gotomicro/ego"
 	"github.com/gotomicro/ego/core/elog"
+	"github.com/gotomicro/ego/server"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
@@ -11,23 +12,19 @@ import (
 func main() {
 	initViper()
 
-	// 读取配置
-	cfg := &executor.Config{
-		NodeID:              viper.GetString("server.executor.grpc.id"),
-		ServiceName:         viper.GetString("server.executor.grpc.name"),
-		Addr:                viper.GetString("server.executor.grpc.host") + ":" + viper.GetString("server.executor.grpc.port"),
-		EtcdEndpoints:       viper.GetStringSlice("etcd.endpoints"),
-		ReporterServiceName: "scheduler", // 使用服务发现
-		// ReporterAddr:        "198.18.0.1:9002", // 可选:直接地址
-	}
+	// 创建 ego 应用实例
+	egoApp := ego.New()
 
-	// 创建 Executor 并注册处理函数
-	exec := executor.MustNewExecutor(cfg)
-	exec.RegisterHandler(grpc.DemoTaskHandler)
+	// 初始化 Executor 应用
+	app := ioc.InitExecuteApp()
 
-	// 启动并阻塞
-	if err := exec.Start(); err != nil {
-		elog.Panic("启动失败", elog.FieldErr(err))
+	// 启动服务
+	if err := egoApp.Serve(
+		func() server.Server {
+			return app.Server
+		}(),
+	).Run(); err != nil {
+		elog.Panic("startup", elog.FieldErr(err))
 	}
 }
 

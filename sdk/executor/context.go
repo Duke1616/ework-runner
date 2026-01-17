@@ -7,6 +7,12 @@ import (
 	"github.com/gotomicro/ego/core/elog"
 )
 
+// TaskHandler 任务处理函数接口
+type TaskHandler interface {
+	Name() string
+	Run(*Context) error
+}
+
 // Context 任务执行上下文
 type Context struct {
 	ExecutionID int64

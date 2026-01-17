@@ -9,8 +9,13 @@ import (
 )
 
 // DemoTaskHandler 演示任务处理器
-// NOTE: 这是一个示例实现,展示如何使用 SDK 处理带进度的任务
-func DemoTaskHandler(ctx *executor.Context) error {
+type DemoTaskHandler struct{}
+
+func (h *DemoTaskHandler) Name() string {
+	return "demo"
+}
+
+func (h *DemoTaskHandler) Run(ctx *executor.Context) error {
 	logger := ctx.Logger()
 
 	// 获取参数
@@ -35,22 +40,21 @@ func DemoTaskHandler(ctx *executor.Context) error {
 	defer incTicker.Stop()
 
 	for progressUnits < total {
-		select {
-		case <-incTicker.C:
-			progressUnits++
-			progress := progressUnits * 100 / total
+		// 等待下一个周期
+		<-incTicker.C
+		progressUnits++
+		progress := progressUnits * 100 / total
 
-			// 上报进度 (可选)
-			if err := ctx.ReportProgress(progress); err != nil {
-				logger.Error("上报进度失败", elog.FieldErr(err))
-			}
+		// 上报进度 (可选)
+		if err := ctx.ReportProgress(progress); err != nil {
+			logger.Error("上报进度失败", elog.FieldErr(err))
+		}
 
-			if progressUnits%1000 == 0 {
-				logger.Info("任务进度",
-					elog.Int("current", progressUnits),
-					elog.Int("total", total),
-					elog.Int("progress", progress))
-			}
+		if progressUnits%1000 == 0 {
+			logger.Info("任务进度",
+				elog.Int("current", progressUnits),
+				elog.Int("total", total),
+				elog.Int("progress", progress))
 		}
 	}
 

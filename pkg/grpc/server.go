@@ -124,7 +124,7 @@ func (s *Server) Start() error {
 
 	// 异步启动 gRPC 服务
 	go func() {
-		if err := s.Server.Serve(listener); err != nil {
+		if err = s.Server.Serve(listener); err != nil {
 			s.logger.Error("gRPC 服务器错误", elog.FieldErr(err))
 		}
 	}()
