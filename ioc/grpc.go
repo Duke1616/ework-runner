@@ -9,6 +9,7 @@ import (
 	grpcapi "github.com/Duke1616/ework-runner/internal/grpc"
 	grpcpkg "github.com/Duke1616/ework-runner/pkg/grpc"
 	registrysdk "github.com/Duke1616/ework-runner/pkg/grpc/registry"
+	"github.com/Duke1616/ework-runner/pkg/netx"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 )
@@ -18,6 +19,10 @@ func InitSchedulerNodeGRPCServer(registry registrysdk.Registry, reporter *grpcap
 	var cfg ServerConfig
 	if err := viper.UnmarshalKey("server.scheduler.grpc", &cfg); err != nil {
 		panic(err)
+	}
+
+	if cfg.Host == "0.0.0.0" || cfg.Host == "" {
+		cfg.Host = netx.GetOutboundIP()
 	}
 
 	server := grpcpkg.NewServer(cfg.Id, cfg.Name, cfg.Addr(), registry)

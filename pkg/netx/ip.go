@@ -1,17 +1,21 @@
 package netx
 
-import "net"
+import (
+	"net"
+)
 
-// GetOutboundIP 获得对外发送消息的 IP 地址
 func GetOutboundIP() string {
-	conn, err := net.Dial("udp", "8.8.8.8:80")
+	addrs, err := net.InterfaceAddrs()
 	if err != nil {
-		return ""
+		panic("no valid IPv4 address found")
 	}
-	defer func(conn net.Conn) {
-		_ = conn.Close()
-	}(conn)
 
-	localAddr := conn.LocalAddr().(*net.UDPAddr)
-	return localAddr.IP.String()
+	for _, addr := range addrs {
+		ipNet, ok := addr.(*net.IPNet)
+		if ok && !ipNet.IP.IsLoopback() && ipNet.IP.To4() != nil {
+			return ipNet.IP.String()
+		}
+	}
+
+	panic("no valid IPv4 address found")
 }

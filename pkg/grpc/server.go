@@ -20,12 +20,13 @@ const (
 type Server struct {
 	*grpc.Server
 	// 服务注册相关
-	registry    registry.Registry
-	serviceID   string // 服务实例ID
-	ServiceName string
-	addr        string // 监听地址
-	cancel      func()
-	logger      *elog.Component
+	registry       registry.Registry
+	serviceID      string // 服务实例ID
+	ServiceName    string
+	addr           string // 监听地址
+	registeredAddr string // 注册到注册中心的地址
+	cancel         func()
+	logger         *elog.Component
 }
 
 // NewServer 创建 gRPC Server 实例
@@ -70,6 +71,7 @@ func (s *Server) Serve() error {
 }
 
 func (s *Server) register(addr string) error {
+	s.registeredAddr = addr
 	s.logger.Info("注册服务到 etcd",
 		elog.String("serviceID", s.serviceID),
 		elog.String("serviceName", s.ServiceName),
@@ -90,10 +92,11 @@ func (s *Server) Close() error {
 	}
 
 	// 注销服务
-	if s.registry != nil && s.serviceID != "" {
+	if s.registry != nil {
 		if err := s.registry.UnRegister(context.Background(), registry.ServiceInstance{
-			ID:   s.serviceID,
-			Name: s.ServiceName,
+			ID:      s.serviceID,
+			Name:    s.ServiceName,
+			Address: s.registeredAddr,
 		}); err != nil {
 			s.logger.Error("注销服务失败", elog.FieldErr(err))
 		}
@@ -142,11 +145,12 @@ func (s *Server) Stop() error {
 func (s *Server) GracefulStop(ctx context.Context) error {
 	s.logger.Info("优雅停止 gRPC 服务器")
 
-	// 先注销服务
-	if s.registry != nil && s.serviceID != "" {
-		if err := s.registry.UnRegister(ctx, registry.ServiceInstance{
-			ID:   s.serviceID,
-			Name: s.ServiceName,
+	// 注销服务
+	if s.registry != nil {
+		if err := s.registry.UnRegister(context.Background(), registry.ServiceInstance{
+			ID:      s.serviceID,
+			Name:    s.ServiceName,
+			Address: s.registeredAddr,
 		}); err != nil {
 			s.logger.Error("注销服务失败", elog.FieldErr(err))
 		}

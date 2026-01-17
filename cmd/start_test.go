@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -9,7 +8,6 @@ import (
 	"github.com/Duke1616/ework-runner/internal/repository/dao"
 	"github.com/Duke1616/ework-runner/ioc"
 	"github.com/Duke1616/ework-runner/pkg/sqlx"
-	"github.com/google/uuid"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
@@ -24,7 +22,7 @@ func TestStart(t *testing.T) {
 	taskDAO := dao.NewGORMTaskDAO(db)
 	// 初始化task
 	now := time.Now()
-	taskName := fmt.Sprintf("task_%s", uuid.New().String())
+	taskName := "demo"
 	_, err := taskDAO.Create(t.Context(), dao.Task{
 		Name:     taskName,
 		CronExpr: "0 0 * * * ?",
