@@ -49,15 +49,6 @@ func NewExecutor(cfg *Config, reg registry.Registry) (*Executor, error) {
 	}, nil
 }
 
-// MustNewExecutor 创建 Executor (panic on error)
-func MustNewExecutor(cfg *Config, reg registry.Registry) *Executor {
-	exec, err := NewExecutor(cfg, reg)
-	if err != nil {
-		panic(err)
-	}
-	return exec
-}
-
 // RegisterHandler 注册任务处理函数
 // name: 任务名称,需要与调度中心下发的 taskName 匹配
 // RegisterHandler 注册任务处理函数
@@ -66,8 +57,8 @@ func (e *Executor) RegisterHandler(handler TaskHandler) *Executor {
 	return e
 }
 
-// Init 初始化组件
-func (e *Executor) Init() error {
+// InitComponents 初始化组件
+func (e *Executor) InitComponents() error {
 	// 1. 连接 Reporter - 使用 Resolver 服务发现模式
 	serviceName := e.config.ReporterServiceName
 	e.logger.Info("使用服务发现连接 Reporter",

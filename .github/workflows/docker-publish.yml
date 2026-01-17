@@ -10,7 +10,6 @@ on:
 
 env:
   REGISTRY: registry.cn-qingdao.aliyuncs.com
-  TAGS: duke1616/ework-execute
 
 jobs:
   build:
@@ -19,6 +18,23 @@ jobs:
       contents: read
       packages: write
       id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: runner
+            path: .
+            image: duke1616/ework-runner
+            binary: ework-runner
+          - service: execute
+            path: ./cmd/execute
+            image: duke1616/ework-execute
+            binary: ework-execute
+          - service: scheduler
+            path: ./cmd/scheduler
+            image: duke1616/ework-scheduler
+            binary: ework-scheduler
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -41,7 +57,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.TAGS }}
+          images: ${{ env.REGISTRY }}/${{ matrix.image }}
 
       - name: Login into registry
         if: github.event_name != 'pull_request'
@@ -51,7 +67,7 @@ jobs:
           username: ${{ secrets.ALIYUN_USERNAME }}
           password: ${{ secrets.ALIYUN_PASSWORD }}
 
-      - name: Build base image
+      - name: Build and push ${{ matrix.service }}
         id: build-and-push
         uses: docker/build-push-action@v5
         with:
@@ -62,3 +78,5 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VERSION=${{ steps.octokit.outputs.tag }}
+            SERVICE_PATH=${{ matrix.path }}
+            SERVICE_NAME=${{ matrix.binary }}

@@ -4,6 +4,7 @@ package ioc
 
 import (
 	"github.com/Duke1616/ework-runner/internal/grpc"
+	"github.com/Duke1616/ework-runner/internal/grpc/scripts"
 	"github.com/Duke1616/ework-runner/ioc"
 	grpcpkg "github.com/Duke1616/ework-runner/pkg/grpc"
 	"github.com/Duke1616/ework-runner/pkg/grpc/registry"
@@ -68,9 +69,11 @@ func InitExecutor(cfg *executor.Config, reg registry.Registry) *executor.Executo
 
 	// 注册处理函数
 	exec.RegisterHandler(&grpc.DemoTaskHandler{})
+	exec.RegisterHandler(scripts.NewShellTaskHandler())
+	exec.RegisterHandler(scripts.NewPythonTaskHandler())
 
 	// 初始化内部组件(连接Reporter等)
-	if err = exec.Init(); err != nil {
+	if err = exec.InitComponents(); err != nil {
 		panic(err)
 	}
 
