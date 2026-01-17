@@ -111,7 +111,8 @@ func (e *Executor) Execute(ctx context.Context, req *executorv1.ExecuteRequest) 
 	e.states.Store(eid, state)
 
 	// 创建任务上下文
-	taskCtx := newContext(eid, req.GetTaskId(), req.GetTaskName(), req.GetParams(), e.reporterClient, e.logger)
+	taskCtx := newContext(eid, req.GetTaskId(), req.GetTaskName(), req.GetTaskHandlerName(),
+		req.GetParams(), e.reporterClient, e.logger)
 
 	//创建可取消上下文
 	runCtx, cancel := context.WithCancel(context.Background())
@@ -133,7 +134,7 @@ func (e *Executor) executeTask(runCtx context.Context, taskCtx *Context, eid int
 	logger := taskCtx.Logger()
 
 	// 查找处理函数
-	handler, exists := e.handlers[taskCtx.TaskName]
+	handler, exists := e.handlers[taskCtx.HandlerName]
 
 	var err error
 	if !exists {

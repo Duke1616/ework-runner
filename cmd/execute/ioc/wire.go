@@ -9,7 +9,6 @@ import (
 	grpcpkg "github.com/Duke1616/ework-runner/pkg/grpc"
 	"github.com/Duke1616/ework-runner/pkg/grpc/registry"
 	"github.com/Duke1616/ework-runner/pkg/grpc/registry/etcd"
-	"github.com/Duke1616/ework-runner/pkg/netx"
 	"github.com/Duke1616/ework-runner/sdk/executor"
 	"github.com/google/wire"
 	"github.com/spf13/viper"
@@ -54,10 +53,6 @@ func InitRegistry(client *clientv3.Client) registry.Registry {
 // InitConfig 初始化配置
 func InitConfig() *executor.Config {
 	host := viper.GetString("server.executor.grpc.host")
-	if host == "0.0.0.0" || host == "" {
-		host = netx.GetOutboundIP()
-	}
-
 	return &executor.Config{
 		NodeID:              viper.GetString("server.executor.grpc.id"),
 		ServiceName:         viper.GetString("server.executor.grpc.name"),

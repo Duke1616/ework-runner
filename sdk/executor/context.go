@@ -18,6 +18,7 @@ type Context struct {
 	ExecutionID int64
 	TaskID      int64
 	TaskName    string
+	HandlerName string
 	Params      map[string]string
 
 	// 内部字段
@@ -26,12 +27,13 @@ type Context struct {
 }
 
 // newContext 创建上下文(内部使用)
-func newContext(eid, taskID int64, taskName string, params map[string]string,
+func newContext(eid, taskID int64, taskName, handlerName string, params map[string]string,
 	reporter reporterv1.ReporterServiceClient, logger *elog.Component) *Context {
 	return &Context{
 		ExecutionID: eid,
 		TaskID:      taskID,
 		TaskName:    taskName,
+		HandlerName: handlerName,
 		Params:      params,
 		reporter:    reporter,
 		logger:      logger,

@@ -52,11 +52,12 @@ message ExecuteRequest {
   int64 eid = 1; // execution id
   int64 task_id = 2;
   string task_name = 3;
+  string task_handler_name = 4;
   // 这里有两部分
   // 1 一部分是通过管理后台，业务方自己搞的参数
   // 2. 另外一部分是我们调度用的，比如说 offset, limit
   // 即包含了业务参数和调度参数 (e.g., offset, limit)
-  map<string, string> params = 4;
+  map<string, string> params = 5;
 }
 
 message ExecuteResponse {

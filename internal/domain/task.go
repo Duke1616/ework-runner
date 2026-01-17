@@ -80,8 +80,9 @@ func (r *RetryConfig) ToRetryComponentConfig() retry.Config {
 
 // GrpcConfig gRPC配置
 type GrpcConfig struct {
-	ServiceName string            `json:"serviceName"`
-	Params      map[string]string `json:"params"`
+	ServiceName string            `json:"serviceName"` // 服务名称
+	HandlerName string            `json:"handlerName"` // 执行节点支持的方法名称， 如 shell、python、demo
+	Params      map[string]string `json:"params"`      // 传递参数
 }
 
 // HTTPConfig HTTP配置

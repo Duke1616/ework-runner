@@ -6,6 +6,7 @@ import (
 	"net"
 
 	"github.com/Duke1616/ework-runner/pkg/grpc/registry"
+	"github.com/Duke1616/ework-runner/pkg/netx"
 	"github.com/gotomicro/ego/core/constant"
 	"github.com/gotomicro/ego/core/elog"
 	"github.com/gotomicro/ego/server"
@@ -41,6 +42,25 @@ func NewServer(id, name, addr string, reg registry.Registry) *Server {
 	}
 }
 
+// resolveAddress 解析服务注册地址
+func (s *Server) resolveAddress(addr string) (string, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return "", fmt.Errorf("解析地址失败: %w", err)
+	}
+
+	// 如果绑定的是通配符地址，则需要解析出本机 IP
+	if host == "::" || host == "0.0.0.0" {
+		ip, err := netx.GetOutboundIP()
+		if err != nil {
+			return "", fmt.Errorf("获取本机 IP 失败: %w", err)
+		}
+		return net.JoinHostPort(ip, port), nil
+	}
+
+	return addr, nil
+}
+
 // startServer 启动服务器并注册到 etcd (内部方法)
 func (s *Server) startServer() (net.Listener, error) {
 	// 初始化控制上下文
@@ -52,8 +72,15 @@ func (s *Server) startServer() (net.Listener, error) {
 		return nil, fmt.Errorf("监听端口失败: %w", err)
 	}
 
+	// 获取监听地址
+	addr, err := s.resolveAddress(listener.Addr().String())
+	if err != nil {
+		listener.Close()
+		return nil, err
+	}
+
 	// 注册服务到 etcd
-	if err = s.register(listener.Addr().String()); err != nil {
+	if err = s.register(addr); err != nil {
 		listener.Close() // 清理资源
 		return nil, fmt.Errorf("注册服务失败: %w", err)
 	}

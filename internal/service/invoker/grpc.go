@@ -37,10 +37,11 @@ func (r *GRPCInvoker) Run(ctx context.Context, exec domain.TaskExecution) (domai
 
 	// 发送执行请求
 	resp, err := client.Execute(ctx, &executorv1.ExecuteRequest{
-		Eid:      exec.ID,
-		TaskId:   exec.Task.ID,
-		TaskName: exec.Task.Name,
-		Params:   exec.GRPCParams(),
+		Eid:             exec.ID,
+		TaskId:          exec.Task.ID,
+		TaskName:        exec.Task.Name,
+		TaskHandlerName: exec.Task.GrpcConfig.HandlerName,
+		Params:          exec.GRPCParams(),
 	})
 	if err != nil {
 		return domain.ExecutionState{}, fmt.Errorf("发送gRPC请求失败: %w", err)
