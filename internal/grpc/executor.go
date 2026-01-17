@@ -33,8 +33,6 @@ func (h *DemoTaskHandler) Run(ctx *executor.Context) error {
 	total := end
 	progressUnits := start
 
-	fmt.Println("开始调用任务", elog.Int("progressUnits", progressUnits))
-
 	// 模拟任务执行,定期更新进度
 	incTicker := time.NewTicker(100 * time.Millisecond)
 	defer incTicker.Stop()

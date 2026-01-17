@@ -32,7 +32,7 @@ func TestStart(t *testing.T) {
 		GrpcConfig: sqlx.JSONColumn[domain.GrpcConfig]{
 			Valid: true,
 			Val: domain.GrpcConfig{
-				ServiceName: "sync_data",
+				ServiceName: "execute",
 				HandlerName: "demo",
 			},
 		},
