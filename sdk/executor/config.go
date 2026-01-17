@@ -20,10 +20,10 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("ServiceName 不能为空")
 	}
 	if c.Addr == "" {
-		return fmt.Errorf("Addr 不能为空")
+		return fmt.Errorf("地址不能为空")
 	}
 	if len(c.EtcdEndpoints) == 0 {
-		return fmt.Errorf("Etcd Endpoints 不能为空")
+		return fmt.Errorf("EtcdEndpoints 不能为空")
 	}
 	if c.ReporterServiceName == "" {
 		return fmt.Errorf("ReporterServiceName 不能为空")

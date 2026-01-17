@@ -16,6 +16,7 @@ type RandomPicker struct {
 	rnd *rand.Rand
 }
 
+
 func (b *RandomPicker) Name() string {
 	return "RandomPicker"
 }

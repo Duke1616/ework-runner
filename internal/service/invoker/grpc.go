@@ -36,6 +36,7 @@ func (r *GRPCInvoker) Run(ctx context.Context, exec domain.TaskExecution) (domai
 	client := r.grpcClients.Get(exec.Task.GrpcConfig.ServiceName)
 	// 发送执行请求
 
+	fmt.Println("开始发送调用")
 	resp, err := client.Execute(ctx, &executorv1.ExecuteRequest{
 		Eid:      exec.ID,
 		TaskId:   exec.Task.ID,

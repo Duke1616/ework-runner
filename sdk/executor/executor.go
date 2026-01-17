@@ -24,7 +24,7 @@ type Executor struct {
 	handler func(*Context) error
 
 	// 内部组件
-	server         *Server
+	server         *grpcpkg.Server
 	reporterClient reporterv1.ReporterServiceClient
 	logger         *elog.Component
 
@@ -78,13 +78,18 @@ func (e *Executor) Start() error {
 		elog.String("serviceName", e.config.ServiceName),
 		elog.String("addr", e.config.Addr))
 
-	// 启动 gRPC Server (阻塞)
-	return e.server.Start()
+	// 启动 gRPC Server
+	if err := e.server.Start(); err != nil {
+		return err
+	}
+
+	// 阻塞等待
+	select {}
 }
 
 // initComponents 初始化所有组件
 func (e *Executor) initComponents() error {
-	// 1. 创建 etcd Registry
+	// 1. 创建 etcd 客户端
 	etcdClient, err := clientv3.New(clientv3.Config{
 		Endpoints: e.config.EtcdEndpoints,
 	})
@@ -92,18 +97,28 @@ func (e *Executor) initComponents() error {
 		return fmt.Errorf("创建 etcd 客户端失败: %w", err)
 	}
 
+	// 2. 创建服务注册中心
+	// NOTE: Executor 使用默认前缀 /services/etask/executor
 	reg, err := etcd.NewRegistry(etcdClient)
 	if err != nil {
 		return fmt.Errorf("创建服务注册失败: %w", err)
 	}
 
-	// 2. 创建 Reporter 客户端 - 使用 resolver 方式支持服务发现和负载均衡
-	// NOTE: Reporter 可能有多个节点,使用 resolver 自动发现和负载均衡
-	// NOTE: 使用 executor:// scheme (自定义resolver),服务名包含 service/ 前缀
+	// 3. 连接 Reporter - 使用 Resolver 服务发现模式
+	serviceName := e.config.ReporterServiceName
+	e.logger.Info("使用服务发现连接 Reporter",
+		elog.String("serviceName", serviceName))
+
+	// NOTE: Scheduler 注册在 "service" 前缀下
+	reporterReg, err := etcd.NewRegistryWithPrefix(etcdClient, "service")
+	if err != nil {
+		return fmt.Errorf("创建 Reporter 发现注册表失败: %w", err)
+	}
+
 	reporterConn, err := grpc.NewClient(
-		fmt.Sprintf("executor:///%s/%s", grpcpkg.ServicePrefix, e.config.ReporterServiceName),
+		fmt.Sprintf("executor:///%s", serviceName),
+		grpc.WithResolvers(grpcpkg.NewResolverBuilder(reporterReg, 10*time.Second)),
 		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"round_robin"}`),
-		grpc.WithResolvers(grpcpkg.NewResolverBuilder(reg, 10*time.Second)),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
@@ -111,10 +126,10 @@ func (e *Executor) initComponents() error {
 	}
 	e.reporterClient = reporterv1.NewReporterServiceClient(reporterConn)
 
-	// 3. 创建 gRPC Server
-	e.server = NewServer(e.config.NodeID, e.config.ServiceName, e.config.Addr, reg)
+	// 4. 创建 gRPC Server
+	e.server = grpcpkg.NewServer(e.config.NodeID, e.config.ServiceName, e.config.Addr, reg)
 
-	// 4. 注册 Executor 服务
+	// 5. 注册 Executor 服务
 	executorv1.RegisterExecutorServiceServer(e.server.Server, e)
 
 	return nil
@@ -124,8 +139,14 @@ func (e *Executor) initComponents() error {
 func (e *Executor) Execute(ctx context.Context, req *executorv1.ExecuteRequest) (*executorv1.ExecuteResponse, error) {
 	eid := req.GetEid()
 
+	e.logger.Info("收到执行请求",
+		elog.Int64("eid", eid),
+		elog.Int64("taskId", req.GetTaskId()),
+		elog.String("taskName", req.GetTaskName()))
+
 	// 检查是否已经在执行
 	if state, ok := e.states.Load(eid); ok {
+		e.logger.Warn("任务已在执行中", elog.Int64("eid", eid))
 		return &executorv1.ExecuteResponse{ExecutionState: state}, nil
 	}
 
@@ -143,10 +164,11 @@ func (e *Executor) Execute(ctx context.Context, req *executorv1.ExecuteRequest) 
 	// 创建任务上下文
 	taskCtx := newContext(eid, req.GetTaskId(), req.GetTaskName(), req.GetParams(), e.reporterClient, e.logger)
 
-	// 创建可取消上下文
+	//创建可取消上下文
 	runCtx, cancel := context.WithCancel(context.Background())
 	e.cancels.Store(eid, cancel)
 
+	e.logger.Info("启动异步任务执行", elog.Int64("eid", eid))
 	// 异步执行任务
 	go e.executeTask(runCtx, taskCtx, eid)
 
@@ -224,7 +246,7 @@ func (e *Executor) Interrupt(ctx context.Context, req *executorv1.InterruptReque
 	if cancel, ok := e.cancels.Load(eid); ok {
 		cancel()
 
-		if state, ok := e.states.Load(eid); ok {
+		if state, exist := e.states.Load(eid); exist {
 			return &executorv1.InterruptResponse{
 				Success:        true,
 				ExecutionState: state,

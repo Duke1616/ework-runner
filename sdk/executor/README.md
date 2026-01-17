@@ -46,11 +46,11 @@ import "github.com/Duke1616/ework-runner/sdk/executor"
 
 func main() {
     cfg := &executor.Config{
-        NodeID:        "cmdb-executor-001",
-        ServiceName:   "cmdb",
-        Addr:          "0.0.0.0:9020",
-        EtcdEndpoints: []string{"localhost:2379"},
-        ReporterAddr:  "127.0.0.1:9002",
+        NodeID:              "cmdb-executor-001",
+        ServiceName:         "cmdb",
+        Addr:                "0.0.0.0:9020",
+        EtcdEndpoints:       []string{"localhost:2379"},
+        ReporterServiceName: "scheduler",  // 使用服务发现连接 Reporter
     }
     
     exec := executor.MustNewExecutor(cfg)
