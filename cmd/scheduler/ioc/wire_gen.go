@@ -11,22 +11,32 @@ import (
 	"github.com/Duke1616/ework-runner/internal/repository"
 	"github.com/Duke1616/ework-runner/internal/repository/dao"
 	"github.com/Duke1616/ework-runner/internal/service/task"
+	task2 "github.com/Duke1616/ework-runner/internal/web/task"
 	"github.com/Duke1616/ework-runner/ioc"
+	"github.com/Duke1616/ework-runner/pkg/ginx/middleware"
 	"github.com/google/wire"
 )
 
 // Injectors from wire.go:
 
 func InitSchedulerApp() *ioc.SchedulerApp {
+	v := ioc.InitGinMiddlewares()
 	client := ioc.InitEtcdClient()
-	registry := ioc.InitRegistry(client)
-	string2 := ioc.InitNodeID()
+	clientConnInterface := ioc.InitECMDBGrpcClient(client)
+	policyServiceClient := ioc.InitPolicyServiceClient(clientConnInterface)
+	cmdable := ioc.InitRedis()
+	provider := ioc.InitSession(cmdable)
+	checkPolicyMiddlewareBuilder := middleware.NewCheckPolicyMiddlewareBuilder(policyServiceClient, provider)
 	db := ioc.InitDB()
-	taskExecutionDAO := dao.NewGORMTaskExecutionDAO(db)
 	taskDAO := dao.NewGORMTaskDAO(db)
 	taskRepository := repository.NewTaskRepository(taskDAO)
-	taskExecutionRepository := repository.NewTaskExecutionRepository(taskExecutionDAO, taskRepository)
 	service := task.NewService(taskRepository)
+	handler := task2.NewHandler(service)
+	component := ioc.InitGinWebServer(v, checkPolicyMiddlewareBuilder, provider, handler)
+	registry := ioc.InitRegistry(client)
+	string2 := ioc.InitNodeID()
+	taskExecutionDAO := dao.NewGORMTaskExecutionDAO(db)
+	taskExecutionRepository := repository.NewTaskExecutionRepository(taskExecutionDAO, taskRepository)
 	taskAcquirer := ioc.InitMySQLTaskAcquirer(taskRepository)
 	mq := ioc.InitMQ()
 	completeProducer := ioc.InitCompleteProducer(mq)
@@ -42,11 +52,12 @@ func InitSchedulerApp() *ioc.SchedulerApp {
 	rescheduleCompensator := ioc.InitRescheduleCompensator(runner, executionService)
 	interruptCompensator := ioc.InitInterruptCompensator(clients, executionService)
 	completeConsumer := ioc.InitCompleteEventConsumer(mq, service, executionService, taskAcquirer)
-	v := ioc.InitTasks(retryCompensator, rescheduleCompensator, interruptCompensator, completeConsumer)
+	v2 := ioc.InitTasks(retryCompensator, rescheduleCompensator, interruptCompensator, completeConsumer)
 	schedulerApp := &ioc.SchedulerApp{
+		Web:       component,
 		Server:    server,
 		Scheduler: scheduler,
-		Tasks:     v,
+		Tasks:     v2,
 	}
 	return schedulerApp
 }
@@ -56,7 +67,9 @@ func InitSchedulerApp() *ioc.SchedulerApp {
 var (
 	BaseSet = wire.NewSet(ioc.InitDB, ioc.InitRedis, ioc.InitDistributedLock, ioc.InitEtcdClient, ioc.InitMQ, ioc.InitRunner, ioc.InitInvoker, ioc.InitRegistry)
 
-	taskSet = wire.NewSet(dao.NewGORMTaskDAO, repository.NewTaskRepository, task.NewService)
+	webSetup = wire.NewSet(ioc.InitECMDBGrpcClient, ioc.InitPolicyServiceClient, middleware.NewCheckPolicyMiddlewareBuilder, ioc.InitSession, ioc.InitGinMiddlewares, ioc.InitGinWebServer)
+
+	taskSet = wire.NewSet(dao.NewGORMTaskDAO, repository.NewTaskRepository, task.NewService, task2.NewHandler)
 
 	taskExecutionSet = wire.NewSet(dao.NewGORMTaskExecutionDAO, repository.NewTaskExecutionRepository, task.NewExecutionService)
 

@@ -53,7 +53,7 @@ func TestJwtAuth_Encode(t *testing.T) {
 			// 验证标准声明存在
 			assert.NotEmpty(t, claims["iat"])
 			assert.NotEmpty(t, claims["exp"])
-			assert.Equal(t, "notification-platform", claims["iss"])
+			assert.Equal(t, "ework-runner", claims["iss"])
 
 			// 验证自定义声明存在
 			for k, v := range tt.customClaims {

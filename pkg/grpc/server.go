@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 
+	jwtinterceptor "github.com/Duke1616/ework-runner/pkg/grpc/interceptors/jwt"
 	"github.com/Duke1616/ework-runner/pkg/grpc/registry"
 	"github.com/Duke1616/ework-runner/pkg/netx"
 	"github.com/gotomicro/ego/core/constant"
@@ -19,8 +20,31 @@ const (
 	ComponentName = "grpc.server"
 )
 
+type Config struct {
+	ServiceId     string `mapstructure:"id"`             // 可选:实例ID，执行节点必填
+	ServiceName   string `mapstructure:"name"`           // 必填:服务名
+	ListenAddr    string `mapstructure:"listen_addr"`    // 必填:绑定地址
+	AdvertiseAddr string `mapstructure:"advertise_addr"` // 可选:手动指定注册到etcd的地址
+	AuthToken     string `mapstructure:"auto_token"`     // 可选:认证令牌，如果需要认证就传递
+}
+
+// Validate 验证配置
+func (c *Config) Validate() error {
+	if c.ServiceName == "" {
+		return fmt.Errorf("ServiceName 不能为空")
+	}
+	if c.ListenAddr == "" {
+		return fmt.Errorf("监听地址不能为空")
+	}
+	return nil
+}
+
 type Server struct {
 	*grpc.Server
+
+	// 配置文件
+	config Config
+
 	// 服务注册相关
 	registry       registry.Registry
 	serviceID      string // 服务实例ID
@@ -32,17 +56,41 @@ type Server struct {
 	logger         *elog.Component
 }
 
+// ServerOption Server 配置选项
+type ServerOption func(*Server)
+
+// WithJWTAuth 启用 JWT 认证
+// 如果 authToken 为空,则不启用认证
+func WithJWTAuth(authToken string) ServerOption {
+	return func(s *Server) {
+		if authToken != "" {
+			jwtAuth := jwtinterceptor.NewJwtAuth(authToken)
+			// 重新创建带 JWT interceptor 的 gRPC Server
+			s.Server = grpc.NewServer(
+				grpc.UnaryInterceptor(jwtAuth.JwtAuthInterceptor()),
+			)
+		}
+	}
+}
+
 // NewServer 创建 gRPC Server 实例
-func NewServer(id, name, listenAddr, advertiseAddr string, reg registry.Registry) *Server {
-	return &Server{
+func NewServer(cfg Config, reg registry.Registry, opts ...ServerOption) *Server {
+	s := &Server{
 		Server:        grpc.NewServer(),
-		serviceID:     id,
-		ServiceName:   name,
 		registry:      reg,
-		listenAddr:    listenAddr,
-		advertiseAddr: advertiseAddr,
+		serviceID:     cfg.ServiceId,
+		ServiceName:   cfg.ServiceName,
+		listenAddr:    cfg.ListenAddr,
+		advertiseAddr: cfg.AdvertiseAddr,
 		logger:        elog.DefaultLogger.With(elog.FieldComponentName(ComponentName)),
 	}
+
+	// 应用选项
+	for _, opt := range opts {
+		opt(s)
+	}
+
+	return s
 }
 
 // resolveAdvertiseAddress 解析服务注册地址

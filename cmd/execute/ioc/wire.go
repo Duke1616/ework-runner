@@ -51,18 +51,17 @@ func InitRegistry(client *clientv3.Client) registry.Registry {
 }
 
 // InitConfig 初始化配置
-func InitConfig() *executor.Config {
-	return &executor.Config{
-		NodeID:              viper.GetString("server.executor.grpc.id"),
-		ServiceName:         viper.GetString("server.executor.grpc.name"),
-		ListenAddr:          viper.GetString("server.executor.grpc.listen_addr"),
-		AdvertiseAddr:       viper.GetString("server.executor.grpc.advertise_addr"),
-		ReporterServiceName: "scheduler",
+func InitConfig() grpcpkg.Config {
+	var cfg grpcpkg.Config
+	if err := viper.UnmarshalKey("grpc.server.executor", &cfg); err != nil {
+		panic(err)
 	}
+
+	return cfg
 }
 
 // InitExecutor 初始化 SDK Executor 实例
-func InitExecutor(cfg *executor.Config, reg registry.Registry) *executor.Executor {
+func InitExecutor(cfg grpcpkg.Config, reg registry.Registry) *executor.Executor {
 	exec, err := executor.NewExecutor(cfg, reg)
 	if err != nil {
 		panic(err)

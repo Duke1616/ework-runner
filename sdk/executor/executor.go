@@ -2,6 +2,7 @@ package executor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -19,7 +20,7 @@ import (
 type Executor struct {
 	executorv1.UnimplementedExecutorServiceServer
 
-	config   *Config
+	config   grpcpkg.Config
 	registry registry.Registry
 	handlers map[string]TaskHandler
 
@@ -34,9 +35,13 @@ type Executor struct {
 }
 
 // NewExecutor 创建 Executor
-func NewExecutor(cfg *Config, reg registry.Registry) (*Executor, error) {
+func NewExecutor(cfg grpcpkg.Config, reg registry.Registry) (*Executor, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
+	}
+
+	if cfg.ServiceId == "" {
+		return nil, errors.New("service_id is required")
 	}
 
 	return &Executor{
@@ -60,12 +65,8 @@ func (e *Executor) RegisterHandler(handler TaskHandler) *Executor {
 // InitComponents 初始化组件
 func (e *Executor) InitComponents() error {
 	// 1. 连接 Reporter - 使用 Resolver 服务发现模式
-	serviceName := e.config.ReporterServiceName
-	e.logger.Info("使用服务发现连接 Reporter",
-		elog.String("serviceName", serviceName))
-
 	reporterConn, err := grpc.NewClient(
-		fmt.Sprintf("executor:///%s", serviceName),
+		fmt.Sprintf("executor:///%s", "scheduler"),
 		grpc.WithResolvers(grpcpkg.NewResolverBuilder(e.registry, 10*time.Second)),
 		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"round_robin"}`),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -76,7 +77,7 @@ func (e *Executor) InitComponents() error {
 	e.reporterClient = reporterv1.NewReporterServiceClient(reporterConn)
 
 	// 2. 创建 gRPC Server
-	e.server = grpcpkg.NewServer(e.config.NodeID, e.config.ServiceName, e.config.ListenAddr, e.config.AdvertiseAddr, e.registry)
+	e.server = grpcpkg.NewServer(e.config, e.registry, grpcpkg.WithJWTAuth(e.config.AuthToken))
 
 	// 3. 注册 Executor 服务
 	executorv1.RegisterExecutorServiceServer(e.server.Server, e)
@@ -106,7 +107,7 @@ func (e *Executor) Execute(ctx context.Context, req *executorv1.ExecuteRequest) 
 		TaskName:        req.GetTaskName(),
 		Status:          executorv1.ExecutionStatus_RUNNING,
 		RunningProgress: 0,
-		ExecutorNodeId:  e.config.NodeID,
+		ExecutorNodeId:  e.config.ServiceId,
 	}
 	e.states.Store(eid, state)
 

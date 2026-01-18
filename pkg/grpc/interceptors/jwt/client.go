@@ -42,7 +42,7 @@ func (b *ClientInterceptorBuilder) hasJWTInContext(ctx context.Context) bool {
 		return false
 	}
 
-	authHeaders := md.Get("Authorization")
+	authHeaders := md.Get(AuthorizationKey)
 	return len(authHeaders) > 0
 }
 
@@ -51,21 +51,28 @@ func (b *ClientInterceptorBuilder) injectJWTContext(ctx context.Context) context
 	// 使用项目已有的JWT包创建令牌
 	jwtAuth := NewJwtAuth(b.jwtKey)
 
-	// 创建包含业务ID的声明
+	// NOTE: 从 context 中动态获取 biz_id,而不是使用固定值
+	bizID := int64(0)
+	if v := ctx.Value(BizIDName); v != nil {
+		if id, ok := v.(int64); ok {
+			bizID = id
+		}
+	}
+
 	claims := jwt.MapClaims{
-		"biz_id": float64(1),
+		BizIDName: float64(bizID),
 	}
 
 	// 使用JWT认证包的Encode方法生成令牌
 	tokenString, err := jwtAuth.Encode(claims)
 	if err != nil {
-		// 如果生成失败，返回原始 context
+		// NOTE: 如果生成失败,返回原始 context
 		return ctx
 	}
 
 	// 创建带有授权信息的元数据
 	md := metadata.New(map[string]string{
-		"Authorization": "Bearer " + tokenString,
+		AuthorizationKey: BearerPrefix + tokenString,
 	})
 	return metadata.NewOutgoingContext(ctx, md)
 }

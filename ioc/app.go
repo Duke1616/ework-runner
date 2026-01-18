@@ -7,6 +7,7 @@ import (
 	"github.com/Duke1616/ework-runner/internal/service/scheduler"
 	grpcpkg "github.com/Duke1616/ework-runner/pkg/grpc"
 	"github.com/gin-gonic/gin"
+	"github.com/gotomicro/ego/server/egin"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
@@ -22,6 +23,7 @@ type Task interface {
 }
 
 type SchedulerApp struct {
+	Web       *egin.Component
 	Server    *grpcpkg.Server
 	Scheduler *scheduler.Scheduler
 	Tasks     []Task

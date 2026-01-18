@@ -23,31 +23,33 @@ func TestDemoStart(t *testing.T) {
 	db := ioc.InitDB()
 	taskDAO := dao.NewGORMTaskDAO(db)
 	// 初始化task
-	now := time.Now()
-	taskName := fmt.Sprintf("task_%s", uuid.New().String())
-	_, err := taskDAO.Create(t.Context(), dao.Task{
-		Name:     taskName,
-		CronExpr: "0 0 * * * ?",
-		Type:     domain.TaskTypeOneTime.String(),
-		GrpcConfig: sqlx.JSONColumn[domain.GrpcConfig]{
-			Valid: true,
-			Val: domain.GrpcConfig{
-				ServiceName: "execute",
-				HandlerName: "demo",
+	for i := 0; i < 1; i++ {
+		now := time.Now()
+		taskName := fmt.Sprintf("task_%s", uuid.New().String())
+		_, err := taskDAO.Create(t.Context(), dao.Task{
+			Name:     taskName,
+			CronExpr: "0 0 * * * ?",
+			Type:     domain.TaskTypeOneTime.String(),
+			GrpcConfig: sqlx.JSONColumn[domain.GrpcConfig]{
+				Valid: true,
+				Val: domain.GrpcConfig{
+					ServiceName: "execute",
+					HandlerName: "demo",
+				},
 			},
-		},
-		ScheduleParams: sqlx.JSONColumn[map[string]string]{
-			Valid: true,
-			Val: map[string]string{
-				"start": "0",
-				"end":   "33",
+			ScheduleParams: sqlx.JSONColumn[map[string]string]{
+				Valid: true,
+				Val: map[string]string{
+					"start": "0",
+					"end":   "33",
+				},
 			},
-		},
-		Status:   domain.TaskStatusActive.String(),
-		Version:  1,
-		NextTime: now.Add(3 * time.Second).UnixMilli(),
-	})
-	require.NoError(t, err)
+			Status:   domain.TaskStatusActive.String(),
+			Version:  1,
+			NextTime: now.Add(3 * time.Second).UnixMilli(),
+		})
+		require.NoError(t, err)
+	}
 }
 
 func TestShellStart(t *testing.T) {
@@ -56,12 +58,13 @@ func TestShellStart(t *testing.T) {
 	// 初始化db
 	db := ioc.InitDB()
 	taskDAO := dao.NewGORMTaskDAO(db)
-	// 初始化task
-	now := time.Now()
-	taskName := fmt.Sprintf("task_shell_%s", uuid.New().String())
+	for i := 0; i < 1; i++ {
+		// 初始化task
+		now := time.Now()
+		taskName := fmt.Sprintf("task_shell_%s", uuid.New().String())
 
-	// NOTE: Shell 脚本示例 - 模拟真实的运维场景(Kubernetes Pod 操作)
-	shellScript := `#!/bin/bash
+		// NOTE: Shell 脚本示例 - 模拟真实的运维场景(Kubernetes Pod 操作)
+		shellScript := `#!/bin/bash
 # 脚本描述: 演示 ework-runner 的 Shell 任务执行能力
 
 ## 传递工单提交信息
@@ -141,43 +144,44 @@ echo "========================================="
 exit 0
 `
 
-	// NOTE: 参数配置 - 以 JSON 格式传递,模拟真实业务场景
-	args := `{
+		// NOTE: 参数配置 - 以 JSON 格式传递,模拟真实业务场景
+		args := `{
 		"namespace": "sre",
 		"pod_name": "nginx",
 		"user_info": "{\"id\":1,\"username\":\"demo\",\"display_name\":\"演示用户\",\"email\":\"demo@example.com\"}"
 	}`
 
-	// NOTE: 变量配置 - 以 JSON 格式传递,执行时会转换为 KEY=VALUE 格式
-	// 这些变量会被写入临时文件,然后通过 source 命令导入到 shell 脚本中
-	variables := `[
+		// NOTE: 变量配置 - 以 JSON 格式传递,执行时会转换为 KEY=VALUE 格式
+		// 这些变量会被写入临时文件,然后通过 source 命令导入到 shell 脚本中
+		variables := `[
 		{"key": "KUBECONFIG_PATH", "value": "/home/demo/.kube/config"},
 		{"key": "OPERATOR_NAME", "value": "demo"},
 		{"key": "ENVIRONMENT", "value": "development"}
 	]`
 
-	_, err := taskDAO.Create(t.Context(), dao.Task{
-		Name:     taskName,
-		CronExpr: "0 0 * * * ?",
-		Type:     domain.TaskTypeOneTime.String(),
-		GrpcConfig: sqlx.JSONColumn[domain.GrpcConfig]{
-			Valid: true,
-			Val: domain.GrpcConfig{
-				ServiceName: "execute",
-				HandlerName: "shell",
-				Params: map[string]string{
-					"code":      shellScript,
-					"args":      args,
-					"variables": variables,
+		_, err := taskDAO.Create(t.Context(), dao.Task{
+			Name:     taskName,
+			CronExpr: "0 0 * * * ?",
+			Type:     domain.TaskTypeOneTime.String(),
+			GrpcConfig: sqlx.JSONColumn[domain.GrpcConfig]{
+				Valid: true,
+				Val: domain.GrpcConfig{
+					ServiceName: "execute",
+					HandlerName: "shell",
+					Params: map[string]string{
+						"code":      shellScript,
+						"args":      args,
+						"variables": variables,
+					},
 				},
 			},
-		},
-		Status:   domain.TaskStatusActive.String(),
-		Version:  1,
-		NextTime: now.Add(3 * time.Second).UnixMilli(),
-	})
-	require.NoError(t, err)
-	t.Logf("创建 Shell 任务成功: %s", taskName)
+			Status:   domain.TaskStatusActive.String(),
+			Version:  1,
+			NextTime: now.Add(3 * time.Second).UnixMilli(),
+		})
+		require.NoError(t, err)
+		t.Logf("创建 Shell 任务成功: %s", taskName)
+	}
 }
 
 func initViper() {

@@ -25,6 +25,9 @@ func main() {
 	// 启动服务
 	if err := egoApp.Serve(
 		func() server.Server {
+			return app.Web
+		}(),
+		func() server.Server {
 			return app.Server
 		}(),
 		func() server.Server {

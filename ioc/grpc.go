@@ -14,12 +14,12 @@ import (
 
 // InitSchedulerNodeGRPCServer 初始化 Scheduler gRPC 服务器
 func InitSchedulerNodeGRPCServer(registry registrysdk.Registry, reporter *grpcapi.ReporterServer) *grpcpkg.Server {
-	var cfg ServerConfig
-	if err := viper.UnmarshalKey("server.scheduler.grpc", &cfg); err != nil {
+	var cfg grpcpkg.Config
+	if err := viper.UnmarshalKey("grpc.server.scheduler", &cfg); err != nil {
 		panic(err)
 	}
 
-	server := grpcpkg.NewServer(cfg.Id, cfg.Name, cfg.ListenAddr, cfg.AdvertiseAddr, registry)
+	server := grpcpkg.NewServer(cfg, registry, grpcpkg.WithJWTAuth(cfg.AuthToken))
 	reporterv1.RegisterReporterServiceServer(server.Server, reporter)
 
 	return server
@@ -33,11 +33,4 @@ func InitExecutorServiceGRPCClients(reg registrysdk.Registry) *grpcpkg.Clients[e
 		func(conn *grpc.ClientConn) executorv1.ExecutorServiceClient {
 			return executorv1.NewExecutorServiceClient(conn)
 		})
-}
-
-type ServerConfig struct {
-	Id            string `mapstructure:"id"`
-	Name          string `mapstructure:"name"`
-	ListenAddr    string `mapstructure:"listen_addr"`
-	AdvertiseAddr string `mapstructure:"advertise_addr"` // 可选:手动指定注册到etcd的地址
 }

@@ -6,8 +6,10 @@ import (
 	"github.com/Duke1616/ework-runner/internal/grpc"
 	"github.com/Duke1616/ework-runner/internal/repository"
 	"github.com/Duke1616/ework-runner/internal/repository/dao"
-	"github.com/Duke1616/ework-runner/internal/service/task"
+	taskSvc "github.com/Duke1616/ework-runner/internal/service/task"
+	"github.com/Duke1616/ework-runner/internal/web/task"
 	"github.com/Duke1616/ework-runner/ioc"
+	"github.com/Duke1616/ework-runner/pkg/ginx/middleware"
 	"github.com/google/wire"
 )
 
@@ -23,16 +25,26 @@ var (
 		ioc.InitRegistry,
 	)
 
+	webSetup = wire.NewSet(
+		ioc.InitECMDBGrpcClient,
+		ioc.InitPolicyServiceClient,
+		middleware.NewCheckPolicyMiddlewareBuilder,
+		ioc.InitSession,
+		ioc.InitGinMiddlewares,
+		ioc.InitGinWebServer,
+	)
+
 	taskSet = wire.NewSet(
 		dao.NewGORMTaskDAO,
 		repository.NewTaskRepository,
-		task.NewService,
+		taskSvc.NewService,
+		task.NewHandler,
 	)
 
 	taskExecutionSet = wire.NewSet(
 		dao.NewGORMTaskExecutionDAO,
 		repository.NewTaskExecutionRepository,
-		task.NewExecutionService,
+		taskSvc.NewExecutionService,
 	)
 
 	schedulerSet = wire.NewSet(
@@ -73,6 +85,10 @@ func InitSchedulerApp() *ioc.SchedulerApp {
 		consumerSet,
 		producerSet,
 		grpcSet,
+
+		// WEB 服务
+		webSetup,
+
 		// GRPC服务器
 		grpc.NewReporterServer,
 		ioc.InitSchedulerNodeGRPCServer,

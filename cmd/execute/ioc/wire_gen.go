@@ -7,10 +7,10 @@
 package ioc
 
 import (
-	"github.com/Duke1616/ework-runner/internal/grpc"
+	grpc2 "github.com/Duke1616/ework-runner/internal/grpc"
 	"github.com/Duke1616/ework-runner/internal/grpc/scripts"
 	"github.com/Duke1616/ework-runner/ioc"
-	grpc2 "github.com/Duke1616/ework-runner/pkg/grpc"
+	"github.com/Duke1616/ework-runner/pkg/grpc"
 	"github.com/Duke1616/ework-runner/pkg/grpc/registry"
 	"github.com/Duke1616/ework-runner/pkg/grpc/registry/etcd"
 	"github.com/Duke1616/ework-runner/sdk/executor"
@@ -56,24 +56,23 @@ func InitRegistry(client *clientv3.Client) registry.Registry {
 }
 
 // InitConfig 初始化配置
-func InitConfig() *executor.Config {
-	return &executor.Config{
-		NodeID:              viper.GetString("server.executor.grpc.id"),
-		ServiceName:         viper.GetString("server.executor.grpc.name"),
-		ListenAddr:          viper.GetString("server.executor.grpc.listen_addr"),
-		AdvertiseAddr:       viper.GetString("server.executor.grpc.advertise_addr"),
-		ReporterServiceName: "scheduler",
+func InitConfig() grpc.Config {
+	var cfg grpc.Config
+	if err := viper.UnmarshalKey("grpc.server.executor", &cfg); err != nil {
+		panic(err)
 	}
+
+	return cfg
 }
 
 // InitExecutor 初始化 SDK Executor 实例
-func InitExecutor(cfg *executor.Config, reg registry.Registry) *executor.Executor {
+func InitExecutor(cfg grpc.Config, reg registry.Registry) *executor.Executor {
 	exec, err := executor.NewExecutor(cfg, reg)
 	if err != nil {
 		panic(err)
 	}
 
-	exec.RegisterHandler(&grpc.DemoTaskHandler{})
+	exec.RegisterHandler(&grpc2.DemoTaskHandler{})
 	exec.RegisterHandler(scripts.NewShellTaskHandler())
 	exec.RegisterHandler(scripts.NewPythonTaskHandler())
 
@@ -85,10 +84,10 @@ func InitExecutor(cfg *executor.Config, reg registry.Registry) *executor.Executo
 }
 
 // InitExecutorServer 从 Executor 中提取 ego Server
-func InitExecutorServer(exec *executor.Executor) *grpc2.Server {
+func InitExecutorServer(exec *executor.Executor) *grpc.Server {
 	return exec.Server()
 }
 
 type ExecuteApp struct {
-	Server *grpc2.Server
+	Server *grpc.Server
 }

@@ -15,15 +15,23 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 )
 
-const BizIDName = "biz_id"
+const (
+	BizIDName         = "biz_id"
+	AuthorizationKey  = "Authorization"
+	BearerPrefix      = "Bearer "
+	DefaultIssuer     = "ework-runner"
+	DefaultExpiration = 24 * time.Hour
+)
 
 type InterceptorBuilder struct {
-	key string
+	key    string
+	issuer string
+	exp    time.Duration
 }
 
 func (b *InterceptorBuilder) Decode(tokenString string) (jwt.MapClaims, error) {
 	// 去除可能的 Bearer 前缀（兼容不同客户端实现）
-	tokenString = strings.TrimPrefix(tokenString, "Bearer ")
+	tokenString = strings.TrimPrefix(tokenString, BearerPrefix)
 
 	// 解析 Token
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
@@ -49,7 +57,7 @@ func (b *InterceptorBuilder) Encode(customClaims jwt.MapClaims) (string, error) 
 	// 合并自定义声明和默认声明
 	claims := jwt.MapClaims{
 		"iat": time.Now().Unix(),
-		"iss": "notification-platform",
+		"iss": b.issuer,
 	}
 
 	// 合并用户自定义声明（覆盖默认声明）
@@ -59,7 +67,7 @@ func (b *InterceptorBuilder) Encode(customClaims jwt.MapClaims) (string, error) 
 
 	// 自动处理过期时间
 	if _, ok := claims["exp"]; !ok {
-		claims["exp"] = time.Now().Add(24 * time.Hour).Unix() // 默认24小时过期
+		claims["exp"] = time.Now().Add(b.exp).Unix()
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -76,7 +84,7 @@ func (b *InterceptorBuilder) JwtAuthInterceptor() grpc.UnaryServerInterceptor {
 		}
 
 		// 获取Authorization头
-		authHeaders := md.Get("Authorization")
+		authHeaders := md.Get(AuthorizationKey)
 		if len(authHeaders) == 0 {
 			return nil, status.Error(codes.Unauthenticated, "authorization token is required")
 		}
@@ -95,18 +103,44 @@ func (b *InterceptorBuilder) JwtAuthInterceptor() grpc.UnaryServerInterceptor {
 			}
 			return nil, status.Error(codes.Unauthenticated, "invalid token: "+err.Error())
 		}
-		v, ok := val[BizIDName]
-		if ok {
-			bizId := v.(float64)
-			ctx = context.WithValue(ctx, BizIDName, int64(bizId))
+
+		// NOTE: 安全的类型断言,避免 panic
+		if v, ok := val[BizIDName]; ok {
+			if bizID, ok := v.(float64); ok {
+				ctx = context.WithValue(ctx, BizIDName, int64(bizID))
+			}
 		}
 
 		return handler(ctx, req)
 	}
 }
 
-func NewJwtAuth(key string) *InterceptorBuilder {
-	return &InterceptorBuilder{
-		key: key,
+// Option 配置选项
+type Option func(*InterceptorBuilder)
+
+// WithIssuer 设置签发者
+func WithIssuer(issuer string) Option {
+	return func(b *InterceptorBuilder) {
+		b.issuer = issuer
 	}
+}
+
+// WithExpiration 设置过期时间
+func WithExpiration(exp time.Duration) Option {
+	return func(b *InterceptorBuilder) {
+		b.exp = exp
+	}
+}
+
+// NewJwtAuth 创建 JWT 认证拦截器
+func NewJwtAuth(key string, opts ...Option) *InterceptorBuilder {
+	b := &InterceptorBuilder{
+		key:    key,
+		issuer: DefaultIssuer,
+		exp:    DefaultExpiration,
+	}
+	for _, opt := range opts {
+		opt(b)
+	}
+	return b
 }
