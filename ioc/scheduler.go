@@ -6,19 +6,17 @@ import (
 	"github.com/Duke1616/ework-runner/internal/service/runner"
 	"github.com/Duke1616/ework-runner/internal/service/scheduler"
 	"github.com/Duke1616/ework-runner/internal/service/task"
+	"github.com/google/uuid"
 	"github.com/spf13/viper"
 )
 
-//func InitNodeID() string {
-//	return uuid.New().String()
-//}
-
 func InitNodeID() string {
 	nodeID := viper.GetString("scheduler.nodeID")
-	if nodeID == "" {
-		panic("scheduler.nodeID 必须配置")
+	if nodeID != "" {
+		return nodeID
 	}
-	return nodeID
+
+	return uuid.New().String()
 }
 
 func InitScheduler(

@@ -15,10 +15,10 @@ func InitCompleteEventConsumer(q mq.MQ,
 	taskSvc task.Service,
 	execSvc task.ExecutionService,
 	acquire acquirer.TaskAcquirer,
-	nodeID string,
 ) *CompleteConsumer {
 	topic := "complete_topic"
-	con := mqx.NewConsumer(name(topic, nodeID), q, topic)
+	group := "reporter"
+	con := mqx.NewConsumer(name(topic, group), q, topic)
 	comConsumer := complete.NewConsumer(execSvc, taskSvc, acquire)
 	return &CompleteConsumer{
 		com:      con,
@@ -38,6 +38,6 @@ func (c *CompleteConsumer) Start(ctx context.Context) {
 	}
 }
 
-func name(eventName, nodeID string) string {
-	return fmt.Sprintf("%s-%s", eventName, nodeID)
+func name(eventName, group string) string {
+	return fmt.Sprintf("%s-%s", eventName, group)
 }
