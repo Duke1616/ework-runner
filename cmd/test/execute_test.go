@@ -2,6 +2,7 @@ package test
 
 import (
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -10,7 +11,6 @@ import (
 	"github.com/Duke1616/ework-runner/ioc"
 	"github.com/Duke1616/ework-runner/pkg/sqlx"
 	"github.com/google/uuid"
-	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 )
@@ -181,15 +181,15 @@ exit 0
 }
 
 func initViper() {
-	file := pflag.String("config",
-		"/Users/luankz/go-code/ework-runner/config/config.yaml", "配置文件路径")
-	pflag.Parse()
-	// 直接指定文件路径
-	viper.SetConfigFile(*file)
-	viper.WatchConfig()
-	err := viper.ReadInConfig()
-
+	dir, err := os.Getwd()
 	if err != nil {
 		panic(err)
 	}
+	f, err := os.Open(dir + "/../../config/config.yaml")
+	if err != nil {
+		panic(err)
+	}
+	viper.SetConfigFile(f.Name())
+	viper.WatchConfig()
+	err = viper.ReadInConfig()
 }

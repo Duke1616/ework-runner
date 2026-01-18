@@ -76,7 +76,7 @@ func (e *Executor) InitComponents() error {
 	e.reporterClient = reporterv1.NewReporterServiceClient(reporterConn)
 
 	// 2. 创建 gRPC Server
-	e.server = grpcpkg.NewServer(e.config.NodeID, e.config.ServiceName, e.config.Addr, e.registry)
+	e.server = grpcpkg.NewServer(e.config.NodeID, e.config.ServiceName, e.config.ListenAddr, e.config.AdvertiseAddr, e.registry)
 
 	// 3. 注册 Executor 服务
 	executorv1.RegisterExecutorServiceServer(e.server.Server, e)

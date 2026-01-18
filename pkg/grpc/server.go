@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 
 	"github.com/Duke1616/ework-runner/pkg/grpc/registry"
 	"github.com/Duke1616/ework-runner/pkg/netx"
@@ -24,41 +25,74 @@ type Server struct {
 	registry       registry.Registry
 	serviceID      string // 服务实例ID
 	ServiceName    string
-	addr           string // 监听地址
+	listenAddr     string // 监听地址
+	advertiseAddr  string // 广播地址(可选)
 	registeredAddr string // 注册到注册中心的地址
 	cancel         func()
 	logger         *elog.Component
 }
 
 // NewServer 创建 gRPC Server 实例
-func NewServer(id, name, addr string, reg registry.Registry) *Server {
+func NewServer(id, name, listenAddr, advertiseAddr string, reg registry.Registry) *Server {
 	return &Server{
-		Server:      grpc.NewServer(),
-		serviceID:   id,
-		ServiceName: name,
-		registry:    reg,
-		addr:        addr,
-		logger:      elog.DefaultLogger.With(elog.FieldComponentName(ComponentName)),
+		Server:        grpc.NewServer(),
+		serviceID:     id,
+		ServiceName:   name,
+		registry:      reg,
+		listenAddr:    listenAddr,
+		advertiseAddr: advertiseAddr,
+		logger:        elog.DefaultLogger.With(elog.FieldComponentName(ComponentName)),
 	}
 }
 
-// resolveAddress 解析服务注册地址
-func (s *Server) resolveAddress(addr string) (string, error) {
-	host, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		return "", fmt.Errorf("解析地址失败: %w", err)
+// resolveAdvertiseAddress 解析服务注册地址
+func (s *Server) resolveAdvertiseAddress() (string, error) {
+	// 1. 优先使用配置的 advertise_addr
+	if s.advertiseAddr != "" {
+		s.logger.Info("使用配置的广播地址",
+			elog.String("advertiseAddr", s.advertiseAddr))
+		return s.advertiseAddr, nil
 	}
 
-	// 如果绑定的是通配符地址，则需要解析出本机 IP
+	// 2. 从 listenAddr 解析
+	host, port, err := net.SplitHostPort(s.listenAddr)
+	if err != nil {
+		return "", fmt.Errorf("解析监听地址失败: %w", err)
+	}
+
+	// 3. 如果是通配符地址,智能解析 IP
 	if host == "::" || host == "0.0.0.0" {
-		ip, err := netx.GetOutboundIP()
+		ip, err := s.getAdvertiseIP()
 		if err != nil {
-			return "", fmt.Errorf("获取本机 IP 失败: %w", err)
+			return "", fmt.Errorf("获取广播 IP 失败: %w", err)
 		}
 		return net.JoinHostPort(ip, port), nil
 	}
 
-	return addr, nil
+	return s.listenAddr, nil
+}
+
+// getAdvertiseIP 智能获取广播 IP
+func (s *Server) getAdvertiseIP() (string, error) {
+	// 1. K8s 环境:优先使用 POD_IP
+	if podIP := os.Getenv("POD_IP"); podIP != "" {
+		s.logger.Info("使用 K8s Pod IP", elog.String("podIP", podIP))
+		return podIP, nil
+	}
+
+	// 2. Docker 环境:使用 HOST_IP 环境变量
+	if hostIP := os.Getenv("HOST_IP"); hostIP != "" {
+		s.logger.Info("使用环境变量 HOST_IP", elog.String("hostIP", hostIP))
+		return hostIP, nil
+	}
+
+	// 3. 裸机环境:自动检测本机 IP
+	ip, err := netx.GetOutboundIP()
+	if err != nil {
+		return "", err
+	}
+	s.logger.Info("自动检测本机 IP", elog.String("ip", ip))
+	return ip, nil
 }
 
 // startServer 启动服务器并注册到 etcd (内部方法)
@@ -67,13 +101,13 @@ func (s *Server) startServer() (net.Listener, error) {
 	_, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
 
-	listener, err := net.Listen("tcp", s.addr)
+	listener, err := net.Listen("tcp", s.listenAddr)
 	if err != nil {
 		return nil, fmt.Errorf("监听端口失败: %w", err)
 	}
 
-	// 获取监听地址
-	addr, err := s.resolveAddress(listener.Addr().String())
+	// 解析要注册的地址
+	addr, err := s.resolveAdvertiseAddress()
 	if err != nil {
 		listener.Close()
 		return nil, err
@@ -205,7 +239,7 @@ func (s *Server) Info() *server.ServiceInfo {
 		server.WithName(s.ServiceName),
 		server.WithKind(constant.ServiceProvider),
 		server.WithScheme("grpc"),
-		server.WithAddress(s.addr),
+		server.WithAddress(s.listenAddr),
 	)
 
 	// 判断服务是否健康

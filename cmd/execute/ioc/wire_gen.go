@@ -57,11 +57,11 @@ func InitRegistry(client *clientv3.Client) registry.Registry {
 
 // InitConfig 初始化配置
 func InitConfig() *executor.Config {
-	host := viper.GetString("server.executor.grpc.host")
 	return &executor.Config{
 		NodeID:              viper.GetString("server.executor.grpc.id"),
 		ServiceName:         viper.GetString("server.executor.grpc.name"),
-		Addr:                host + ":" + viper.GetString("server.executor.grpc.port"),
+		ListenAddr:          viper.GetString("server.executor.grpc.listen_addr"),
+		AdvertiseAddr:       viper.GetString("server.executor.grpc.advertise_addr"),
 		ReporterServiceName: "scheduler",
 	}
 }

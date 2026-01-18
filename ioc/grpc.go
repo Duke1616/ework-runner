@@ -1,7 +1,6 @@
 package ioc
 
 import (
-	"fmt"
 	"time"
 
 	executorv1 "github.com/Duke1616/ework-runner/api/proto/gen/executor/v1"
@@ -20,7 +19,7 @@ func InitSchedulerNodeGRPCServer(registry registrysdk.Registry, reporter *grpcap
 		panic(err)
 	}
 
-	server := grpcpkg.NewServer(cfg.Id, cfg.Name, cfg.Addr(), registry)
+	server := grpcpkg.NewServer(cfg.Id, cfg.Name, cfg.ListenAddr, cfg.AdvertiseAddr, registry)
 	reporterv1.RegisterReporterServiceServer(server.Server, reporter)
 
 	return server
@@ -39,12 +38,6 @@ func InitExecutorServiceGRPCClients(reg registrysdk.Registry) *grpcpkg.Clients[e
 type ServerConfig struct {
 	Id            string `mapstructure:"id"`
 	Name          string `mapstructure:"name"`
-	Host          string `mapstructure:"host"`
-	Port          int    `mapstructure:"port"`
-	AdvertiseAddr string `mapstructure:"advertise_addr"` // 可选:手动指定注册到etcd的IP
-}
-
-// Addr 返回服务器地址
-func (c *ServerConfig) Addr() string {
-	return fmt.Sprintf("%s:%d", c.Host, c.Port)
+	ListenAddr    string `mapstructure:"listen_addr"`
+	AdvertiseAddr string `mapstructure:"advertise_addr"` // 可选:手动指定注册到etcd的地址
 }
