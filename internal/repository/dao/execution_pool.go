@@ -59,6 +59,8 @@ type ExecutionPoolDAO interface {
 	SetStatus(ctx context.Context, name string, status string) (int64, error)
 	// FindByName 按资源池名称查询资源池。
 	FindByName(ctx context.Context, name string) (ExecutionPool, error)
+	// FindMQByTopic 按兼容的 MQ Topic 查询资源池。
+	FindMQByTopic(ctx context.Context, topic string) (ExecutionPool, error)
 	// List 按筛选条件分页查询资源池列表。
 	List(ctx context.Context, offset, limit int64, keyword, kind, transport, dispatchMode, status string) ([]ExecutionPool, error)
 	// ListByKind 按执行资源类型查询全部资源池。
@@ -167,6 +169,15 @@ func (g *GORMExecutionPoolDAO) SetStatus(ctx context.Context, name string, statu
 func (g *GORMExecutionPoolDAO) FindByName(ctx context.Context, name string) (ExecutionPool, error) {
 	var pool ExecutionPool
 	err := g.db.WithContext(ctx).Where("name = ?", name).First(&pool).Error
+	return pool, err
+}
+
+func (g *GORMExecutionPoolDAO) FindMQByTopic(ctx context.Context, topic string) (ExecutionPool, error) {
+	var pool ExecutionPool
+	err := g.db.WithContext(ctx).
+		Where("transport = ? AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.topic')) = ?",
+			domain.ExecutionTransportMQ.String(), topic).
+		First(&pool).Error
 	return pool, err
 }
 

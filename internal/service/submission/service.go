@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Duke1616/etask/internal/domain"
+	"github.com/Duke1616/etask/internal/repository"
 	codebookSvc "github.com/Duke1616/etask/internal/service/codebook"
 	"github.com/Duke1616/etask/internal/service/dispatcher"
 	"github.com/Duke1616/etask/internal/service/invoker"
@@ -108,7 +109,7 @@ func (s *service) RunRunner(ctx context.Context, command RunRunnerCommand) (RunR
 
 	route, err := s.routes.Plan(ctx, draft.Task)
 	if err != nil {
-		return RunResult{}, fmt.Errorf("规划工作流执行路由失败: %w", err)
+		return RunResult{}, classifyRouteError(runner.Target, err)
 	}
 	if route.Execution.Transport != runner.Kind.Transport() {
 		return RunResult{}, fmt.Errorf("%w: 执行单元类型 %s 与资源池传输通道 %s 不一致", ErrRejected,
@@ -128,6 +129,13 @@ func (s *service) RunRunner(ctx context.Context, command RunRunnerCommand) (RunR
 		go s.invoke(route.Context(context.WithoutCancel(ctx)), execution)
 	}
 	return RunResult{Execution: execution, Created: created}, nil
+}
+
+func classifyRouteError(target string, err error) error {
+	if errors.Is(err, repository.ErrExecutionPoolNotFound) {
+		return fmt.Errorf("%w: 执行资源池 %q 不存在", ErrRejected, target)
+	}
+	return fmt.Errorf("规划工作流执行路由失败: %w", err)
 }
 
 func validateCommand(command RunRunnerCommand) error {

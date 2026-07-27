@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Duke1616/etask/internal/domain"
@@ -39,17 +40,21 @@ type Service interface {
 }
 
 type service struct {
-	repo repository.RunnerRepository
+	repo  repository.RunnerRepository
+	pools repository.ExecutionPoolRepository
 }
 
 // NewService 创建执行单元服务。
-func NewService(repo repository.RunnerRepository) Service {
-	return &service{repo: repo}
+func NewService(repo repository.RunnerRepository, pools repository.ExecutionPoolRepository) Service {
+	return &service{repo: repo, pools: pools}
 }
 
 // Create 校验并创建执行单元。
 func (s *service) Create(ctx context.Context, req domain.Runner) (int64, error) {
 	if err := req.Validate(); err != nil {
+		return 0, err
+	}
+	if err := s.normalizeTarget(ctx, &req); err != nil {
 		return 0, err
 	}
 	if req.Action == 0 {
@@ -66,7 +71,26 @@ func (s *service) Update(ctx context.Context, req domain.Runner) (int64, error) 
 	if err := req.Validate(); err != nil {
 		return 0, err
 	}
+	if err := s.normalizeTarget(ctx, &req); err != nil {
+		return 0, err
+	}
 	return s.repo.Update(ctx, req)
+}
+
+func (s *service) normalizeTarget(ctx context.Context, runner *domain.Runner) error {
+	pool, err := s.pools.Find(ctx, runner.Target)
+	if err != nil {
+		if errors.Is(err, repository.ErrExecutionPoolNotFound) {
+			return fmt.Errorf("%w: execution pool %q not found", errs.ErrInvalidParameter, runner.Target)
+		}
+		return fmt.Errorf("查询执行资源池失败: %w", err)
+	}
+	if pool.Transport != runner.Kind.Transport() {
+		return fmt.Errorf("%w: runner kind %s does not match execution pool transport %s",
+			errs.ErrInvalidParameter, runner.Kind, pool.Transport)
+	}
+	runner.Target = pool.Name
+	return nil
 }
 
 // FindByID 根据主键 ID 获取执行单元。

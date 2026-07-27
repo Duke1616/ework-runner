@@ -91,7 +91,7 @@ func InitSchedulerApplication(base *Base) *SchedulerApplication {
 	variableDAO := dao.NewGORMVariableDAO(db)
 	crypto := InitCrypto()
 	runnerRepository := repository.NewRunnerRepository(runnerDAO, variableDAO, crypto)
-	runnerService := runner.NewService(runnerRepository)
+	runnerService := runner.NewService(runnerRepository, executionPoolRepository)
 	bindingRegistry := binding.NewScriptBindingResolvers(codebookService, runnerService)
 	config := InitArtifactConfig()
 	artifactDAO := dao.NewGORMArtifactDAO(db)

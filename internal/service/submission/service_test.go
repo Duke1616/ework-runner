@@ -1,8 +1,11 @@
 package submission
 
 import (
+	"errors"
+	"fmt"
 	"testing"
 
+	"github.com/Duke1616/etask/internal/repository"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,4 +35,10 @@ func TestValidateCommand(t *testing.T) {
 			require.ErrorContains(t, err, testCase.wantErr)
 		})
 	}
+}
+
+func TestMissingExecutionPoolIsRejected(t *testing.T) {
+	err := fmt.Errorf("查询执行资源池失败: %w", repository.ErrExecutionPoolNotFound)
+
+	require.True(t, errors.Is(classifyRouteError("sd_cdc_docker_net_env_runner", err), ErrRejected))
 }

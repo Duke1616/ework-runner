@@ -56,7 +56,7 @@ type RunnerVariable struct {
 	Secret bool
 }
 
-// Runner 描述脚本模板由哪个目标、哪个 handler、哪些标签承载执行。
+// Runner 描述脚本模板由哪个执行资源池、哪个 handler、哪些标签承载执行。
 type Runner struct {
 	ID             int64
 	TenantID       int64
@@ -64,7 +64,7 @@ type Runner struct {
 	CodebookID     int64
 	CodebookSecret string
 	Kind           RunnerKind
-	Target         string
+	Target         string // 执行资源池名称；历史 KAFKA 数据可能暂存 Topic，由仓储兼容解析。
 	Handler        string
 	Tags           []string
 	Action         RunnerAction

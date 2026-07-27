@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"github.com/Duke1616/eiam/pkg/gormx"
 	"github.com/Duke1616/etask/internal/domain"
@@ -134,6 +135,14 @@ func (r *executionPoolRepository) Disable(ctx context.Context, name string) erro
 
 func (r *executionPoolRepository) Find(ctx context.Context, name string) (domain.ExecutionPool, error) {
 	pool, err := r.poolDAO.FindByName(ctx, name)
+	if err == nil {
+		return r.toDomain(pool), nil
+	}
+	if !errors.Is(err, ErrExecutionPoolNotFound) {
+		return domain.ExecutionPool{}, err
+	}
+	// 兼容历史 KAFKA Runner：旧 target 保存的是 Topic，新模型统一保存资源池名称。
+	pool, err = r.poolDAO.FindMQByTopic(ctx, name)
 	if err != nil {
 		return domain.ExecutionPool{}, err
 	}
