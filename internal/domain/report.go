@@ -1,13 +1,5 @@
 package domain
 
-// Report 进度上报结构
-type Report struct {
-	ExecutionState ExecutionState `json:"executionState"`
-	LogChunks      []string       `json:"logChunks"`
-	// LogOnly 为 true 时，调度节点仅保存日志，跳过状态机处理
-	LogOnly bool `json:"logOnly"`
-}
-
 type ExecutionState struct {
 	ID              int64               `json:"id"`              // 执行实例ID
 	TaskID          int64               `json:"taskId"`          // 任务ID
@@ -21,8 +13,4 @@ type ExecutionState struct {
 	ExecutorNodeID string `json:"executorNodeId"`
 	// 任务执行的结构化结果（JSON 格式字符串）
 	TaskResult string `json:"taskResult"`
-}
-
-type BatchReport struct {
-	Reports []*Report `json:"reports"`
 }

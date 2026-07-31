@@ -8,6 +8,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+//go:generate mockgen -source=./log_service.go -package=taskmocks -destination=./mocks/log_service.mock.go -typed LogService
+
 // LogService 任务日志服务接口
 type LogService interface {
 	// AddLog 添加任务日志

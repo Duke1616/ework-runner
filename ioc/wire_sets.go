@@ -171,7 +171,7 @@ var (
 
 	ConsumerSet = wire.NewSet(
 		InitCompleteEventConsumer,
-		InitAgentResultConsumer,
+		InitAgentEventConsumer,
 	)
 
 	// AppSet 包含 Scheduler 模式的核心 Provider

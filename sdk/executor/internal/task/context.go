@@ -71,13 +71,12 @@ func NewContext(options ContextOptions) *Context {
 	for _, parameter := range options.Parameters {
 		parameters[parameter.Key] = parameter
 	}
-	// 无论使用默认还是自定义日志器，都统一套用敏感变量脱敏层。
+	// 日志缓冲和传输由具体实现负责，敏感变量统一在最外层脱敏。
 	taskLogger := options.TaskLogger
 	if taskLogger == nil {
-		taskLogger = newTaskLogger(ctx, options.Task.ExecutionID, options.Reporter, logger, secretMasks(params))
-	} else {
-		taskLogger = newMaskingTaskLogger(taskLogger, secretMasks(params))
+		taskLogger = newTaskLogger(ctx, options.Task.ExecutionID, options.Reporter, logger)
 	}
+	taskLogger = newMaskingTaskLogger(taskLogger, secretMasks(params))
 	return &Context{
 		ctx: ctx, task: options.Task, params: params, metadata: metadata, parameters: parameters,
 		results: make(map[string]any), logger: logger, taskLogger: taskLogger,

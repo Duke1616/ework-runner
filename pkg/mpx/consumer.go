@@ -74,6 +74,7 @@ func (c *Consumer) consume(ctx context.Context, mqChan <-chan *mq.Message, consu
 				c.logger.Error("消费消息失败",
 					elog.String("消息体", string(message.Value)),
 					elog.FieldErr(err))
+				continue
 			}
 			c.logger.Info("消费消息成功",
 				elog.String("消息体", string(message.Value)),

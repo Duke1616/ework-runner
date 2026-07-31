@@ -15,12 +15,22 @@ import (
 
 const executionRetention = 30 * time.Minute
 
+//go:generate mockgen -package=servicemocks -destination=./mocks/task_logger.mock.go -typed github.com/Duke1616/etask/sdk/executor TaskLogger
+
 // Service 定义独立 Kafka Agent 的执行能力。
 type Service interface {
 	// Receive 幂等执行一条 Kafka 命令。
-	Receive(ctx context.Context, dispatchID string, command internaldomain.TaskExecution) (domain.ExecutionOutput, error)
+	Receive(ctx context.Context, request ExecutionRequest) (domain.ExecutionOutput, error)
 	// ListHandlers 列出支持的任务处理器详情。
 	ListHandlers() []executor.HandlerMeta
+}
+
+// ExecutionRequest 汇总一次 Agent 执行所需的输入。
+// TaskLogger 由执行引擎持有，并在 Receive 返回前关闭。
+type ExecutionRequest struct {
+	DispatchID string
+	Execution  internaldomain.TaskExecution
+	TaskLogger executor.TaskLogger
 }
 
 type service struct {
@@ -58,14 +68,15 @@ func (s *service) ListHandlers() []executor.HandlerMeta {
 }
 
 // Receive 幂等执行一条 Kafka 命令。
-func (s *service) Receive(ctx context.Context, dispatchID string,
-	execution internaldomain.TaskExecution) (domain.ExecutionOutput, error) {
-	if dispatchID == "" || execution.ID <= 0 || execution.Task.GrpcConfig == nil {
-		return domain.ExecutionOutput{}, fmt.Errorf("agent 执行命令缺少派发 ID、执行 ID 或处理器配置")
+func (s *service) Receive(ctx context.Context, request ExecutionRequest) (domain.ExecutionOutput, error) {
+	execution := request.Execution
+	if request.DispatchID == "" || execution.ID <= 0 || execution.Task.GrpcConfig == nil || request.TaskLogger == nil {
+		return domain.ExecutionOutput{}, fmt.Errorf("agent 执行命令缺少派发 ID、执行 ID、处理器配置或日志器")
 	}
 	// dispatchID 是消息重投的幂等键；非 owner 等待首次执行结果而不重复运行。
-	entry, owner := s.begin(dispatchID)
+	entry, owner := s.begin(request.DispatchID)
 	if !owner {
+		request.TaskLogger.Close()
 		select {
 		case <-ctx.Done():
 			return domain.ExecutionOutput{}, ctx.Err()
@@ -73,10 +84,9 @@ func (s *service) Receive(ctx context.Context, dispatchID string,
 			return entry.output, entry.err
 		}
 	}
-	// Kafka Agent 使用内存日志器，随最终结果一次性返回调度中心。
-	logger := &captureLogger{}
 	refs, err := internaldomain.ArtifactRefsToProto(execution.Artifacts)
 	if err != nil {
+		request.TaskLogger.Close()
 		s.finish(entry, domain.ExecutionOutput{}, err)
 		return domain.ExecutionOutput{}, err
 	}
@@ -89,9 +99,9 @@ func (s *service) Receive(ctx context.Context, dispatchID string,
 		},
 		Params: execution.GRPCParams(), Parameters: s.handlerMetadata(execution.Task.GrpcConfig.HandlerName),
 		Artifacts: refs, ArtifactClient: s.artifactClient,
-		Logger: s.logger, TaskLogger: logger,
+		Logger: s.logger, TaskLogger: request.TaskLogger,
 	})
-	output := domain.ExecutionOutput{Result: result.Value, Logs: logger.Logs()}
+	output := domain.ExecutionOutput{Result: result.Value}
 	s.finish(entry, output, err)
 	return output, err
 }
@@ -132,23 +142,4 @@ func (s *service) finish(entry *executionEntry, output domain.ExecutionOutput, e
 	entry.output = output
 	entry.err = err
 	close(entry.done)
-}
-
-type captureLogger struct {
-	mu   sync.Mutex
-	logs []string
-}
-
-func (c *captureLogger) Log(format string, args ...any) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.logs = append(c.logs, fmt.Sprintf(format, args...))
-}
-
-func (c *captureLogger) Close() {}
-
-func (c *captureLogger) Logs() []string {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return append([]string(nil), c.logs...)
 }

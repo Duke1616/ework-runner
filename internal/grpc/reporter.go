@@ -2,27 +2,36 @@ package grpc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	reporterv1 "github.com/Duke1616/etask/api/proto/gen/etask/reporter/v1"
 	"github.com/Duke1616/etask/internal/domain"
-	"github.com/Duke1616/etask/internal/service/task"
-	"github.com/ecodeclub/ekit/slice"
 	"github.com/gotomicro/ego/core/elog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
+//go:generate mockgen -source=./reporter.go -package=grpcmocks -destination=./mocks/reporter.mock.go -typed ExecutionReportHandler
+
+// ExecutionReportHandler 定义执行节点上报所需的最小应用层能力。
+type ExecutionReportHandler interface {
+	// AppendExecutionLogs 持久化一批增量日志并广播给 SSE 订阅者。
+	AppendExecutionLogs(ctx context.Context, executionID, taskID int64, logs []string) error
+	// UpdateState 将执行节点上报的状态交给统一状态机处理。
+	UpdateState(ctx context.Context, state domain.ExecutionState) error
+}
+
 // ReporterServer ReporterService gRPC服务实现
 type ReporterServer struct {
 	reporterv1.UnimplementedReporterServiceServer
-	execSvc task.ExecutionService
+	execSvc ExecutionReportHandler
 	logger  *elog.Component
 }
 
 // NewReporterServer 创建 ReporterServer 实例
 func NewReporterServer(
-	execSvc task.ExecutionService,
+	execSvc ExecutionReportHandler,
 ) *ReporterServer {
 	return &ReporterServer{
 		execSvc: execSvc,
@@ -45,7 +54,7 @@ func (s *ReporterServer) Report(ctx context.Context, req *reporterv1.ReportReque
 		elog.String("requestReschedule", fmt.Sprintf("%v", state.RequestReschedule)))
 
 	// 调用业务处理方法
-	err := s.handleReports(ctx, s.toDomainReports([]*reporterv1.ReportRequest{req}))
+	err := s.handleReport(ctx, req)
 	if err != nil {
 		s.logger.Error("处理执行状态上报失败",
 			elog.Int64("executionId", state.Id),
@@ -59,21 +68,18 @@ func (s *ReporterServer) Report(ctx context.Context, req *reporterv1.ReportReque
 	return &reporterv1.ReportResponse{}, nil
 }
 
-// toDomainReports 将protobuf ExecutionState转换为domain.Report
-func (s *ReporterServer) toDomainReports(reqs []*reporterv1.ReportRequest) []*domain.Report {
-	return slice.Map(reqs, func(_ int, src *reporterv1.ReportRequest) *domain.Report {
-		return &domain.Report{
-			ExecutionState: domain.ExecutionStateFromProto(src.GetExecutionState()),
-			LogChunks:      src.GetLogChunks(),
-			LogOnly:        src.GetLogOnly(),
-		}
-	})
-}
-
-// handleReports 处理报告
-func (s *ReporterServer) handleReports(ctx context.Context, reports []*domain.Report) error {
-	s.logger.Debug("处理执行状态上报", elog.Int("count", len(reports)))
-	return s.execSvc.HandleReports(ctx, reports)
+func (s *ReporterServer) handleReport(ctx context.Context, req *reporterv1.ReportRequest) error {
+	if req.GetExecutionState() == nil {
+		return fmt.Errorf("执行状态不能为空")
+	}
+	state := domain.ExecutionStateFromProto(req.GetExecutionState())
+	if err := s.execSvc.AppendExecutionLogs(ctx, state.ID, state.TaskID, req.GetLogChunks()); err != nil {
+		return err
+	}
+	if req.GetLogOnly() {
+		return nil
+	}
+	return s.execSvc.UpdateState(ctx, state)
 }
 
 // BatchReport 批量上报进度
@@ -85,7 +91,10 @@ func (s *ReporterServer) BatchReport(ctx context.Context, req *reporterv1.BatchR
 
 	s.logger.Info("收到批量执行状态上报请求", elog.Int("count", len(req.Reports)))
 
-	err := s.handleReports(ctx, s.toDomainReports(req.GetReports()))
+	var err error
+	for _, report := range req.GetReports() {
+		err = errors.Join(err, s.handleReport(ctx, report))
+	}
 	if err != nil {
 		s.logger.Error("处理批量执行状态上报失败",
 			elog.Int("count", len(req.Reports)),

@@ -11,45 +11,46 @@ import (
 	"github.com/ecodeclub/mq-api"
 )
 
-// ResultHandler 定义 Agent 结果接入统一执行状态机所需的最小能力。
-type ResultHandler interface {
-	// FindByID 查询结果对应的执行快照。
+//go:generate mockgen -source=./consumer.go -package=executionmocks -destination=./mocks/consumer.mock.go -typed EventHandler
+
+// EventHandler 定义 Kafka 事件接入所需的应用层能力。
+type EventHandler interface {
+	// FindByID 查询事件对应的任务执行快照，用于避免重复处理已完成的执行。
 	FindByID(ctx context.Context, id int64) (domain.TaskExecution, error)
-	// HandleReports 保存日志并处理执行状态。
-	HandleReports(ctx context.Context, reports []*domain.Report) error
+	// AppendExecutionLogs 持久化一批增量日志并广播给 SSE 订阅者。
+	AppendExecutionLogs(ctx context.Context, executionID, taskID int64, logs []string) error
+	// UpdateState 将执行终态交给统一状态机处理。
+	UpdateState(ctx context.Context, state domain.ExecutionState) error
 }
 
-// ResultConsumer 将 Agent 结果接回统一 TaskExecution 状态机。
-type ResultConsumer struct {
-	executions ResultHandler
+// EventConsumer 将 Agent 事件分别路由到日志服务和执行状态机。
+type EventConsumer struct {
+	executions EventHandler
 	mu         sync.Mutex
-	processed  map[string]*resultEntry
+	processed  map[string]*eventEntry
 }
 
-type resultEntry struct {
+type eventEntry struct {
 	startedAt time.Time
 	done      chan struct{}
 	err       error
 }
 
-// NewResultConsumer 创建 Agent 执行结果消费者。
-func NewResultConsumer(executions ResultHandler) *ResultConsumer {
-	return &ResultConsumer{executions: executions, processed: make(map[string]*resultEntry)}
+// NewEventConsumer 创建 Scheduler 侧 Agent 事件消费者。
+func NewEventConsumer(executions EventHandler) *EventConsumer {
+	return &EventConsumer{executions: executions, processed: make(map[string]*eventEntry)}
 }
 
-// Consume 保存日志并处理 Agent 上报的最终状态。
-func (c *ResultConsumer) Consume(ctx context.Context, message *mq.Message) error {
-	var result Result
-	if err := json.Unmarshal(message.Value, &result); err != nil {
-		return fmt.Errorf("解析 Agent 执行结果失败: %w", err)
+// Consume 校验并分发一条严格格式的执行事件。
+func (c *EventConsumer) Consume(ctx context.Context, message *mq.Message) error {
+	var event Event
+	if err := json.Unmarshal(message.Value, &event); err != nil {
+		return fmt.Errorf("解析 Agent 执行事件失败: %w", err)
 	}
-	if result.State.ID <= 0 {
-		return fmt.Errorf("Agent 执行结果缺少执行 ID")
+	if err := event.Validate(); err != nil {
+		return err
 	}
-	if result.DispatchID == "" {
-		return fmt.Errorf("Agent 执行结果缺少派发 ID")
-	}
-	entry, owner := c.begin(result.DispatchID)
+	entry, owner := c.begin(event.EventID)
 	if !owner {
 		select {
 		case <-ctx.Done():
@@ -59,8 +60,21 @@ func (c *ResultConsumer) Consume(ctx context.Context, message *mq.Message) error
 		}
 	}
 	var handleErr error
-	defer func() { c.finish(result.DispatchID, entry, handleErr) }()
-	execution, err := c.executions.FindByID(ctx, result.State.ID)
+	defer func() { c.finish(event.EventID, entry, handleErr) }()
+	if event.Type == EventTypeLogBatch {
+		if err := c.executions.AppendExecutionLogs(ctx, event.State.ID, event.State.TaskID, event.Logs); err != nil {
+			handleErr = err
+			return err
+		}
+		return nil
+	}
+	if len(event.Logs) > 0 {
+		if err := c.executions.AppendExecutionLogs(ctx, event.State.ID, event.State.TaskID, event.Logs); err != nil {
+			handleErr = err
+			return err
+		}
+	}
+	execution, err := c.executions.FindByID(ctx, event.State.ID)
 	if err != nil {
 		handleErr = err
 		return err
@@ -68,17 +82,14 @@ func (c *ResultConsumer) Consume(ctx context.Context, message *mq.Message) error
 	if execution.Status.IsTerminalStatus() {
 		return nil
 	}
-	if err = c.executions.HandleReports(ctx, []*domain.Report{{
-		ExecutionState: result.State,
-		LogChunks:      result.Logs,
-	}}); err != nil {
+	if err = c.executions.UpdateState(ctx, event.State); err != nil {
 		handleErr = err
 		return err
 	}
 	return nil
 }
 
-func (c *ResultConsumer) begin(dispatchID string) (*resultEntry, bool) {
+func (c *EventConsumer) begin(eventID string) (*eventEntry, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	now := time.Now()
@@ -91,21 +102,21 @@ func (c *ResultConsumer) begin(dispatchID string) (*resultEntry, bool) {
 		default:
 		}
 	}
-	if entry := c.processed[dispatchID]; entry != nil {
+	if entry := c.processed[eventID]; entry != nil {
 		return entry, false
 	}
-	entry := &resultEntry{startedAt: now, done: make(chan struct{})}
-	c.processed[dispatchID] = entry
+	entry := &eventEntry{startedAt: now, done: make(chan struct{})}
+	c.processed[eventID] = entry
 	return entry, true
 }
 
-func (c *ResultConsumer) finish(dispatchID string, entry *resultEntry, err error) {
+func (c *EventConsumer) finish(eventID string, entry *eventEntry, err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	entry.err = err
 	if err != nil {
-		if current := c.processed[dispatchID]; current == entry {
-			delete(c.processed, dispatchID)
+		if current := c.processed[eventID]; current == entry {
+			delete(c.processed, eventID)
 		}
 	}
 	close(entry.done)

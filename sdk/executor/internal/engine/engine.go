@@ -52,6 +52,13 @@ func (e *Engine) Execute(ctx context.Context, command Command) (result Result, e
 	if command.Context == nil {
 		command.Context = context.Background()
 	}
+	// 执行引擎持有任务日志器，并保证所有返回路径都会关闭它。
+	taskCtx := task.NewContext(task.ContextOptions{
+		Context: command.Context, Task: command.Task, Params: command.Params,
+		Metadata: command.Metadata, Parameters: command.Parameters,
+		Logger: command.Logger, TaskLogger: command.TaskLogger, Reporter: command.Reporter,
+	})
+	defer taskCtx.Close()
 	if e.handlers == nil {
 		return Result{}, fmt.Errorf("任务处理器注册中心尚未初始化")
 	}
@@ -59,14 +66,6 @@ func (e *Engine) Execute(ctx context.Context, command Command) (result Result, e
 	if !exists {
 		return Result{}, fmt.Errorf("未找到任务处理器: %s", command.Task.Handler)
 	}
-
-	// 每次执行创建独立参数、日志和结果容器，并确保缓冲日志最终被刷新。
-	taskCtx := task.NewContext(task.ContextOptions{
-		Context: command.Context, Task: command.Task, Params: command.Params,
-		Metadata: command.Metadata, Parameters: command.Parameters,
-		Logger: command.Logger, TaskLogger: command.TaskLogger, Reporter: command.Reporter,
-	})
-	defer taskCtx.Close()
 	// 执行引擎是扩展 Handler 的最后一道隔离边界，panic 时仍保留已产生的结果。
 	defer func() {
 		if recovered := recover(); recovered != nil {

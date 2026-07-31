@@ -21,7 +21,6 @@ import (
 	"github.com/Duke1616/etask/pkg/retry"
 	"github.com/Duke1616/etask/sdk/executor"
 	"github.com/gotomicro/ego/core/elog"
-	"go.uber.org/multierr"
 )
 
 // ExecutionService 任务执行服务接口
@@ -61,8 +60,8 @@ type ExecutionService interface {
 		status domain.TaskExecutionStatus, progress int32, endTime int64,
 		scheduleParams map[string]string, executorNodeID string, taskResult string) (bool, error)
 
-	// HandleReports 处理执行节点上报的执行状态
-	HandleReports(ctx context.Context, reports []*domain.Report) error
+	// AppendExecutionLogs 保存一批日志并广播给 SSE 订阅者。
+	AppendExecutionLogs(ctx context.Context, executionID, taskID int64, logs []string) error
 	// UpdateState 更新执行节点上报的执行状态
 	UpdateState(ctx context.Context, state domain.ExecutionState) error
 	// ListByTaskID 分页查找执行记录
@@ -368,72 +367,30 @@ func (s *executionService) UpdateScheduleResult(ctx context.Context, id int64,
 	return true, nil
 }
 
-func (s *executionService) HandleReports(ctx context.Context, reports []*domain.Report) error {
-	if len(reports) == 0 {
+func (s *executionService) AppendExecutionLogs(ctx context.Context,
+	executionID, taskID int64, logs []string) error {
+	if len(logs) == 0 {
 		return nil
 	}
-	s.logger.Debug("开始处理执行状态上报", elog.Int("count", len(reports)))
-
-	var err error
-	processedCount := 0
-	skippedCount := 0
-
-	for i := range reports {
-		report := reports[i]
-
-		// 1. 保存日志
-		// 将一次 flush 批次的所有 log_chunks 合并为一条记录存储，避免逐行写入造成的写放大问题。
-		// 前端展示时，按 \n 分割还原每行内容；limit 查询时，limit=N 表示最近 N 个上报批次。
-		if len(report.LogChunks) > 0 {
-			log := domain.TaskExecutionLog{
-				ExecutionID: report.ExecutionState.ID,
-				TaskID:      report.ExecutionState.TaskID,
-				Content:     strings.Join(report.LogChunks, "\n"),
-				CTime:       time.Now().UnixMilli(),
-			}
-			persistedLog, logErr := s.logSvc.AddLog(ctx, log)
-			if logErr != nil {
-				// 日志保存失败不影响状态更新，记录错误即可
-				s.logger.Error("保存任务日志失败", elog.Int64("execID", report.ExecutionState.ID), elog.FieldErr(logErr))
-			} else {
-				// 成功保存日志后，通过 SSE 广播给对应的 Execution 订阅者
-				s.events.Logs.Broadcast(persistedLog.ExecutionID, sse.TaskLogEvent{
-					ID:          persistedLog.ID,
-					TaskID:      persistedLog.TaskID,
-					ExecutionID: persistedLog.ExecutionID,
-					Content:     persistedLog.Content,
-					CTime:       persistedLog.CTime,
-				})
-			}
-		}
-
-		// 2. 更新状态
-		// SDK 日志 flush 设置 log_only=true，表示"仅上传日志，不触发状态机"。
-		// 此时跳过 UpdateState，从源头避免后台 flush goroutine 与终态上报产生竞态。
-		if report.LogOnly {
-			continue
-		}
-
-		err1 := s.UpdateState(ctx, report.ExecutionState)
-		if err1 != nil {
-			skippedCount++
-			s.logger.Error("处理执行节点上报的结果失败",
-				elog.Any("result", report.ExecutionState),
-				elog.FieldErr(err1))
-			err = multierr.Append(err,
-				fmt.Errorf("处理执行节点上报的结果失败: taskID=%d, executionID=%d: %w",
-					report.ExecutionState.TaskID, report.ExecutionState.ID, err1))
-			continue
-		}
-		processedCount++
+	if executionID <= 0 {
+		return fmt.Errorf("执行 ID 非法: %d", executionID)
 	}
-
-	// 记录处理统计信息
-	s.logger.Info("执行状态上报处理完成",
-		elog.Int("total", len(reports)),
-		elog.Int("processed", processedCount),
-		elog.Int("skipped", skippedCount))
-	return err
+	persisted, err := s.logSvc.AddLog(ctx, domain.TaskExecutionLog{
+		ExecutionID: executionID,
+		TaskID:      taskID,
+		Content:     strings.Join(logs, "\n"),
+		CTime:       time.Now().UnixMilli(),
+	})
+	if err != nil {
+		return fmt.Errorf("保存任务日志失败: executionID=%d: %w", executionID, err)
+	}
+	if s.events != nil && s.events.Logs != nil {
+		s.events.Logs.Broadcast(persisted.ExecutionID, sse.TaskLogEvent{
+			ID: persisted.ID, TaskID: persisted.TaskID, ExecutionID: persisted.ExecutionID,
+			Content: persisted.Content, CTime: persisted.CTime,
+		})
+	}
+	return nil
 }
 
 func (s *executionService) UpdateState(ctx context.Context, state domain.ExecutionState) error {

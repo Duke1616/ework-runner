@@ -2,8 +2,7 @@ package domain
 
 const ServiceName = "agent"
 
-// ExecutionOutput 汇总 Agent 执行产生的结构化结果和日志。
+// ExecutionOutput 包含 Handler 返回的结构化结果。
 type ExecutionOutput struct {
 	Result string
-	Logs   []string
 }

@@ -29,20 +29,20 @@ func InitCompleteEventConsumer(q mq.MQ,
 	}
 }
 
-// InitAgentResultConsumer 创建调度侧 Agent 结果消费者。
-func InitAgentResultConsumer(q mq.MQ, executions task.ExecutionService) *AgentResultConsumer {
-	consumer := mqx.NewConsumer(name(executionevent.ResultTopic, "scheduler"), q, executionevent.ResultTopic)
-	return &AgentResultConsumer{consumer: consumer, handler: executionevent.NewResultConsumer(executions)}
+// InitAgentEventConsumer 创建 Scheduler 侧 Agent 事件消费者。
+func InitAgentEventConsumer(q mq.MQ, executions task.ExecutionService) *AgentEventConsumer {
+	consumer := mqx.NewConsumer(name(executionevent.EventTopic, "scheduler"), q, executionevent.EventTopic)
+	return &AgentEventConsumer{consumer: consumer, handler: executionevent.NewEventConsumer(executions)}
 }
 
-// AgentResultConsumer 负责启动 Agent 结果消费循环。
-type AgentResultConsumer struct {
+// AgentEventConsumer 负责启动执行事件消费循环。
+type AgentEventConsumer struct {
 	consumer *mqx.Consumer
-	handler  *executionevent.ResultConsumer
+	handler  *executionevent.EventConsumer
 }
 
 // Start 启动 Agent 结果消费循环。
-func (c *AgentResultConsumer) Start(ctx context.Context) {
+func (c *AgentEventConsumer) Start(ctx context.Context) {
 	if err := c.consumer.Start(ctx, c.handler.Consume); err != nil {
 		panic(err)
 	}

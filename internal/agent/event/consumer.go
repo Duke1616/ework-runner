@@ -10,6 +10,7 @@ import (
 	"github.com/Duke1616/eiam/pkg/ctxutil"
 	"github.com/Duke1616/etask/internal/agent/service"
 	"github.com/Duke1616/etask/internal/domain"
+	executionevent "github.com/Duke1616/etask/internal/event/execution"
 	"github.com/Duke1616/etask/pkg/grpc/registry"
 	"github.com/Duke1616/etask/pkg/mpx"
 	"github.com/ecodeclub/mq-api"
@@ -19,7 +20,7 @@ import (
 // ExecuteConsumer 消费 Agent 执行命令并发布结果。
 type ExecuteConsumer struct {
 	consumer    mq.Consumer
-	producer    ExecuteResultProducer
+	publisher   ExecutionEventPublisher
 	svc         service.Service
 	reg         registry.Registry
 	instance    registry.ServiceInstance
@@ -28,7 +29,7 @@ type ExecuteConsumer struct {
 }
 
 // NewExecuteConsumer 创建指定 Topic 的 Agent 消费者。
-func NewExecuteConsumer(q mq.MQ, svc service.Service, topic string, producer ExecuteResultProducer,
+func NewExecuteConsumer(q mq.MQ, svc service.Service, topic string, publisher ExecutionEventPublisher,
 	reg registry.Registry, instance registry.ServiceInstance, workerCount int) (*ExecuteConsumer, error) {
 	consumer, err := q.Consumer(topic, "agent-execution-"+topic)
 	if err != nil {
@@ -38,7 +39,7 @@ func NewExecuteConsumer(q mq.MQ, svc service.Service, topic string, producer Exe
 		workerCount = 1
 	}
 	return &ExecuteConsumer{
-		consumer: consumer, producer: producer, svc: svc, reg: reg, instance: instance,
+		consumer: consumer, publisher: publisher, svc: svc, reg: reg, instance: instance,
 		workerCount: workerCount,
 		logger:      elog.DefaultLogger.With(elog.FieldComponentName("agent.consumer")),
 	}, nil
@@ -90,8 +91,13 @@ func (c *ExecuteConsumer) Consume(ctx context.Context) error {
 		ctx = ctxutil.WithTenantID(ctx, command.TenantID)
 		ctx = ctxutil.WithOriginTenantID(ctx, command.TenantID)
 	}
-	// Agent 同步执行并捕获日志，最终只通过结果 Topic 回传状态。
-	output, executeErr := c.svc.Receive(ctx, command.DispatchID, command.Execution())
+	// 日志器在执行期间批量发布 LOG_BATCH，关闭时同步刷新尾部日志。
+	taskLogger := newKafkaTaskLogger(ctx, c.publisher, command, c.logger)
+	output, executeErr := c.svc.Receive(ctx, service.ExecutionRequest{
+		DispatchID: command.DispatchID,
+		Execution:  command.Execution(),
+		TaskLogger: taskLogger,
+	})
 	status := domain.TaskExecutionStatusSuccess
 	result := output.Result
 	if executeErr != nil {
@@ -100,13 +106,15 @@ func (c *ExecuteConsumer) Consume(ctx context.Context) error {
 			result = executeErr.Error()
 		}
 	}
-	return c.producer.Produce(ctx, ExecuteResult{
+	finishCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	return c.publisher.PublishFinished(finishCtx, executionevent.Finished{
 		DispatchID: command.DispatchID,
 		State: domain.ExecutionState{
 			ID: command.ExecutionID, TaskID: command.TaskID, TaskName: command.TaskName,
 			Status: status, ExecutorNodeID: c.instance.ID, TaskResult: result,
 		},
-		Logs: output.Logs,
+		PendingLogs: taskLogger.PendingLogs(),
 	})
 }
 

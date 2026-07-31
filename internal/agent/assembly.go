@@ -38,19 +38,19 @@ func InitModule(q mq.MQ, etcdClient *clientv3.Client,
 	connection := initSchedulerConnection(etcdClient)
 	artifactClient := artifactv1.NewArtifactServiceClient(connection)
 	executionService := service.NewService(scriptRuntime.Handlers(), preparer, artifactClient)
-	producer := initExecuteProducer(q)
-	consumer := initExecuteConsumer(q, executionService, producer, registry)
+	publisher := initExecutionEventPublisher(q)
+	consumer := initExecuteConsumer(q, executionService, publisher, registry)
 	return &Module{
 		Svc: executionService, C: consumer, connection: connection, artifacts: preparer,
 	}
 }
 
-func initExecuteProducer(q mq.MQ) event.ExecuteResultProducer {
-	producer, err := event.NewExecuteResultProducer(q)
+func initExecutionEventPublisher(q mq.MQ) event.ExecutionEventPublisher {
+	publisher, err := event.NewExecutionEventPublisher(q)
 	if err != nil {
 		panic(err)
 	}
-	return producer
+	return publisher
 }
 
 func InitRegistry(etcdClient *clientv3.Client) registry.Registry {
@@ -61,7 +61,7 @@ func InitRegistry(etcdClient *clientv3.Client) registry.Registry {
 	return reg
 }
 
-func initExecuteConsumer(q mq.MQ, svc service.Service, producer event.ExecuteResultProducer,
+func initExecuteConsumer(q mq.MQ, svc service.Service, publisher event.ExecutionEventPublisher,
 	reg registry.Registry) *event.ExecuteConsumer {
 	var cfg Instance
 	if err := config.UnmarshalKey("agent", &cfg); err != nil {
@@ -81,7 +81,7 @@ func initExecuteConsumer(q mq.MQ, svc service.Service, producer event.ExecuteRes
 		},
 	}
 
-	consumer, err := event.NewExecuteConsumer(q, svc, cfg.Topic, producer, reg, instance, cfg.WorkerCount)
+	consumer, err := event.NewExecuteConsumer(q, svc, cfg.Topic, publisher, reg, instance, cfg.WorkerCount)
 	if err != nil {
 		panic(err)
 	}

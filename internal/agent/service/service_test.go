@@ -8,8 +8,10 @@ import (
 	"testing"
 
 	artifactv1 "github.com/Duke1616/etask/api/proto/gen/etask/artifact/v1"
+	servicemocks "github.com/Duke1616/etask/internal/agent/service/mocks"
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/sdk/executor"
+	"go.uber.org/mock/gomock"
 )
 
 func TestServiceReceive(t *testing.T) {
@@ -30,11 +32,12 @@ func TestServiceReceive(t *testing.T) {
 				var wg sync.WaitGroup
 				outputs := make([]string, 2)
 				errs := make([]error, 2)
+				loggers := []*servicemocks.MockTaskLogger{newTaskLoggerMock(t), newTaskLoggerMock(t)}
 				for index := range outputs {
 					wg.Add(1)
 					go func(index int) {
 						defer wg.Done()
-						output, err := fixture.service.Receive(context.Background(), "dispatch-1", fixture.execution)
+						output, err := fixture.service.Receive(context.Background(), executionRequest(fixture, "dispatch-1", loggers[index]))
 						outputs[index], errs[index] = output.Result, err
 					}(index)
 				}
@@ -63,7 +66,7 @@ func TestServiceReceive(t *testing.T) {
 			},
 			run: func(t *testing.T, fixture *serviceFixture) {
 				for _, dispatchID := range []string{"dispatch-1", "dispatch-2"} {
-					if _, err := fixture.service.Receive(context.Background(), dispatchID, fixture.execution); err != nil {
+					if _, err := fixture.service.Receive(context.Background(), executionRequest(fixture, dispatchID, newTaskLoggerMock(t))); err != nil {
 						t.Fatalf("Receive() 返回意外错误: %v", err)
 					}
 				}
@@ -85,7 +88,7 @@ func TestServiceReceive(t *testing.T) {
 				return fixture, func() {}
 			},
 			run: func(t *testing.T, fixture *serviceFixture) {
-				if _, err := fixture.service.Receive(context.Background(), "dispatch-1", fixture.execution); err != nil {
+				if _, err := fixture.service.Receive(context.Background(), executionRequest(fixture, "dispatch-1", newTaskLoggerMock(t))); err != nil {
 					t.Fatalf("Receive() 返回意外错误: %v", err)
 				}
 			},
@@ -110,12 +113,15 @@ func TestServiceReceive(t *testing.T) {
 				return fixture, func() {}
 			},
 			run: func(t *testing.T, fixture *serviceFixture) {
-				output, err := fixture.service.Receive(context.Background(), "dispatch-1", fixture.execution)
+				ctrl := gomock.NewController(t)
+				logger := servicemocks.NewMockTaskLogger(ctrl)
+				gomock.InOrder(
+					logger.EXPECT().Log("%s", "token=[MASKED]"),
+					logger.EXPECT().Close(),
+				)
+				_, err := fixture.service.Receive(context.Background(), executionRequest(fixture, "dispatch-1", logger))
 				if err != nil {
 					t.Fatalf("Receive() 返回意外错误: %v", err)
-				}
-				if len(output.Logs) != 1 || output.Logs[0] != "token=[MASKED]" {
-					t.Fatalf("脱敏日志 = %#v", output.Logs)
 				}
 			},
 			after: func(t *testing.T, fixture *serviceFixture) {},
@@ -132,17 +138,28 @@ func TestServiceReceive(t *testing.T) {
 	}
 }
 
+func executionRequest(fixture *serviceFixture, dispatchID string, logger executor.TaskLogger) ExecutionRequest {
+	return ExecutionRequest{DispatchID: dispatchID, Execution: fixture.execution, TaskLogger: logger}
+}
+
+func newTaskLoggerMock(t *testing.T) *servicemocks.MockTaskLogger {
+	t.Helper()
+	logger := servicemocks.NewMockTaskLogger(gomock.NewController(t))
+	logger.EXPECT().Close()
+	return logger
+}
+
 type serviceFixture struct {
 	service   Service
-	handler   *serviceHandlerStub
-	preparer  *servicePreparerStub
+	handler   *serviceHandlerFake
+	preparer  *servicePreparerFake
 	execution domain.TaskExecution
 }
 
 func newServiceFixture(t *testing.T) *serviceFixture {
 	t.Helper()
-	handler := &serviceHandlerStub{started: make(chan struct{}, 1)}
-	preparer := &servicePreparerStub{prepared: &servicePreparedStub{
+	handler := &serviceHandlerFake{started: make(chan struct{}, 1)}
+	preparer := &servicePreparerFake{prepared: &servicePreparedFake{
 		roots: executor.ArtifactRoots{Default: "/system", Dependencies: "/dependencies"},
 	}}
 	return &serviceFixture{
@@ -156,7 +173,7 @@ func newServiceFixture(t *testing.T) *serviceFixture {
 	}
 }
 
-type serviceHandlerStub struct {
+type serviceHandlerFake struct {
 	runs       atomic.Int32
 	started    chan struct{}
 	block      chan struct{}
@@ -164,10 +181,10 @@ type serviceHandlerStub struct {
 	logMessage string
 }
 
-func (h *serviceHandlerStub) Name() string                   { return "test" }
-func (h *serviceHandlerStub) Desc() string                   { return "测试处理器" }
-func (h *serviceHandlerStub) Metadata() []executor.Parameter { return nil }
-func (h *serviceHandlerStub) Run(ctx *executor.Context) error {
+func (h *serviceHandlerFake) Name() string                   { return "test" }
+func (h *serviceHandlerFake) Desc() string                   { return "测试处理器" }
+func (h *serviceHandlerFake) Metadata() []executor.Parameter { return nil }
+func (h *serviceHandlerFake) Run(ctx *executor.Context) error {
 	h.runs.Add(1)
 	select {
 	case h.started <- struct{}{}:
@@ -185,25 +202,25 @@ func (h *serviceHandlerStub) Run(ctx *executor.Context) error {
 	return nil
 }
 
-type servicePreparerStub struct {
+type servicePreparerFake struct {
 	prepares atomic.Int32
-	prepared *servicePreparedStub
+	prepared *servicePreparedFake
 }
 
-func (p *servicePreparerStub) Prune() error { return nil }
-func (p *servicePreparerStub) Prepare(context.Context, artifactv1.ArtifactServiceClient,
+func (p *servicePreparerFake) Prune() error { return nil }
+func (p *servicePreparerFake) Prepare(context.Context, artifactv1.ArtifactServiceClient,
 	[]*artifactv1.ArtifactRef) (executor.PreparedArtifacts, error) {
 	p.prepares.Add(1)
 	return p.prepared, nil
 }
 
-type servicePreparedStub struct {
+type servicePreparedFake struct {
 	roots  executor.ArtifactRoots
 	closes atomic.Int32
 }
 
-func (p *servicePreparedStub) Roots() executor.ArtifactRoots { return p.roots }
-func (p *servicePreparedStub) Close() error {
+func (p *servicePreparedFake) Roots() executor.ArtifactRoots { return p.roots }
+func (p *servicePreparedFake) Close() error {
 	p.closes.Add(1)
 	return nil
 }

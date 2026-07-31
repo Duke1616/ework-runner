@@ -45,8 +45,8 @@ sequenceDiagram
     Note over Scheduler,Agent: ⏩ Agent 分支模式 (基于 Kafka 队列去中心化流转)
     Scheduler->>Kafka: 2a. 将包含脚本上下文的发布指令投进 Topic
     Kafka-->>Agent: 3a. Agent 循环长订阅拉取到当前任务
-    Agent-->>Kafka: 4a. 独立运行完毕，将结果 JSON 写回状态 Topic
-    Kafka-->>Scheduler: 5a. 调度大脑收到反馈收集确认
+    Agent-->>Kafka: 4a. 执行中批量回传日志事件，结束后回传最终结果
+    Kafka-->>Scheduler: 5a. 调度中心统一保存日志并处理执行状态
 
     Note over Scheduler,Executor: ⚡️ Executor 分支模式 (基于 gRPC 高性能直连传输)
     Scheduler->>Executor: 2b. (PUSH 模式) 路由直指点对点触发 Execute()

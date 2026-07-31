@@ -11,7 +11,7 @@ func InitTasks(
 	t3 *compensator.InterruptCompensator,
 	t4 *CompleteConsumer,
 	t5 *poolSvc.Syncer,
-	t6 *AgentResultConsumer,
+	t6 *AgentEventConsumer,
 ) []Task {
 	return []Task{
 		t1,

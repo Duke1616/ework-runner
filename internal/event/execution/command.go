@@ -1,4 +1,4 @@
-// Package execution 定义调度中心与 Kafka Agent 之间的执行协议。
+// Package execution 定义 Scheduler 与 Kafka Agent 之间的执行协议。
 package execution
 
 import (
@@ -6,11 +6,6 @@ import (
 	"strings"
 
 	"github.com/Duke1616/etask/internal/domain"
-)
-
-const (
-	// ResultTopic 是 Agent 执行结果回传的统一 Topic。
-	ResultTopic = "execution_result_events"
 )
 
 // Command 是调度中心发送给独立 Agent 的不可变执行命令。
@@ -73,13 +68,6 @@ func (c Command) Execution() domain.TaskExecution {
 			GrpcConfig: &domain.GrpcConfig{HandlerName: c.Handler, Params: c.Params},
 		},
 	}
-}
-
-// Result 是 Agent 回传的执行状态和完整日志。
-type Result struct {
-	DispatchID string                `json:"dispatch_id"`
-	State      domain.ExecutionState `json:"state"`
-	Logs       []string              `json:"logs"`
 }
 
 // DispatchNodeID 构造写入执行快照的 Kafka 派发标记。

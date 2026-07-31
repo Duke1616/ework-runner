@@ -143,8 +143,8 @@ func InitSchedulerApplication(base *Base) *SchedulerApplication {
 	interruptCompensator := InitInterruptCompensator(clients, executionService)
 	completeConsumer := InitCompleteEventConsumer(mq, service, executionService, taskAcquirer, hubs)
 	poolSyncer := pool.NewSyncer(executionPoolRepository, client)
-	agentResultConsumer := InitAgentResultConsumer(mq, executionService)
-	v3 := InitTasks(retryCompensator, rescheduleCompensator, interruptCompensator, completeConsumer, poolSyncer, agentResultConsumer)
+	agentEventConsumer := InitAgentEventConsumer(mq, executionService)
+	v3 := InitTasks(retryCompensator, rescheduleCompensator, interruptCompensator, completeConsumer, poolSyncer, agentEventConsumer)
 	schedulerApplication := &SchedulerApplication{
 		Web:       component,
 		GRPC:      server,
