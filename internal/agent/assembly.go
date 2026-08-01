@@ -22,11 +22,11 @@ import (
 )
 
 type Instance struct {
-	Name           string `mapstructure:"name" yaml:"name" json:"name"`                                         // 实例名称
-	Desc           string `mapstructure:"desc" yaml:"desc" json:"desc"`                                         // 注解
-	Topic          string `mapstructure:"topic" yaml:"topic" json:"topic"`                                      // 建立 Topic 通道
-	WorkerCount    int    `mapstructure:"worker_count" yaml:"worker_count" json:"worker_count"`                  // 并发工作协程数量
-	IsolationLevel string `mapstructure:"isolation_level" yaml:"isolation_level" json:"isolation_level"`       // 资源池隔离级别: SHARED 或 DEDICATED
+	Name           string `mapstructure:"name" yaml:"name" json:"name"`                                  // 实例名称
+	Desc           string `mapstructure:"desc" yaml:"desc" json:"desc"`                                  // 注解
+	Topic          string `mapstructure:"topic" yaml:"topic" json:"topic"`                               // 建立 Topic 通道
+	WorkerCount    int    `mapstructure:"worker_count" yaml:"worker_count" json:"worker_count"`          // 并发工作协程数量
+	IsolationLevel string `mapstructure:"isolation_level" yaml:"isolation_level" json:"isolation_level"` // 资源池隔离级别: SHARED 或 DEDICATED
 }
 
 func InitModule(q mq.MQ, etcdClient *clientv3.Client,
