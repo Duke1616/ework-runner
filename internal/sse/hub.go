@@ -40,7 +40,7 @@ type TaskExecutionEvent struct {
 
 // Hubs 汇总调度中心进程内共享的实时事件通道。
 type Hubs struct {
-	Tasks      *ssekit.Hub[TaskStatusEvent]
+	Tasks      *ssekit.TopicHub[int64, TaskStatusEvent]
 	Logs       *ssekit.TopicHub[int64, TaskLogEvent]
 	Executions *ssekit.TopicHub[int64, TaskExecutionEvent]
 }
@@ -48,7 +48,7 @@ type Hubs struct {
 // NewHubs 创建一组独立的实时事件通道。
 func NewHubs() *Hubs {
 	return &Hubs{
-		Tasks:      ssekit.NewHub[TaskStatusEvent](),
+		Tasks:      ssekit.NewTopicHub[int64, TaskStatusEvent](),
 		Logs:       ssekit.NewTopicHub[int64, TaskLogEvent](),
 		Executions: ssekit.NewTopicHub[int64, TaskExecutionEvent](),
 	}

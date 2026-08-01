@@ -83,7 +83,7 @@ func (c *Consumer) handleTask(ctx context.Context, evt event.Event) error {
 	}
 
 	// 广播事件：实时刷新任务列表状态和下一次触发时间
-	c.events.Tasks.Broadcast(sse.TaskStatusEvent{
+	c.events.Tasks.Broadcast(t.TenantID, sse.TaskStatusEvent{
 		TaskID:   t.ID,
 		Status:   t.Status.String(),
 		NextTime: t.NextTime,

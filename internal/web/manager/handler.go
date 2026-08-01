@@ -3,6 +3,7 @@ package manager
 import (
 	"time"
 
+	"github.com/Duke1616/eiam/pkg/ctxutil"
 	"github.com/Duke1616/eiam/pkg/web/capability"
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/service/task"
@@ -21,37 +22,42 @@ type Handler struct {
 	execSvc task.ExecutionService
 	events  *sse.Hubs
 	capability.IRegistry
+	executionRegistry capability.IRegistry
 }
 
 func (h *Handler) PublicRoutes(_ *gin.Engine) {
 
 }
 
-func (h *Handler) IdentifyRoutes(server *gin.Engine) {
-	g := server.Group("/api/manager")
-	// 实时推送系统全局任务状态变更事件流（例如任务启动、停止、下发成功）
-	g.GET("/task-events/stream", ginx.W(h.StreamEvents))
-
-	// 实时流式增量推送指定执行实例（ExecutionID）的执行日志，多终端独立订阅，零轮询零冗余广播
-	g.GET("/executions/:id/logs/stream", ginx.W(h.StreamExecutionLogs))
-
-	// 实时流式推送特定任务（TaskID）下新增/更新的执行记录（Executions）以及实时的进度条变更事件
-	g.GET("/tasks/:id/executions/stream", ginx.W(h.StreamTaskExecutions))
-}
+func (h *Handler) IdentifyRoutes(_ *gin.Engine) {}
 
 func NewHandler(svc task.Service, logSvc task.LogService, execSvc task.ExecutionService,
 	events *sse.Hubs) *Handler {
 	return &Handler{
-		svc:       svc,
-		logSvc:    logSvc,
-		execSvc:   execSvc,
-		events:    events,
-		IRegistry: capability.NewRegistry("task", "manager", "任务管理"),
+		svc:               svc,
+		logSvc:            logSvc,
+		execSvc:           execSvc,
+		events:            events,
+		IRegistry:         capability.NewRegistry("task", "manager", "任务管理"),
+		executionRegistry: capability.NewRegistry("task", "execution", "任务执行"),
 	}
 }
 
 func (h *Handler) PrivateRoutes(server *gin.Engine) {
 	g := server.Group("/api/manager")
+	// --- 任务事件 ---
+	g.GET("/task-events/stream", h.Capability("订阅任务状态事件", "task_events").
+		NoSync().
+		Handle(ginx.W(h.StreamEvents)),
+	)
+	g.GET("/tasks/:id/executions/stream", h.Capability("订阅任务执行事件", "execution_events").
+		NoSync().
+		Handle(ginx.W(h.StreamTaskExecutions)),
+	)
+	g.GET("/executions/:id/logs/stream", h.executionRegistry.Capability("查看执行日志流", "logs").
+		NoSync().
+		Handle(ginx.W(h.StreamExecutionLogs)),
+	)
 
 	// --- 任务管理 ---
 	g.POST("/create", h.Capability("创建任务", "add").
@@ -63,6 +69,7 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 		Handle(ginx.B[UpdateTaskReq](h.Update)),
 	)
 	g.POST("/list", h.Capability("任务列表", "view").
+		Needs("task:manager:task_events").
 		Handle(ginx.B[PageReq](h.List)),
 	)
 	g.GET("/detail/:id", h.Capability("任务详情", "get").
@@ -74,9 +81,12 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 
 	// --- 执行监控 ---
 	g.POST("/logs", h.Capability("任务日志", "logs").
+		Needs("task:execution:logs", "task:manager:executions", "task:manager:execution_events").
 		Handle(ginx.B[GetLogsReq](h.GetLogs)),
 	)
+
 	g.POST("/executions", h.Capability("执行记录", "executions").
+		Needs("task:manager:execution_events").
 		Handle(ginx.B[ListExecutionsReq](h.ListExecutions)),
 	)
 
@@ -141,7 +151,7 @@ func (h *Handler) Stop(ctx *ginx.Context) (ginx.Result, error) {
 
 	// 停止成功后，主动拉取最新任务状态并广播
 	if t, errGet := h.svc.GetByID(ctx, id); errGet == nil {
-		h.events.Tasks.Broadcast(sse.TaskStatusEvent{
+		h.events.Tasks.Broadcast(t.TenantID, sse.TaskStatusEvent{
 			TaskID:   t.ID,
 			Status:   t.Status.String(),
 			NextTime: t.NextTime,
@@ -164,7 +174,7 @@ func (h *Handler) Run(ctx *ginx.Context, req RunTaskReq) (ginx.Result, error) {
 
 	// 启动成功后，主动拉取最新任务状态并广播
 	if t, errGet := h.svc.GetByID(ctx, req.ID); errGet == nil {
-		h.events.Tasks.Broadcast(sse.TaskStatusEvent{
+		h.events.Tasks.Broadcast(t.TenantID, sse.TaskStatusEvent{
 			TaskID:   t.ID,
 			Status:   t.Status.String(),
 			NextTime: t.NextTime,
@@ -178,7 +188,8 @@ func (h *Handler) Run(ctx *ginx.Context, req RunTaskReq) (ginx.Result, error) {
 
 // StreamEvents 实时向前端推送任务状态变更事件流的 SSE 接口
 func (h *Handler) StreamEvents(ctx *ginx.Context) (ginx.Result, error) {
-	h.events.Tasks.Stream(ctx, sse.TASK_STATUS_CHANGE_EVENT, 20*time.Second)
+	tenantID := ctxutil.GetTenantID(ctx).Int64()
+	h.events.Tasks.Stream(ctx, tenantID, sse.TASK_STATUS_CHANGE_EVENT, 20*time.Second)
 	return ginx.Result{}, nil
 }
 
@@ -199,6 +210,9 @@ func (h *Handler) StreamExecutionLogs(ctx *ginx.Context) (ginx.Result, error) {
 func (h *Handler) StreamTaskExecutions(ctx *ginx.Context) (ginx.Result, error) {
 	id, err := ctx.Param("id").AsInt64()
 	if err != nil {
+		return systemErrorResult, err
+	}
+	if _, err = h.svc.GetByID(ctx, id); err != nil {
 		return systemErrorResult, err
 	}
 	h.events.Executions.Stream(ctx, id, sse.TASK_EXECUTION_EVENT, 20*time.Second)
