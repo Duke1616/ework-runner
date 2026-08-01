@@ -17,7 +17,19 @@ message RunRunnerResponse {
   bool created = 2; // false 表示命中已有幂等执行
 }
 
+message TerminateExecutionRequest {
+  int64 execution_id = 1;
+  string reason = 2;
+  string request_id = 3; // execution_id 未知时使用工作流幂等请求标识定位
+}
+
+message TerminateExecutionResponse {
+  bool terminated = 1; // true 表示取消意图已持久化接受
+}
+
 service SchedulerService {
   // RunRunner 幂等创建并触发外部工作流 Runner 执行。
   rpc RunRunner(RunRunnerRequest) returns (RunRunnerResponse);
+  // TerminateExecution 幂等保存取消意图；物理取消信号由后台可靠投递。
+  rpc TerminateExecution(TerminateExecutionRequest) returns (TerminateExecutionResponse);
 }

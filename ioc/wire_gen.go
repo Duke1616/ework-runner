@@ -21,6 +21,7 @@ import (
 	"github.com/Duke1616/etask/internal/service/submission"
 	"github.com/Duke1616/etask/internal/service/task"
 	"github.com/Duke1616/etask/internal/service/task/binding"
+	"github.com/Duke1616/etask/internal/service/termination"
 	"github.com/Duke1616/etask/internal/service/variable"
 	"github.com/Duke1616/etask/internal/sse"
 	artifact2 "github.com/Duke1616/etask/internal/web/artifact"
@@ -50,10 +51,10 @@ func InitBase() *Base {
 
 // InitExecutionRuntime 初始化 Agent 和 Executor 共享的本地执行能力。
 func InitExecutionRuntime() *ExecutionRuntime {
-	preparer := InitArtifactPreparer()
+	v := InitArtifactPreparer()
 	runtime := InitScriptRuntime()
 	executionRuntime := &ExecutionRuntime{
-		ArtifactPreparer: preparer,
+		ArtifactPreparer: v,
 		ScriptRuntime:    runtime,
 	}
 	return executionRuntime
@@ -92,14 +93,14 @@ func InitSchedulerApplication(base *Base) *SchedulerApplication {
 	crypto := InitCrypto()
 	runnerRepository := repository.NewRunnerRepository(runnerDAO, variableDAO, crypto)
 	runnerService := runner.NewService(runnerRepository, executionPoolRepository)
-	bindingRegistry := binding.NewScriptBindingResolvers(codebookService, runnerService)
+	v3 := binding.NewScriptBindingResolvers(codebookService, runnerService)
 	config := InitArtifactConfig()
 	artifactDAO := dao.NewGORMArtifactDAO(db)
 	artifactRepository := repository.NewArtifactRepository(artifactDAO, codebookDAO, codebookProjectDAO)
 	store := InitArtifactStore(config)
 	artifactService := artifact.NewService(config, artifactRepository, store)
 	hubs := sse.NewHubs()
-	executionService := task.NewExecutionService(string2, taskExecutionRepository, service, logService, completeProducer, registry, bindingRegistry, artifactService, codebookService, hubs)
+	executionService := task.NewExecutionService(string2, taskExecutionRepository, service, logService, completeProducer, registry, v3, artifactService, codebookService, hubs)
 	handler := manager.NewHandler(service, logService, executionService, hubs)
 	workspaceService := codebook.NewWorkspaceService(iCodebookRepository, artifactService)
 	codebookHandler := codebook2.NewHandler(codebookService, workspaceService)
@@ -132,7 +133,10 @@ func InitSchedulerApplication(base *Base) *SchedulerApplication {
 	codebookServer := grpc.NewCodebookServer(codebookService)
 	runnerServer := grpc.NewRunnerServer(runnerService)
 	artifactServer := grpc.NewArtifactServer(artifactService)
-	submissionService := submission.NewService(runnerService, codebookService, executionService, routePlanner, invoker)
+	executionCancellationDAO := dao.NewGORMExecutionCancellationDAO(db)
+	executionCancellationRepository := repository.NewExecutionCancellationRepository(executionCancellationDAO, taskExecutionRepository)
+	terminationService := termination.NewService(executionCancellationRepository, taskExecutionRepository, invoker)
+	submissionService := submission.NewService(runnerService, codebookService, executionService, routePlanner, invoker, terminationService)
 	schedulerServer := grpc.NewSchedulerServer(submissionService)
 	server := InitSchedulerNodeGRPCServer(registry, reporterServer, taskServer, agentServer, codebookServer, runnerServer, artifactServer, schedulerServer)
 	taskAcquirer := InitMySQLTaskAcquirer(taskRepository)
@@ -141,15 +145,16 @@ func InitSchedulerApplication(base *Base) *SchedulerApplication {
 	retryCompensator := InitRetryCompensator(dispatcher, executionService)
 	rescheduleCompensator := InitRescheduleCompensator(dispatcher, executionService)
 	interruptCompensator := InitInterruptCompensator(clients, executionService)
+	terminationCompensator := InitTerminationCompensator(terminationService)
 	completeConsumer := InitCompleteEventConsumer(mq, service, executionService, taskAcquirer, hubs)
 	poolSyncer := pool.NewSyncer(executionPoolRepository, client)
 	agentEventConsumer := InitAgentEventConsumer(mq, executionService)
-	v3 := InitTasks(retryCompensator, rescheduleCompensator, interruptCompensator, completeConsumer, poolSyncer, agentEventConsumer)
+	v4 := InitTasks(retryCompensator, rescheduleCompensator, interruptCompensator, terminationCompensator, completeConsumer, poolSyncer, agentEventConsumer)
 	schedulerApplication := &SchedulerApplication{
 		Web:       component,
 		GRPC:      server,
 		Scheduler: scheduler,
-		Tasks:     v3,
+		Tasks:     v4,
 	}
 	return schedulerApplication
 }
@@ -157,9 +162,9 @@ func InitSchedulerApplication(base *Base) *SchedulerApplication {
 // InitExecutorModule 构造原生 Executor 模块。
 func InitExecutorModule(base *Base, runtime *ExecutionRuntime) *executor.Executor {
 	client := base.Etcd
-	preparer := runtime.ArtifactPreparer
+	v := runtime.ArtifactPreparer
 	scriptsRuntime := runtime.ScriptRuntime
-	executorExecutor := InitExecutor(client, preparer, scriptsRuntime)
+	executorExecutor := InitExecutor(client, v, scriptsRuntime)
 	return executorExecutor
 }
 
@@ -167,8 +172,8 @@ func InitExecutorModule(base *Base, runtime *ExecutionRuntime) *executor.Executo
 func InitAgentModule(base *Base, runtime *ExecutionRuntime) *agent.Module {
 	mq := InitMQ()
 	client := base.Etcd
-	preparer := runtime.ArtifactPreparer
+	v := runtime.ArtifactPreparer
 	scriptsRuntime := runtime.ScriptRuntime
-	module := agent.InitModule(mq, client, preparer, scriptsRuntime)
+	module := agent.InitModule(mq, client, v, scriptsRuntime)
 	return module
 }

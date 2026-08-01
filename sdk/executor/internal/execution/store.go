@@ -2,6 +2,7 @@ package execution
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -11,9 +12,14 @@ import (
 
 const defaultRetention = 30 * time.Minute
 
+var (
+	ErrInterrupted = errors.New("execution interrupted")
+	ErrTerminated  = errors.New("execution terminated")
+)
+
 type entry struct {
 	state       *executorv1.ExecutionState
-	cancel      context.CancelFunc
+	cancel      context.CancelCauseFunc
 	completedAt time.Time
 }
 
@@ -30,13 +36,15 @@ func NewStore() *Store {
 }
 
 // Begin 登记一次运行；相同 ID 尚未结束时返回当前状态和 false。
-func (s *Store) Begin(state *executorv1.ExecutionState, cancel context.CancelFunc) (*executorv1.ExecutionState, bool) {
+func (s *Store) Begin(state *executorv1.ExecutionState, cancel context.CancelCauseFunc) (*executorv1.ExecutionState, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	// 新执行进入时顺便回收过期终态，避免额外常驻清理协程。
 	s.cleanupLocked(time.Now())
-	if current, exists := s.entries[state.GetId()]; exists && current.completedAt.IsZero() {
-		return clone(current.state), false
+	if current, exists := s.entries[state.GetId()]; exists {
+		if current.state.GetStatus() == executorv1.ExecutionStatus_CANCELLED || current.completedAt.IsZero() {
+			return clone(current.state), false
+		}
 	}
 	stored := clone(state)
 	s.entries[state.GetId()] = entry{state: stored, cancel: cancel}
@@ -51,9 +59,11 @@ func (s *Store) Finish(id int64, status executorv1.ExecutionStatus, result strin
 	if !exists {
 		return nil, false
 	}
-	current.state.Status = status
-	current.state.TaskResult = result
-	if status == executorv1.ExecutionStatus_SUCCESS {
+	if current.state.GetStatus() != executorv1.ExecutionStatus_CANCELLED {
+		current.state.Status = status
+		current.state.TaskResult = result
+	}
+	if current.state.GetStatus() == executorv1.ExecutionStatus_SUCCESS {
 		current.state.RunningProgress = 100
 	}
 	current.cancel = nil
@@ -85,7 +95,40 @@ func (s *Store) Cancel(id int64) (*executorv1.ExecutionState, bool) {
 	state := clone(current.state)
 	cancel := current.cancel
 	s.mu.RUnlock()
-	cancel()
+	cancel(ErrInterrupted)
+	return state, true
+}
+
+// Terminate 将本地状态立即置为 CANCELLED，并取消正在运行的 Handler。
+func (s *Store) Terminate(id int64, reason string) (*executorv1.ExecutionState, bool) {
+	s.mu.Lock()
+	current, exists := s.entries[id]
+	if !exists {
+		state := &executorv1.ExecutionState{
+			Id: id, Status: executorv1.ExecutionStatus_CANCELLED, TaskResult: reason,
+		}
+		s.entries[id] = entry{state: state, completedAt: time.Now()}
+		s.mu.Unlock()
+		return clone(state), true
+	}
+	if !current.completedAt.IsZero() && current.state.GetStatus() != executorv1.ExecutionStatus_CANCELLED {
+		s.mu.Unlock()
+		return nil, false
+	}
+	if current.state.GetStatus() == executorv1.ExecutionStatus_CANCELLED {
+		state := clone(current.state)
+		s.mu.Unlock()
+		return state, true
+	}
+	current.state.Status = executorv1.ExecutionStatus_CANCELLED
+	current.state.TaskResult = reason
+	cancel := current.cancel
+	s.entries[id] = current
+	state := clone(current.state)
+	s.mu.Unlock()
+	if cancel != nil {
+		cancel(ErrTerminated)
+	}
 	return state, true
 }
 

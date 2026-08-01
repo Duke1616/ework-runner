@@ -69,6 +69,46 @@ func TestMQInvokerRun(t *testing.T) {
 	}
 }
 
+func TestMQInvokerTerminatePublishesControlCommand(t *testing.T) {
+	producer := &producerStub{}
+	queue := &mqStub{producer: producer}
+	execution := mqExecutionFixture()
+	execution.Route = domain.ExecutionRoute{Topic: "agent-shell"}
+	ctx := ctxutil.WithTenantID(context.Background(), execution.TenantID)
+
+	err := NewMQInvoker(queue).Terminate(ctx, execution, "管理员强制结束")
+	if err != nil {
+		t.Fatalf("Terminate() 返回意外错误: %v", err)
+	}
+	if queue.topic != executionevent.ControlTopic("agent-shell") {
+		t.Fatalf("控制 Topic = %q", queue.topic)
+	}
+	var command executionevent.ControlCommand
+	if err = json.Unmarshal(producer.message.Value, &command); err != nil {
+		t.Fatalf("解析终止命令失败: %v", err)
+	}
+	if command.ExecutionID != execution.ID || command.Reason != "管理员强制结束" {
+		t.Fatalf("终止命令字段不完整: %#v", command)
+	}
+	if producer.message.Header[mqx.HeaderTenantID] != "20" {
+		t.Fatalf("终止命令租户 Header = %q", producer.message.Header[mqx.HeaderTenantID])
+	}
+	if len(producer.message.Key) == 0 {
+		t.Fatal("终止命令缺少 execution 分区键")
+	}
+}
+
+func TestMQInvokerTerminateRequiresTenantContext(t *testing.T) {
+	execution := mqExecutionFixture()
+	execution.Route = domain.ExecutionRoute{Topic: "agent-shell"}
+
+	err := NewMQInvoker(&mqStub{producer: &producerStub{}}).
+		Terminate(context.Background(), execution, "管理员强制结束")
+	if err == nil || !strings.Contains(err.Error(), "缺少租户上下文") {
+		t.Fatalf("Terminate() 错误 = %v", err)
+	}
+}
+
 func mqExecutionFixture() domain.TaskExecution {
 	return domain.TaskExecution{
 		ID: 10, TenantID: 20, Source: domain.TaskExecutionSourceTask,

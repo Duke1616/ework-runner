@@ -34,6 +34,8 @@ type ExecutionService interface {
 		sourceProjectID int64) (domain.TaskExecution, bool, error)
 	// FindByID 根据ID获取执行实例
 	FindByID(ctx context.Context, id int64) (domain.TaskExecution, error)
+	// FindWorkflowByRequestID 根据工作流幂等请求标识查询执行。
+	FindWorkflowByRequestID(ctx context.Context, requestID string) (domain.TaskExecution, bool, error)
 	// FindRetryableExecutions 查找所有可以重试的执行记录
 	// limit: 查询结果数量限制
 	FindRetryableExecutions(ctx context.Context, limit int) ([]domain.TaskExecution, error)
@@ -301,6 +303,11 @@ func (s *executionService) FindByID(ctx context.Context, id int64) (domain.TaskE
 	return s.repo.GetByID(ctx, id)
 }
 
+func (s *executionService) FindWorkflowByRequestID(ctx context.Context,
+	requestID string) (domain.TaskExecution, bool, error) {
+	return s.repo.FindByRequestID(ctx, domain.TaskExecutionSourceWorkflow, requestID)
+}
+
 func (s *executionService) FindRetryableExecutions(ctx context.Context, limit int) ([]domain.TaskExecution, error) {
 	return s.repo.FindRetryableExecutions(ctx, limit)
 }
@@ -399,14 +406,9 @@ func (s *executionService) UpdateState(ctx context.Context, state domain.Executi
 		return errs.ErrExecutionNotFound
 	}
 
-	// 已处于终止状态的的执行记录不允许再进行状态迁移
+	// 终态获胜：重复终态和晚到的其他回调都幂等忽略，避免消息持续重试。
 	if execution.Status.IsTerminalStatus() {
-		s.logger.Error("错乱的状态迁移",
-			elog.Int64("taskID", execution.Task.ID),
-			elog.String("taskName", execution.Task.Name),
-			elog.String("currentStatus", execution.Status.String()),
-			elog.String("targetStatus", state.Status.String()))
-		return errs.ErrInvalidTaskExecutionStatus
+		return nil
 	}
 	if execution.Source.IsCodebookPreview() {
 		return s.updatePreviewState(ctx, execution, state)
@@ -470,7 +472,7 @@ func (s *executionService) updatePreviewState(ctx context.Context, execution dom
 			return s.updateRunningProgress(ctx, state)
 		}
 		return s.setRunningState(ctx, state)
-	case state.Status.IsSuccess(), state.Status.IsFailed():
+	case state.Status.IsSuccess(), state.Status.IsFailed(), state.Status.IsCancelled():
 		return s.updateState(ctx, execution, state)
 	case state.Status.IsFailedRetryable(), state.Status.IsFailedRescheduled():
 		state.Status = domain.TaskExecutionStatusFailed
@@ -490,7 +492,7 @@ func (s *executionService) updateWorkflowState(ctx context.Context, execution do
 			return s.updateRunningProgress(ctx, state)
 		}
 		return s.setRunningState(ctx, state)
-	case state.Status.IsSuccess(), state.Status.IsFailed():
+	case state.Status.IsSuccess(), state.Status.IsFailed(), state.Status.IsCancelled():
 		return s.sendCompletedEvent(ctx, state, execution)
 	case state.Status.IsFailedRetryable(), state.Status.IsFailedRescheduled():
 		state.Status = domain.TaskExecutionStatusFailed

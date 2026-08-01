@@ -15,6 +15,7 @@ import (
 	submissionSvc "github.com/Duke1616/etask/internal/service/submission"
 	taskSvc "github.com/Duke1616/etask/internal/service/task"
 	taskBinding "github.com/Duke1616/etask/internal/service/task/binding"
+	terminationSvc "github.com/Duke1616/etask/internal/service/termination"
 	variableSvc "github.com/Duke1616/etask/internal/service/variable"
 	internalSSE "github.com/Duke1616/etask/internal/sse"
 	artifactWeb "github.com/Duke1616/etask/internal/web/artifact"
@@ -140,8 +141,12 @@ var (
 	TaskExecutionSet = wire.NewSet(
 		dao.NewGORMTaskExecutionDAO,
 		dao.NewGORMTaskExecutionLogDAO,
+		dao.NewGORMExecutionCancellationDAO,
 		repository.NewTaskExecutionRepository,
+		repository.NewExecutionCancellationRepository,
 		taskSvc.NewExecutionService,
+		terminationSvc.NewService,
+		wire.Bind(new(grpc.ExecutionReportHandler), new(taskSvc.ExecutionService)),
 	)
 
 	SchedulerSet = wire.NewSet(
@@ -159,6 +164,7 @@ var (
 		InitRetryCompensator,
 		InitRescheduleCompensator,
 		InitInterruptCompensator,
+		InitTerminationCompensator,
 	)
 
 	ProducerSet = wire.NewSet(

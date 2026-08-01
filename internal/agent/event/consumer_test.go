@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Duke1616/etask/internal/domain"
+	"github.com/Duke1616/etask/pkg/grpc/registry"
 )
 
 func TestCommandValidate(t *testing.T) {
@@ -34,5 +35,19 @@ func TestCommandValidate(t *testing.T) {
 				t.Fatalf("validateCommand() 错误 = %v, 期望包含 %q", err, testCase.want)
 			}
 		})
+	}
+}
+
+func TestControlConsumerGroupUsesUniqueAddressWhenIDMissing(t *testing.T) {
+	group := controlConsumerGroup("agent-shell", registry.ServiceInstance{Address: "instance-1"})
+	if group != "agent-control-agent-shell-instance-1" {
+		t.Fatalf("controlConsumerGroup() = %q", group)
+	}
+}
+
+func TestControlCommandValidateDoesNotDuplicateTenantIdentity(t *testing.T) {
+	command := ControlCommand{ExecutionID: 10, Reason: "管理员强制结束"}
+	if err := command.Validate(); err != nil {
+		t.Fatalf("ControlCommand.Validate() 返回意外错误: %v", err)
 	}
 }

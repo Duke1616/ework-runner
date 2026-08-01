@@ -142,6 +142,110 @@ func (x *RunRunnerResponse) GetCreated() bool {
 	return false
 }
 
+type TerminateExecutionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ExecutionId   int64                  `protobuf:"varint,1,opt,name=execution_id,json=executionId,proto3" json:"execution_id,omitempty"`
+	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	RequestId     string                 `protobuf:"bytes,3,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"` // execution_id 未知时使用工作流幂等请求标识定位
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TerminateExecutionRequest) Reset() {
+	*x = TerminateExecutionRequest{}
+	mi := &file_etask_scheduler_v1_scheduler_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TerminateExecutionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TerminateExecutionRequest) ProtoMessage() {}
+
+func (x *TerminateExecutionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_etask_scheduler_v1_scheduler_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TerminateExecutionRequest.ProtoReflect.Descriptor instead.
+func (*TerminateExecutionRequest) Descriptor() ([]byte, []int) {
+	return file_etask_scheduler_v1_scheduler_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *TerminateExecutionRequest) GetExecutionId() int64 {
+	if x != nil {
+		return x.ExecutionId
+	}
+	return 0
+}
+
+func (x *TerminateExecutionRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *TerminateExecutionRequest) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+type TerminateExecutionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Terminated    bool                   `protobuf:"varint,1,opt,name=terminated,proto3" json:"terminated,omitempty"` // true 表示取消意图已持久化接受
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TerminateExecutionResponse) Reset() {
+	*x = TerminateExecutionResponse{}
+	mi := &file_etask_scheduler_v1_scheduler_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TerminateExecutionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TerminateExecutionResponse) ProtoMessage() {}
+
+func (x *TerminateExecutionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_etask_scheduler_v1_scheduler_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TerminateExecutionResponse.ProtoReflect.Descriptor instead.
+func (*TerminateExecutionResponse) Descriptor() ([]byte, []int) {
+	return file_etask_scheduler_v1_scheduler_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *TerminateExecutionResponse) GetTerminated() bool {
+	if x != nil {
+		return x.Terminated
+	}
+	return false
+}
+
 var File_etask_scheduler_v1_scheduler_proto protoreflect.FileDescriptor
 
 const file_etask_scheduler_v1_scheduler_proto_rawDesc = "" +
@@ -161,9 +265,19 @@ const file_etask_scheduler_v1_scheduler_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"P\n" +
 	"\x11RunRunnerResponse\x12!\n" +
 	"\fexecution_id\x18\x01 \x01(\x03R\vexecutionId\x12\x18\n" +
-	"\acreated\x18\x02 \x01(\bR\acreated2l\n" +
+	"\acreated\x18\x02 \x01(\bR\acreated\"u\n" +
+	"\x19TerminateExecutionRequest\x12!\n" +
+	"\fexecution_id\x18\x01 \x01(\x03R\vexecutionId\x12\x16\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x03 \x01(\tR\trequestId\"<\n" +
+	"\x1aTerminateExecutionResponse\x12\x1e\n" +
+	"\n" +
+	"terminated\x18\x01 \x01(\bR\n" +
+	"terminated2\xe1\x01\n" +
 	"\x10SchedulerService\x12X\n" +
-	"\tRunRunner\x12$.etask.scheduler.v1.RunRunnerRequest\x1a%.etask.scheduler.v1.RunRunnerResponseB\xda\x01\n" +
+	"\tRunRunner\x12$.etask.scheduler.v1.RunRunnerRequest\x1a%.etask.scheduler.v1.RunRunnerResponse\x12s\n" +
+	"\x12TerminateExecution\x12-.etask.scheduler.v1.TerminateExecutionRequest\x1a..etask.scheduler.v1.TerminateExecutionResponseB\xda\x01\n" +
 	"\x16com.etask.scheduler.v1B\x0eSchedulerProtoP\x01ZFgithub.com/Duke1616/etask/api/proto/gen/etask/scheduler/v1;schedulerv1\xa2\x02\x03ESX\xaa\x02\x12Etask.Scheduler.V1\xca\x02\x12Etask\\Scheduler\\V1\xe2\x02\x1eEtask\\Scheduler\\V1\\GPBMetadata\xea\x02\x14Etask::Scheduler::V1b\x06proto3"
 
 var (
@@ -178,20 +292,24 @@ func file_etask_scheduler_v1_scheduler_proto_rawDescGZIP() []byte {
 	return file_etask_scheduler_v1_scheduler_proto_rawDescData
 }
 
-var file_etask_scheduler_v1_scheduler_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_etask_scheduler_v1_scheduler_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_etask_scheduler_v1_scheduler_proto_goTypes = []any{
-	(*RunRunnerRequest)(nil),  // 0: etask.scheduler.v1.RunRunnerRequest
-	(*RunRunnerResponse)(nil), // 1: etask.scheduler.v1.RunRunnerResponse
-	nil,                       // 2: etask.scheduler.v1.RunRunnerRequest.ParamsEntry
-	nil,                       // 3: etask.scheduler.v1.RunRunnerRequest.VariablesEntry
+	(*RunRunnerRequest)(nil),           // 0: etask.scheduler.v1.RunRunnerRequest
+	(*RunRunnerResponse)(nil),          // 1: etask.scheduler.v1.RunRunnerResponse
+	(*TerminateExecutionRequest)(nil),  // 2: etask.scheduler.v1.TerminateExecutionRequest
+	(*TerminateExecutionResponse)(nil), // 3: etask.scheduler.v1.TerminateExecutionResponse
+	nil,                                // 4: etask.scheduler.v1.RunRunnerRequest.ParamsEntry
+	nil,                                // 5: etask.scheduler.v1.RunRunnerRequest.VariablesEntry
 }
 var file_etask_scheduler_v1_scheduler_proto_depIdxs = []int32{
-	2, // 0: etask.scheduler.v1.RunRunnerRequest.params:type_name -> etask.scheduler.v1.RunRunnerRequest.ParamsEntry
-	3, // 1: etask.scheduler.v1.RunRunnerRequest.variables:type_name -> etask.scheduler.v1.RunRunnerRequest.VariablesEntry
+	4, // 0: etask.scheduler.v1.RunRunnerRequest.params:type_name -> etask.scheduler.v1.RunRunnerRequest.ParamsEntry
+	5, // 1: etask.scheduler.v1.RunRunnerRequest.variables:type_name -> etask.scheduler.v1.RunRunnerRequest.VariablesEntry
 	0, // 2: etask.scheduler.v1.SchedulerService.RunRunner:input_type -> etask.scheduler.v1.RunRunnerRequest
-	1, // 3: etask.scheduler.v1.SchedulerService.RunRunner:output_type -> etask.scheduler.v1.RunRunnerResponse
-	3, // [3:4] is the sub-list for method output_type
-	2, // [2:3] is the sub-list for method input_type
+	2, // 3: etask.scheduler.v1.SchedulerService.TerminateExecution:input_type -> etask.scheduler.v1.TerminateExecutionRequest
+	1, // 4: etask.scheduler.v1.SchedulerService.RunRunner:output_type -> etask.scheduler.v1.RunRunnerResponse
+	3, // 5: etask.scheduler.v1.SchedulerService.TerminateExecution:output_type -> etask.scheduler.v1.TerminateExecutionResponse
+	4, // [4:6] is the sub-list for method output_type
+	2, // [2:4] is the sub-list for method input_type
 	2, // [2:2] is the sub-list for extension type_name
 	2, // [2:2] is the sub-list for extension extendee
 	0, // [0:2] is the sub-list for field type_name
@@ -208,7 +326,7 @@ func file_etask_scheduler_v1_scheduler_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_etask_scheduler_v1_scheduler_proto_rawDesc), len(file_etask_scheduler_v1_scheduler_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

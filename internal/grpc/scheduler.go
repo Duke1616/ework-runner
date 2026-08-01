@@ -45,3 +45,21 @@ func (s *SchedulerServer) RunRunner(ctx context.Context,
 		Created:     result.Created,
 	}, nil
 }
+
+func (s *SchedulerServer) TerminateExecution(ctx context.Context,
+	req *schedulerv1.TerminateExecutionRequest) (*schedulerv1.TerminateExecutionResponse, error) {
+	err := s.svc.TerminateExecution(ctx, submission.TerminateExecutionCommand{
+		ExecutionID: req.GetExecutionId(), RequestID: req.GetRequestId(), Reason: req.GetReason(),
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, submission.ErrInvalidCommand):
+			return nil, status.Errorf(codes.InvalidArgument, "终止工作流执行失败: %v", err)
+		case errors.Is(err, submission.ErrRejected):
+			return nil, status.Errorf(codes.FailedPrecondition, "终止工作流执行失败: %v", err)
+		default:
+			return nil, status.Errorf(codes.Internal, "终止工作流执行失败: %v", err)
+		}
+	}
+	return &schedulerv1.TerminateExecutionResponse{Terminated: true}, nil
+}

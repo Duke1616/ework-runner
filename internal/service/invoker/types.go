@@ -11,4 +11,6 @@ type Invoker interface {
 	Name() string
 	// Run 执行任务，返回执行结果
 	Run(ctx context.Context, execution domain.TaskExecution) (domain.ExecutionState, error)
+	// Terminate 向本次执行固定的传输目标发送终止信号。
+	Terminate(ctx context.Context, execution domain.TaskExecution, reason string) error
 }

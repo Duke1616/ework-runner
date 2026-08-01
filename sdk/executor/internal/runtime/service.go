@@ -32,3 +32,13 @@ func (e *Executor) Interrupt(_ context.Context, req *executorv1.InterruptRequest
 	}
 	return &executorv1.InterruptResponse{Success: true, ExecutionState: state}, nil
 }
+
+// Terminate 强制终止任务并立即返回 CANCELLED 本地状态。
+func (e *Executor) Terminate(_ context.Context,
+	req *executorv1.TerminateRequest) (*executorv1.TerminateResponse, error) {
+	state, exists := e.executions.Terminate(req.GetEid(), req.GetReason())
+	if !exists {
+		return &executorv1.TerminateResponse{Success: false}, nil
+	}
+	return &executorv1.TerminateResponse{Success: true, ExecutionState: state}, nil
+}

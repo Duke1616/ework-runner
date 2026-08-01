@@ -13,6 +13,7 @@ enum ExecutionStatus {
   FAILED_RESCHEDULABLE = 3; // 可重调度失败
   FAILED = 4; // 不可重试失败
   SUCCESS = 5; // 执行成功
+  CANCELLED = 6; // 被外部请求强制终止
 }
 
 message ExecutionState {
@@ -47,6 +48,8 @@ service ExecutorService {
   rpc Execute(ExecuteRequest) returns (ExecuteResponse);
   // 中断一个正在执行的任务
   rpc Interrupt(InterruptRequest) returns (InterruptResponse);
+  // 强制终止一个正在执行的任务，终止后不得重试或重调度
+  rpc Terminate(TerminateRequest) returns (TerminateResponse);
   // 查询一个任务的状态（用于轮询模式）
   rpc Query(QueryRequest) returns (QueryResponse);
 }
@@ -77,6 +80,16 @@ message InterruptRequest {
 message InterruptResponse {
   bool success = 1; // 是否成功中断
   ExecutionState execution_state = 3;
+}
+
+message TerminateRequest {
+  int64 eid = 1;
+  string reason = 2;
+}
+
+message TerminateResponse {
+  bool success = 1;
+  ExecutionState execution_state = 2;
 }
 
 message QueryRequest {

@@ -57,6 +57,24 @@ sequenceDiagram
     Scheduler-->>ECMDB: 6. 落盘状态流转并驱动核心 CMDB 闭环完成所有动作
 ```
 
+## 强制终止执行
+
+外部工作流可通过 `SchedulerService.TerminateExecution` 按 `execution_id`（或提交阶段的
+`request_id`）幂等终止执行。Scheduler 会持久化取消意图；execution 尚未创建时，后续
+`RunRunner` 会在派发前绑定该意图并直接进入 `CANCELLED`。已经创建的 execution 会原子更新为
+`CANCELLED`，该状态不会进入重试、重调度或超时补偿扫描。
+
+物理取消信号由 `execution_cancellations` outbox 和终止补偿器异步投递，失败会指数退避重试：
+
+- gRPC PUSH/PULL Executor 调用独立的 `ExecutorService.Terminate`，目标节点未知时向服务实例广播；
+- Executor 会保留短期终止墓碑，终止命令早于 Execute 到达时也不会启动 Handler；
+- Kafka Agent 通过 `<execution-topic>.control` 广播终止命令，每个 Agent 使用独立消费组接收；
+- Executor 与 Agent 执行前都会回查 Scheduler 状态，避免启动已经终止的滞留命令；
+- 晚到的成功、失败或重调度上报使用状态 CAS，不能覆盖 `CANCELLED`。
+
+补偿器采用至少一次投递，多 Scheduler 实例可能重复发送同一终止信号；Executor 与 Agent 的终止
+入口均为幂等操作。`TerminateExecution` 返回成功表示取消意图已经持久化，不表示 Handler 已同步退出。
+
 ## 🏗️ 角色启动与部署模式
 
 通过启动命令的 `--mode` 参数设定当前程序所处的网络拓扑阶段。所有特性均编译在同一可执行文件内：

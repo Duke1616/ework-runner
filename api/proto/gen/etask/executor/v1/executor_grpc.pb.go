@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	ExecutorService_Execute_FullMethodName   = "/etask.executor.v1.ExecutorService/Execute"
 	ExecutorService_Interrupt_FullMethodName = "/etask.executor.v1.ExecutorService/Interrupt"
+	ExecutorService_Terminate_FullMethodName = "/etask.executor.v1.ExecutorService/Terminate"
 	ExecutorService_Query_FullMethodName     = "/etask.executor.v1.ExecutorService/Query"
 )
 
@@ -34,6 +35,8 @@ type ExecutorServiceClient interface {
 	Execute(ctx context.Context, in *ExecuteRequest, opts ...grpc.CallOption) (*ExecuteResponse, error)
 	// 中断一个正在执行的任务
 	Interrupt(ctx context.Context, in *InterruptRequest, opts ...grpc.CallOption) (*InterruptResponse, error)
+	// 强制终止一个正在执行的任务，终止后不得重试或重调度
+	Terminate(ctx context.Context, in *TerminateRequest, opts ...grpc.CallOption) (*TerminateResponse, error)
 	// 查询一个任务的状态（用于轮询模式）
 	Query(ctx context.Context, in *QueryRequest, opts ...grpc.CallOption) (*QueryResponse, error)
 }
@@ -66,6 +69,16 @@ func (c *executorServiceClient) Interrupt(ctx context.Context, in *InterruptRequ
 	return out, nil
 }
 
+func (c *executorServiceClient) Terminate(ctx context.Context, in *TerminateRequest, opts ...grpc.CallOption) (*TerminateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TerminateResponse)
+	err := c.cc.Invoke(ctx, ExecutorService_Terminate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *executorServiceClient) Query(ctx context.Context, in *QueryRequest, opts ...grpc.CallOption) (*QueryResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(QueryResponse)
@@ -86,6 +99,8 @@ type ExecutorServiceServer interface {
 	Execute(context.Context, *ExecuteRequest) (*ExecuteResponse, error)
 	// 中断一个正在执行的任务
 	Interrupt(context.Context, *InterruptRequest) (*InterruptResponse, error)
+	// 强制终止一个正在执行的任务，终止后不得重试或重调度
+	Terminate(context.Context, *TerminateRequest) (*TerminateResponse, error)
 	// 查询一个任务的状态（用于轮询模式）
 	Query(context.Context, *QueryRequest) (*QueryResponse, error)
 	mustEmbedUnimplementedExecutorServiceServer()
@@ -103,6 +118,9 @@ func (UnimplementedExecutorServiceServer) Execute(context.Context, *ExecuteReque
 }
 func (UnimplementedExecutorServiceServer) Interrupt(context.Context, *InterruptRequest) (*InterruptResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Interrupt not implemented")
+}
+func (UnimplementedExecutorServiceServer) Terminate(context.Context, *TerminateRequest) (*TerminateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Terminate not implemented")
 }
 func (UnimplementedExecutorServiceServer) Query(context.Context, *QueryRequest) (*QueryResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Query not implemented")
@@ -164,6 +182,24 @@ func _ExecutorService_Interrupt_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ExecutorService_Terminate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TerminateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ExecutorServiceServer).Terminate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ExecutorService_Terminate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ExecutorServiceServer).Terminate(ctx, req.(*TerminateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ExecutorService_Query_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(QueryRequest)
 	if err := dec(in); err != nil {
@@ -196,6 +232,10 @@ var ExecutorService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Interrupt",
 			Handler:    _ExecutorService_Interrupt_Handler,
+		},
+		{
+			MethodName: "Terminate",
+			Handler:    _ExecutorService_Terminate_Handler,
 		},
 		{
 			MethodName: "Query",

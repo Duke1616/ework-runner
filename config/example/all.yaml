@@ -171,3 +171,7 @@ compensator:
     batchSize: 100
     # 中断检查补偿执行的最小间隔（纳秒）
     minDuration: 1000000000
+  termination:
+    batchSize: 100
+    # 终止信号持久化投递的最小间隔（纳秒）
+    minDuration: 1000000000

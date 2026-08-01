@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -10,24 +11,37 @@ import (
 	reporterv1 "github.com/Duke1616/etask/api/proto/gen/etask/reporter/v1"
 	"github.com/Duke1616/etask/pkg/grpc/interceptors/tenant"
 	enginepkg "github.com/Duke1616/etask/sdk/executor/internal/engine"
+	"github.com/Duke1616/etask/sdk/executor/internal/execution"
 	"github.com/Duke1616/etask/sdk/executor/internal/task"
 	"github.com/gotomicro/ego/core/elog"
 )
 
 func (e *Executor) startExecution(ctx context.Context, req *executorv1.ExecuteRequest) (*executorv1.ExecuteResponse, error) {
 	eid := req.GetEid()
+	if e.executionClient != nil {
+		response, err := e.executionClient.GetTaskExecution(ctx, &executorv1.GetTaskExecutionRequest{
+			ExecutionId: eid,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("启动前查询 execution 状态失败: %w", err)
+		}
+		if response.GetExecution().GetStatus() == executorv1.ExecutionStatus_CANCELLED {
+			state, _ := e.executions.Terminate(eid, response.GetExecution().GetTaskResult())
+			return &executorv1.ExecuteResponse{ExecutionState: state}, nil
+		}
+	}
 	// 执行上下文脱离单次 RPC 生命周期，但保留租户并允许 Interrupt 主动取消。
-	runCtx, cancel := context.WithCancel(executionContext(ctx, req.GetTenantId()))
+	runCtx, cancel := context.WithCancelCause(executionContext(ctx, req.GetTenantId()))
 	// Begin 同时承担幂等保护，相同执行 ID 正在运行时直接返回已有状态。
 	state, started := e.executions.Begin(initialState(req, e.config.Server.ServiceId), cancel)
 	if !started {
-		cancel()
+		cancel(nil)
 		e.logger.Warn("任务已在执行中", elog.Int64("eid", eid))
 		return &executorv1.ExecuteResponse{ExecutionState: state}, nil
 	}
 	e.logger.Info("启动异步任务执行", elog.Int64("eid", eid))
 	go func() {
-		defer cancel()
+		defer cancel(nil)
 		e.runTask(runCtx, req)
 	}()
 	return &executorv1.ExecuteResponse{ExecutionState: state}, nil
@@ -112,6 +126,9 @@ func executionContext(ctx context.Context, fallbackTenantID int64) context.Conte
 }
 
 func resolveFinalStatus(ctx context.Context, err error) executorv1.ExecutionStatus {
+	if errors.Is(context.Cause(ctx), execution.ErrTerminated) {
+		return executorv1.ExecutionStatus_CANCELLED
+	}
 	if ctx.Err() != nil {
 		return executorv1.ExecutionStatus_FAILED_RESCHEDULABLE
 	}
@@ -125,6 +142,8 @@ func logFinalStatus(logger *elog.Component, status executorv1.ExecutionStatus, e
 	switch status {
 	case executorv1.ExecutionStatus_FAILED_RESCHEDULABLE:
 		logger.Warn("任务被中断")
+	case executorv1.ExecutionStatus_CANCELLED:
+		logger.Warn("任务被强制终止")
 	case executorv1.ExecutionStatus_FAILED:
 		logger.Error("任务执行失败", elog.FieldErr(err))
 	case executorv1.ExecutionStatus_SUCCESS:

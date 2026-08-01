@@ -12,17 +12,19 @@ import (
 
 type completionExecutionServiceStub struct {
 	task.ExecutionService
-	updated bool
+	updated      bool
+	targetStatus domain.TaskExecutionStatus
 }
 
-func (s completionExecutionServiceStub) UpdateScheduleResult(context.Context, int64,
-	[]domain.TaskExecutionStatus, domain.TaskExecutionStatus, int32, int64,
-	map[string]string, string, string) (bool, error) {
+func (s *completionExecutionServiceStub) UpdateScheduleResult(_ context.Context, _ int64,
+	_ []domain.TaskExecutionStatus, status domain.TaskExecutionStatus, _ int32, _ int64,
+	_ map[string]string, _ string, _ string) (bool, error) {
+	s.targetStatus = status
 	return s.updated, nil
 }
 
 func TestConsumerIgnoresCompletionWithoutStateTransition(t *testing.T) {
-	consumer := &Consumer{execSvc: completionExecutionServiceStub{updated: false}}
+	consumer := &Consumer{execSvc: &completionExecutionServiceStub{updated: false}}
 
 	err := consumer.handleTask(t.Context(), event.Event{
 		ExecID:     10,
@@ -31,4 +33,16 @@ func TestConsumerIgnoresCompletionWithoutStateTransition(t *testing.T) {
 	})
 
 	require.NoError(t, err)
+}
+
+func TestConsumerPersistsCancelledCompletion(t *testing.T) {
+	executions := &completionExecutionServiceStub{updated: false}
+	consumer := &Consumer{execSvc: executions}
+
+	err := consumer.handleTask(t.Context(), event.Event{
+		ExecID: 10, ExecStatus: domain.TaskExecutionStatusCancelled,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, domain.TaskExecutionStatusCancelled, executions.targetStatus)
 }

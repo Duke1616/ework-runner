@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -13,6 +14,41 @@ import (
 	"github.com/Duke1616/etask/sdk/executor"
 	"go.uber.org/mock/gomock"
 )
+
+func TestServiceTerminateCancelsCurrentAndFutureDelivery(t *testing.T) {
+	t.Run("终止运行中的 execution", func(t *testing.T) {
+		fixture := newServiceFixture(t)
+		fixture.handler.block = make(chan struct{})
+		done := make(chan error, 1)
+		logger := newTaskLoggerMock(t)
+		go func() {
+			_, err := fixture.service.Receive(context.Background(),
+				executionRequest(fixture, "dispatch-1", logger))
+			done <- err
+		}()
+		<-fixture.handler.started
+		if !fixture.service.Terminate(fixture.execution.ID, "管理员强制结束") {
+			t.Fatal("Terminate() 未找到运行中的 execution")
+		}
+		close(fixture.handler.block)
+		if err := <-done; !errors.Is(err, ErrExecutionTerminated) {
+			t.Fatalf("Receive() 错误 = %v, 期望 ErrExecutionTerminated", err)
+		}
+	})
+
+	t.Run("终止先到时阻止后续执行", func(t *testing.T) {
+		fixture := newServiceFixture(t)
+		fixture.service.Terminate(fixture.execution.ID, "管理员强制结束")
+		_, err := fixture.service.Receive(context.Background(),
+			executionRequest(fixture, "dispatch-late", newTaskLoggerMock(t)))
+		if !errors.Is(err, ErrExecutionTerminated) {
+			t.Fatalf("Receive() 错误 = %v, 期望 ErrExecutionTerminated", err)
+		}
+		if fixture.handler.runs.Load() != 0 {
+			t.Fatalf("终止后的 Handler 仍执行了 %d 次", fixture.handler.runs.Load())
+		}
+	})
+}
 
 func TestServiceReceive(t *testing.T) {
 	testCases := []struct {
@@ -163,7 +199,7 @@ func newServiceFixture(t *testing.T) *serviceFixture {
 		roots: executor.ArtifactRoots{Default: "/system", Dependencies: "/dependencies"},
 	}}
 	return &serviceFixture{
-		service:  NewService([]executor.TaskHandler{handler}, preparer, nil),
+		service:  NewService([]executor.TaskHandler{handler}, preparer, nil, nil),
 		handler:  handler,
 		preparer: preparer,
 		execution: domain.TaskExecution{

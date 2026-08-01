@@ -60,6 +60,7 @@ const (
 	TaskExecutionStatusFailed            TaskExecutionStatus = "FAILED"             // 执行失败（不可重试）
 	TaskExecutionStatusFailedRetryable   TaskExecutionStatus = "FAILED_RETRYABLE"   // 执行失败（可重试）
 	TaskExecutionStatusFailedRescheduled TaskExecutionStatus = "FAILED_RESCHEDULED" // 执行失败（重调度）
+	TaskExecutionStatusCancelled         TaskExecutionStatus = "CANCELLED"          // 外部请求强制终止
 )
 
 func (t TaskExecutionStatus) String() string {
@@ -74,7 +75,8 @@ func (t TaskExecutionStatus) IsValid() bool {
 		TaskExecutionStatusSuccess,
 		TaskExecutionStatusFailed,
 		TaskExecutionStatusFailedRetryable,
-		TaskExecutionStatusFailedRescheduled:
+		TaskExecutionStatusFailedRescheduled,
+		TaskExecutionStatusCancelled:
 		return true
 	default:
 		return false
@@ -93,6 +95,8 @@ func TaskExecutionStatusFromProto(status executorv1.ExecutionStatus) TaskExecuti
 		return TaskExecutionStatusFailedRetryable
 	case executorv1.ExecutionStatus_FAILED_RESCHEDULABLE:
 		return TaskExecutionStatusFailedRescheduled
+	case executorv1.ExecutionStatus_CANCELLED:
+		return TaskExecutionStatusCancelled
 	default:
 		return TaskExecutionStatusUnknown
 	}
@@ -122,8 +126,12 @@ func (t TaskExecutionStatus) IsFailedRescheduled() bool {
 	return t == TaskExecutionStatusFailedRescheduled
 }
 
+func (t TaskExecutionStatus) IsCancelled() bool {
+	return t == TaskExecutionStatusCancelled
+}
+
 func (t TaskExecutionStatus) IsTerminalStatus() bool {
-	return t.IsSuccess() || t.IsFailed()
+	return t.IsSuccess() || t.IsFailed() || t.IsCancelled()
 }
 
 // NonTerminalTaskExecutionStatuses 返回允许继续迁移的执行状态。

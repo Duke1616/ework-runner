@@ -1,6 +1,7 @@
 package pool
 
 import (
+	"context"
 	"time"
 
 	grpcpkg "github.com/Duke1616/etask/pkg/grpc"
@@ -29,6 +30,11 @@ func NewClients[T any](
 		authToken: authToken,
 		creator:   creator,
 	}
+}
+
+// ListServices 返回客户端池当前服务发现中的实例，用于需要逐节点广播的控制面调用。
+func (c *Clients[T]) ListServices(ctx context.Context, serviceName string) ([]registry.ServiceInstance, error) {
+	return c.registry.ListServices(ctx, serviceName)
 }
 
 // Get 获取带有自定义负载均衡器的客户端

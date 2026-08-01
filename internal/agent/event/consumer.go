@@ -20,6 +20,7 @@ import (
 // ExecuteConsumer 消费 Agent 执行命令并发布结果。
 type ExecuteConsumer struct {
 	consumer    mq.Consumer
+	control     mq.Consumer
 	publisher   ExecutionEventPublisher
 	svc         service.Service
 	reg         registry.Registry
@@ -38,11 +39,25 @@ func NewExecuteConsumer(q mq.MQ, svc service.Service, topic string, publisher Ex
 	if workerCount <= 0 {
 		workerCount = 1
 	}
+	// 控制消息必须广播到每个 Agent，只有实际持有 execution 的实例会触发取消。
+	control, err := q.Consumer(executionevent.ControlTopic(topic), controlConsumerGroup(topic, instance))
+	if err != nil {
+		_ = consumer.Close()
+		return nil, err
+	}
 	return &ExecuteConsumer{
-		consumer: consumer, publisher: publisher, svc: svc, reg: reg, instance: instance,
+		consumer: consumer, control: control, publisher: publisher, svc: svc, reg: reg, instance: instance,
 		workerCount: workerCount,
 		logger:      elog.DefaultLogger.With(elog.FieldComponentName("agent.consumer")),
 	}, nil
+}
+
+func controlConsumerGroup(topic string, instance registry.ServiceInstance) string {
+	instanceID := instance.ID
+	if instanceID == "" {
+		instanceID = instance.Address
+	}
+	return "agent-control-" + topic + "-" + instanceID
 }
 
 // Start 启动 Kafka 数据面，并尽力将 Agent 能力注册到控制面。
@@ -51,6 +66,7 @@ func (c *ExecuteConsumer) Start(ctx context.Context) error {
 	for workerID := 0; workerID < c.workerCount; workerID++ {
 		go c.consumeLoop(ctx, workerID)
 	}
+	go c.controlLoop(ctx)
 	// Etcd 只承担能力发现；短暂故障不应关闭已经建立的 Kafka 数据面。
 	regCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
@@ -58,6 +74,17 @@ func (c *ExecuteConsumer) Start(ctx context.Context) error {
 		c.logger.Warn("注册 Agent 控制面失败，Kafka 消费继续运行", elog.FieldErr(err))
 	}
 	return nil
+}
+
+func (c *ExecuteConsumer) controlLoop(ctx context.Context) {
+	for {
+		if err := c.ConsumeControl(ctx); err != nil {
+			if errors.Is(err, context.Canceled) || ctx.Err() != nil {
+				return
+			}
+			c.logger.Error("处理 Agent 终止命令失败", elog.FieldErr(err))
+		}
+	}
 }
 
 func (c *ExecuteConsumer) consumeLoop(ctx context.Context, workerID int) {
@@ -100,7 +127,12 @@ func (c *ExecuteConsumer) Consume(ctx context.Context) error {
 	})
 	status := domain.TaskExecutionStatusSuccess
 	result := output.Result
-	if executeErr != nil {
+	if errors.Is(executeErr, service.ErrExecutionTerminated) {
+		status = domain.TaskExecutionStatusCancelled
+		if result == "" {
+			result = executeErr.Error()
+		}
+	} else if executeErr != nil {
 		status = domain.TaskExecutionStatusFailed
 		if result == "" {
 			result = executeErr.Error()
@@ -118,10 +150,32 @@ func (c *ExecuteConsumer) Consume(ctx context.Context) error {
 	})
 }
 
+// ConsumeControl 消费一条广播终止命令。
+func (c *ExecuteConsumer) ConsumeControl(ctx context.Context) error {
+	message, err := c.control.Consume(ctx)
+	if err != nil {
+		return fmt.Errorf("获取 Agent 终止命令失败: %w", err)
+	}
+	ctx = mqx.ExtractContext(ctx, message)
+	var command ControlCommand
+	if err = json.Unmarshal(message.Value, &command); err != nil {
+		return fmt.Errorf("解析 Agent 终止命令失败: %w", err)
+	}
+	if err = command.Validate(); err != nil {
+		return err
+	}
+	if ctxutil.GetTenantID(ctx).Int64() <= 0 {
+		return fmt.Errorf("Agent 终止命令缺少租户身份: execution_id=%d", command.ExecutionID)
+	}
+	c.svc.Terminate(command.ExecutionID, command.Reason)
+	return nil
+}
+
 // Stop 注销 Agent 并关闭消费者。
 func (c *ExecuteConsumer) Stop(ctx context.Context) error {
 	return errors.Join(
 		c.reg.UnRegister(ctx, c.instance),
 		c.consumer.Close(),
+		c.control.Close(),
 	)
 }

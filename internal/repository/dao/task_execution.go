@@ -19,6 +19,7 @@ const (
 	TaskExecutionStatusRunning           = "RUNNING"
 	TaskExecutionStatusFailedRetryable   = "FAILED_RETRYABLE"
 	TaskExecutionStatusFailedRescheduled = "FAILED_RESCHEDULED"
+	TaskExecutionStatusCancelled         = "CANCELLED"
 
 	milliseconds = 1000
 )
@@ -54,7 +55,7 @@ type TaskExecution struct {
 	RetryCount      int64          `gorm:"type:bigint;not null;default:0;comment:'已重试次数'"`
 	NextRetryTime   int64          `gorm:"type:bigint;comment:'下次重试时间'"`
 	RunningProgress int32          `gorm:"type:int;default:0;comment:'执行进度0-100，RUNNING状态下有效'"`
-	Status          string         `gorm:"type:ENUM('WAITING_PULL', 'PREPARE', 'RUNNING', 'FAILED_RETRYABLE', 'FAILED_RESCHEDULED', 'FAILED', 'SUCCESS');not null;default:'PREPARE';comment:'执行状态: PREPARE-初始化(没有执行节点在执行）, RUNNING-执行中（有执行节点在执行）, FAILED_RETRYABLE-可重试失败, FAILED_RESCHEDULED-重调度失败， FAILED-失败, SUCCESS-成功'"`
+	Status          string         `gorm:"type:ENUM('WAITING_PULL', 'PREPARE', 'RUNNING', 'FAILED_RETRYABLE', 'FAILED_RESCHEDULED', 'FAILED', 'SUCCESS', 'CANCELLED');not null;default:'PREPARE';comment:'执行状态: PREPARE-初始化，RUNNING-执行中，FAILED_RETRYABLE-可重试失败，FAILED_RESCHEDULED-重调度失败，FAILED-失败，SUCCESS-成功，CANCELLED-强制终止'"`
 	ExecMode        string         `gorm:"type:ENUM('PUSH', 'PULL');not null;default:'PUSH';comment:'本次执行采用的模式（PUSH-中心推送/PULL-边缘拉取）'"`
 	TaskResult      string         `gorm:"type:text;comment:'任务执行的结构化结果（JSON格式）'"`
 	Ctime           int64          `gorm:"comment:'创建时间'"`

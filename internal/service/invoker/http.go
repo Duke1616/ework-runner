@@ -99,3 +99,5 @@ func (i *HTTPInvoker) Run(ctx context.Context, exec domain.TaskExecution) (domai
 
 	return domain.ExecutionState{}, nil
 }
+
+func (i *HTTPInvoker) Terminate(context.Context, domain.TaskExecution, string) error { return nil }

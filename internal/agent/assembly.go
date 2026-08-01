@@ -6,6 +6,7 @@ import (
 	"time"
 
 	artifactv1 "github.com/Duke1616/etask/api/proto/gen/etask/artifact/v1"
+	executorv1 "github.com/Duke1616/etask/api/proto/gen/etask/executor/v1"
 	"github.com/Duke1616/etask/internal/agent/domain"
 	"github.com/Duke1616/etask/internal/agent/event"
 	"github.com/Duke1616/etask/internal/agent/service"
@@ -37,7 +38,8 @@ func InitModule(q mq.MQ, etcdClient *clientv3.Client,
 	}
 	connection := initSchedulerConnection(etcdClient)
 	artifactClient := artifactv1.NewArtifactServiceClient(connection)
-	executionService := service.NewService(scriptRuntime.Handlers(), preparer, artifactClient)
+	executionClient := executorv1.NewTaskExecutionServiceClient(connection)
+	executionService := service.NewService(scriptRuntime.Handlers(), preparer, artifactClient, executionClient)
 	publisher := initExecutionEventPublisher(q)
 	consumer := initExecuteConsumer(q, executionService, publisher, registry)
 	return &Module{

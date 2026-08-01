@@ -44,3 +44,20 @@ func (r *Dispatcher) Run(ctx context.Context, execution domain.TaskExecution) (d
 		return domain.ExecutionState{}, execution.Route.Validate()
 	}
 }
+
+func (r *Dispatcher) Terminate(ctx context.Context, execution domain.TaskExecution, reason string) error {
+	if err := execution.Route.Validate(); err != nil {
+		return err
+	}
+	switch execution.Route.Transport {
+	case domain.ExecutionTransportGRPC:
+		return r.grpc.Terminate(ctx, execution, reason)
+	case domain.ExecutionTransportMQ:
+		return r.mq.Terminate(ctx, execution, reason)
+	case domain.ExecutionTransportHTTP, domain.ExecutionTransportLocal:
+		// 这两种同步调用没有独立控制面；数据库 CANCELLED 终态仍会屏蔽晚到结果。
+		return nil
+	default:
+		return execution.Route.Validate()
+	}
+}

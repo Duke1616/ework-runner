@@ -19,7 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	SchedulerService_RunRunner_FullMethodName = "/etask.scheduler.v1.SchedulerService/RunRunner"
+	SchedulerService_RunRunner_FullMethodName          = "/etask.scheduler.v1.SchedulerService/RunRunner"
+	SchedulerService_TerminateExecution_FullMethodName = "/etask.scheduler.v1.SchedulerService/TerminateExecution"
 )
 
 // SchedulerServiceClient is the client API for SchedulerService service.
@@ -28,6 +29,8 @@ const (
 type SchedulerServiceClient interface {
 	// RunRunner 幂等创建并触发外部工作流 Runner 执行。
 	RunRunner(ctx context.Context, in *RunRunnerRequest, opts ...grpc.CallOption) (*RunRunnerResponse, error)
+	// TerminateExecution 幂等保存取消意图；物理取消信号由后台可靠投递。
+	TerminateExecution(ctx context.Context, in *TerminateExecutionRequest, opts ...grpc.CallOption) (*TerminateExecutionResponse, error)
 }
 
 type schedulerServiceClient struct {
@@ -48,12 +51,24 @@ func (c *schedulerServiceClient) RunRunner(ctx context.Context, in *RunRunnerReq
 	return out, nil
 }
 
+func (c *schedulerServiceClient) TerminateExecution(ctx context.Context, in *TerminateExecutionRequest, opts ...grpc.CallOption) (*TerminateExecutionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TerminateExecutionResponse)
+	err := c.cc.Invoke(ctx, SchedulerService_TerminateExecution_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SchedulerServiceServer is the server API for SchedulerService service.
 // All implementations must embed UnimplementedSchedulerServiceServer
 // for forward compatibility.
 type SchedulerServiceServer interface {
 	// RunRunner 幂等创建并触发外部工作流 Runner 执行。
 	RunRunner(context.Context, *RunRunnerRequest) (*RunRunnerResponse, error)
+	// TerminateExecution 幂等保存取消意图；物理取消信号由后台可靠投递。
+	TerminateExecution(context.Context, *TerminateExecutionRequest) (*TerminateExecutionResponse, error)
 	mustEmbedUnimplementedSchedulerServiceServer()
 }
 
@@ -66,6 +81,9 @@ type UnimplementedSchedulerServiceServer struct{}
 
 func (UnimplementedSchedulerServiceServer) RunRunner(context.Context, *RunRunnerRequest) (*RunRunnerResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RunRunner not implemented")
+}
+func (UnimplementedSchedulerServiceServer) TerminateExecution(context.Context, *TerminateExecutionRequest) (*TerminateExecutionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method TerminateExecution not implemented")
 }
 func (UnimplementedSchedulerServiceServer) mustEmbedUnimplementedSchedulerServiceServer() {}
 func (UnimplementedSchedulerServiceServer) testEmbeddedByValue()                          {}
@@ -106,6 +124,24 @@ func _SchedulerService_RunRunner_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SchedulerService_TerminateExecution_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TerminateExecutionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SchedulerServiceServer).TerminateExecution(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SchedulerService_TerminateExecution_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SchedulerServiceServer).TerminateExecution(ctx, req.(*TerminateExecutionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SchedulerService_ServiceDesc is the grpc.ServiceDesc for SchedulerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -116,6 +152,10 @@ var SchedulerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RunRunner",
 			Handler:    _SchedulerService_RunRunner_Handler,
+		},
+		{
+			MethodName: "TerminateExecution",
+			Handler:    _SchedulerService_TerminateExecution_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

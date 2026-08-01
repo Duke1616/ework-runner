@@ -14,6 +14,7 @@ func InitTables(db *gorm.DB) error {
 		&ExecutionPoolBinding{},
 		&TaskExecution{},
 		&TaskExecutionLog{},
+		&ExecutionCancellation{},
 		&ArtifactRelease{},
 		&AIConversation{},
 		&AIMessage{},

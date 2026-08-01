@@ -5,8 +5,9 @@ import (
 	"github.com/Duke1616/etask/internal/compensator"
 	"github.com/Duke1616/etask/internal/service/dispatcher"
 	"github.com/Duke1616/etask/internal/service/task"
-	"github.com/Duke1616/etask/pkg/grpc/pool"
+	"github.com/Duke1616/etask/internal/service/termination"
 	config "github.com/Duke1616/etask/pkg/config"
+	"github.com/Duke1616/etask/pkg/grpc/pool"
 )
 
 func InitRetryCompensator(
@@ -54,4 +55,12 @@ func InitInterruptCompensator(
 		execSvc,
 		cfg,
 	)
+}
+
+func InitTerminationCompensator(service termination.Service) *compensator.TerminationCompensator {
+	var cfg compensator.TerminationConfig
+	if err := config.UnmarshalKey("compensator.termination", &cfg); err != nil {
+		panic(err)
+	}
+	return compensator.NewTerminationCompensator(service, cfg)
 }

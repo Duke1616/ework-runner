@@ -16,6 +16,7 @@ import (
 	"github.com/Duke1616/etask/internal/service/invoker"
 	runnerSvc "github.com/Duke1616/etask/internal/service/runner"
 	taskSvc "github.com/Duke1616/etask/internal/service/task"
+	terminationSvc "github.com/Duke1616/etask/internal/service/termination"
 	"github.com/gotomicro/ego/core/elog"
 )
 
@@ -36,6 +37,13 @@ type RunRunnerCommand struct {
 	Variables map[string]string
 }
 
+// TerminateExecutionCommand 描述外部工作流对一次 execution 的幂等终止请求。
+type TerminateExecutionCommand struct {
+	ExecutionID int64
+	RequestID   string
+	Reason      string
+}
+
 // RunResult 返回执行记录以及本次调用是否创建了新记录。
 type RunResult struct {
 	Execution domain.TaskExecution
@@ -46,24 +54,27 @@ type RunResult struct {
 type Service interface {
 	// RunRunner 幂等创建执行记录，并在 PUSH 模式下异步派发。
 	RunRunner(ctx context.Context, command RunRunnerCommand) (RunResult, error)
+	// TerminateExecution 将工作流 execution 置为 CANCELLED 并投递实际取消信号。
+	TerminateExecution(ctx context.Context, command TerminateExecutionCommand) error
 }
 
 type service struct {
-	runners    runnerSvc.Service
-	codebooks  codebookSvc.Service
-	executions taskSvc.ExecutionService
-	routes     dispatcher.RoutePlanner
-	invoker    invoker.Invoker
-	logger     *elog.Component
+	runners     runnerSvc.Service
+	codebooks   codebookSvc.Service
+	executions  taskSvc.ExecutionService
+	routes      dispatcher.RoutePlanner
+	invoker     invoker.Invoker
+	termination terminationSvc.Service
+	logger      *elog.Component
 }
 
 // NewService 创建外部执行提交服务。
 func NewService(runners runnerSvc.Service, codebooks codebookSvc.Service,
 	executions taskSvc.ExecutionService, routes dispatcher.RoutePlanner,
-	executionInvoker invoker.Invoker) Service {
+	executionInvoker invoker.Invoker, termination terminationSvc.Service) Service {
 	return &service{
 		runners: runners, codebooks: codebooks, executions: executions,
-		routes: routes, invoker: executionInvoker,
+		routes: routes, invoker: executionInvoker, termination: termination,
 		logger: elog.DefaultLogger.With(elog.FieldComponentName("service.submission")),
 	}
 }
@@ -125,10 +136,31 @@ func (s *service) RunRunner(ctx context.Context, command RunRunnerCommand) (RunR
 	if err != nil {
 		return RunResult{}, fmt.Errorf("创建工作流执行记录失败: %w", err)
 	}
-	if created && !execution.Task.ExecMode.IsPull() {
+	execution, err = s.termination.Attach(ctx, execution)
+	if err != nil {
+		return RunResult{}, fmt.Errorf("绑定工作流取消意图失败: %w", err)
+	}
+	if created && !execution.Task.ExecMode.IsPull() && !execution.Status.IsCancelled() {
 		go s.invoke(route.Context(context.WithoutCancel(ctx)), execution)
 	}
 	return RunResult{Execution: execution, Created: created}, nil
+}
+
+func (s *service) TerminateExecution(ctx context.Context,
+	command TerminateExecutionCommand) error {
+	err := s.termination.Request(ctx, terminationSvc.Request{
+		ExecutionID: command.ExecutionID, RequestID: command.RequestID, Reason: command.Reason,
+	})
+	if err != nil {
+		if errors.Is(err, terminationSvc.ErrInvalidCommand) {
+			return fmt.Errorf("%w: %v", ErrInvalidCommand, err)
+		}
+		if errors.Is(err, terminationSvc.ErrRejected) {
+			return fmt.Errorf("%w: %v", ErrRejected, err)
+		}
+		return err
+	}
+	return nil
 }
 
 func classifyRouteError(target string, err error) error {

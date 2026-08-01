@@ -45,3 +45,8 @@ func (s *submissionServiceStub) RunRunner(context.Context,
 	submission.RunRunnerCommand) (submission.RunResult, error) {
 	return s.result, s.err
 }
+
+func (s *submissionServiceStub) TerminateExecution(context.Context,
+	submission.TerminateExecutionCommand) error {
+	return s.err
+}

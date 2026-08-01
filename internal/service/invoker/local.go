@@ -36,3 +36,5 @@ func (l *LocalInvoker) Run(ctx context.Context, execution domain.TaskExecution) 
 	// 直接执行本地函数
 	return fn(ctx, execution)
 }
+
+func (l *LocalInvoker) Terminate(context.Context, domain.TaskExecution, string) error { return nil }

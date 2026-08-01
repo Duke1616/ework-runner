@@ -40,6 +40,7 @@ func (e *Executor) InitComponents() error {
 	}
 	e.reporterClient = reporterv1.NewReporterServiceClient(connection)
 	e.agentClient = executorv1.NewAgentServiceClient(connection)
+	e.executionClient = executorv1.NewTaskExecutionServiceClient(connection)
 	e.artifactClient = artifactv1.NewArtifactServiceClient(connection)
 	// gRPC Server 负责 PUSH 模式接收任务，同时通过 metadata 发布节点能力。
 	e.server = grpcpkg.NewServer(

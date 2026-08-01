@@ -25,13 +25,14 @@ type Executor struct {
 	hr       *task.HandlerRegistry
 
 	// 内部组件
-	server         *grpcpkg.Server
-	reporterClient reporterv1.ReporterServiceClient
-	agentClient    executorv1.AgentServiceClient
-	artifactClient artifactv1.ArtifactServiceClient
-	artifacts      artifactport.Preparer
-	engine         *enginepkg.Engine
-	logger         *elog.Component
+	server          *grpcpkg.Server
+	reporterClient  reporterv1.ReporterServiceClient
+	agentClient     executorv1.AgentServiceClient
+	executionClient executorv1.TaskExecutionServiceClient
+	artifactClient  artifactv1.ArtifactServiceClient
+	artifacts       artifactport.Preparer
+	engine          *enginepkg.Engine
+	logger          *elog.Component
 
 	executions  executionStore
 	pullCancel  context.CancelFunc

@@ -51,19 +51,13 @@ func (c *Consumer) Consume(ctx context.Context, message *mq.Message) error {
 }
 
 func (c *Consumer) handleTask(ctx context.Context, evt event.Event) error {
-	var (
-		updated bool
-		err     error
-	)
-	if evt.ExecStatus.IsSuccess() {
-		updated, err = c.execSvc.UpdateScheduleResult(ctx, evt.ExecID,
-			domain.NonTerminalTaskExecutionStatuses(), domain.TaskExecutionStatusSuccess,
-			number100, time.Now().UnixMilli(), nil, evt.ExecNodeId, evt.TaskResult)
-	} else {
-		updated, err = c.execSvc.UpdateScheduleResult(ctx, evt.ExecID,
-			domain.NonTerminalTaskExecutionStatuses(), domain.TaskExecutionStatusFailed,
-			number0, time.Now().UnixMilli(), nil, evt.ExecNodeId, evt.TaskResult)
+	status, progress, err := completionState(evt.ExecStatus)
+	if err != nil {
+		return err
 	}
+	updated, err := c.execSvc.UpdateScheduleResult(ctx, evt.ExecID,
+		domain.NonTerminalTaskExecutionStatuses(), status,
+		progress, time.Now().UnixMilli(), nil, evt.ExecNodeId, evt.TaskResult)
 	if err != nil {
 		return err
 	}
@@ -96,4 +90,18 @@ func (c *Consumer) handleTask(ctx context.Context, evt event.Event) error {
 	}
 
 	return nil
+}
+
+func completionState(status domain.TaskExecutionStatus) (domain.TaskExecutionStatus, int32, error) {
+	switch {
+	case status.IsSuccess():
+		return domain.TaskExecutionStatusSuccess, number100, nil
+	case status.IsCancelled():
+		return domain.TaskExecutionStatusCancelled, number0, nil
+	case status.IsFailed(), status.IsFailedRetryable(), status.IsFailedRescheduled():
+		return domain.TaskExecutionStatusFailed, number0, nil
+	default:
+		return domain.TaskExecutionStatusUnknown, number0,
+			fmt.Errorf("非法完成状态: %s", status)
+	}
 }
