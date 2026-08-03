@@ -1,4 +1,4 @@
-package artifact
+package packer
 
 import (
 	"archive/tar"
@@ -14,7 +14,7 @@ import (
 )
 
 func TestPackerProducesDeterministicArtifact(t *testing.T) {
-	p := packer{tempDir: t.TempDir()}
+	p := New(t.TempDir())
 	files := []domain.ArtifactFile{
 		{Path: "python/util.py", Code: "VALUE = 2\n"},
 		{Path: "common.sh", Code: "echo common\n"},
@@ -32,7 +32,7 @@ func TestPackerProducesDeterministicArtifact(t *testing.T) {
 	require.Equal(t, first.Size, second.Size)
 
 	entries, manifest := readArtifact(t, first.Path)
-	require.Equal(t, []string{".etask/manifest.json", "common.sh", "python/util.py"}, entries)
+	require.Equal(t, []string{ManifestPath, "common.sh", "python/util.py"}, entries)
 	require.Equal(t, first.Digest, manifest.Digest)
 	require.Len(t, manifest.Files, 2)
 	require.Equal(t, "common.sh", manifest.Files[0].Path)
@@ -40,7 +40,7 @@ func TestPackerProducesDeterministicArtifact(t *testing.T) {
 }
 
 func TestPackerRejectsInvalidFiles(t *testing.T) {
-	p := packer{tempDir: t.TempDir()}
+	p := New(t.TempDir())
 	tests := []struct {
 		name  string
 		files []domain.ArtifactFile
@@ -61,7 +61,7 @@ func TestPackerRejectsInvalidFiles(t *testing.T) {
 	}
 }
 
-func readArtifact(t *testing.T, filePath string) ([]string, artifactManifest) {
+func readArtifact(t *testing.T, filePath string) ([]string, Manifest) {
 	t.Helper()
 	file, err := os.Open(filePath)
 	require.NoError(t, err)
@@ -72,7 +72,7 @@ func readArtifact(t *testing.T, filePath string) ([]string, artifactManifest) {
 
 	reader := tar.NewReader(decoder)
 	var entries []string
-	var manifest artifactManifest
+	var manifest Manifest
 	for {
 		header, err := reader.Next()
 		if errors.Is(err, io.EOF) {
@@ -80,7 +80,7 @@ func readArtifact(t *testing.T, filePath string) ([]string, artifactManifest) {
 		}
 		require.NoError(t, err)
 		entries = append(entries, header.Name)
-		if header.Name == ".etask/manifest.json" {
+		if header.Name == ManifestPath {
 			content, readErr := io.ReadAll(reader)
 			require.NoError(t, readErr)
 			require.NoError(t, json.Unmarshal(content, &manifest))

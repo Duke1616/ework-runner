@@ -6,6 +6,7 @@ import (
 
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/repository"
+	"github.com/Duke1616/etask/internal/service/artifact/packer"
 	"github.com/Duke1616/etask/pkg/blobstore"
 )
 
@@ -39,9 +40,9 @@ type Service interface {
 type service struct {
 	repo   repository.ArtifactRepository
 	store  blobstore.Store
-	packer packer
+	packer packer.Packer
 }
 
-func NewService(cfg Config, repo repository.ArtifactRepository, store blobstore.Store) Service {
-	return &service{repo: repo, store: store, packer: packer{tempDir: cfg.TempDir}}
+func NewService(repo repository.ArtifactRepository, store blobstore.Store, artifactPacker packer.Packer) Service {
+	return &service{repo: repo, store: store, packer: artifactPacker}
 }

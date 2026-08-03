@@ -2,6 +2,7 @@ package ioc
 
 import (
 	artifactSvc "github.com/Duke1616/etask/internal/service/artifact"
+	artifactPacker "github.com/Duke1616/etask/internal/service/artifact/packer"
 	"github.com/Duke1616/etask/pkg/blobstore"
 	config "github.com/Duke1616/etask/pkg/config"
 )
@@ -20,4 +21,9 @@ func InitArtifactStore(cfg artifactSvc.Config) blobstore.Store {
 		panic(err)
 	}
 	return store
+}
+
+// InitArtifactPacker 创建制品发布使用的打包器。
+func InitArtifactPacker(cfg artifactSvc.Config) artifactPacker.Packer {
+	return artifactPacker.New(cfg.TempDir)
 }

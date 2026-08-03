@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Duke1616/etask/internal/domain"
+	"github.com/Duke1616/etask/internal/service/artifact/packer"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,7 +24,7 @@ func (s artifactFileStore) Open(context.Context, string) (io.ReadCloser, error) 
 }
 
 func TestServiceReadsImmutableArtifactContents(t *testing.T) {
-	packed, err := (packer{tempDir: t.TempDir()}).Pack([]domain.ArtifactFile{
+	packed, err := packer.New(t.TempDir()).Pack([]domain.ArtifactFile{
 		{Path: "scripts/common.sh", Code: "echo immutable\n"},
 	})
 	require.NoError(t, err)
@@ -32,7 +33,7 @@ func TestServiceReadsImmutableArtifactContents(t *testing.T) {
 	release := domain.ArtifactRelease{
 		ID: 7, Scope: domain.CodebookScopeSystem, Digest: packed.Digest,
 		BlobChecksum: packed.BlobChecksum, Size: packed.Size,
-		Format: artifactFormat, FormatVersion: artifactFormatVersion, ObjectKey: "release.tar.zst",
+		Format: packer.Format, FormatVersion: packer.FormatVersion, ObjectKey: "release.tar.zst",
 	}
 	repo := artifactRepositoryStub{
 		activeByTarget: map[domain.ArtifactTarget]domain.ArtifactRelease{
@@ -40,7 +41,7 @@ func TestServiceReadsImmutableArtifactContents(t *testing.T) {
 		},
 		findByID: release,
 	}
-	service := NewService(Config{}, repo, artifactFileStore{path: packed.Path})
+	service := NewService(repo, artifactFileStore{path: packed.Path}, packer.New(""))
 
 	contents, err := service.ActiveContents(t.Context(), 0)
 	require.NoError(t, err)

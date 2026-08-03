@@ -10,12 +10,13 @@ import (
 	"github.com/Duke1616/etask/internal/repository"
 	"github.com/Duke1616/etask/internal/repository/dao"
 	artifactsvc "github.com/Duke1616/etask/internal/service/artifact"
+	"github.com/Duke1616/etask/internal/service/artifact/packer"
 	codebooksvc "github.com/Duke1616/etask/internal/service/codebook"
 	"github.com/Duke1616/etask/ioc"
 	"github.com/Duke1616/etask/pkg/blobstore"
+	config "github.com/Duke1616/etask/pkg/config"
 	"github.com/spf13/viper"
 	"gorm.io/gorm"
-	config "github.com/Duke1616/etask/pkg/config"
 )
 
 const systemCodebookAuthorUserID int64 = 1
@@ -92,5 +93,5 @@ func newArtifactService(db *gorm.DB, cfg artifactsvc.Config, store blobstore.Sto
 	projectDAO := dao.NewGORMCodebookProjectDAO(db)
 	artifactDAO := dao.NewGORMArtifactDAO(db)
 	repo := repository.NewArtifactRepository(artifactDAO, codebookDAO, projectDAO)
-	return artifactsvc.NewService(cfg, repo, store)
+	return artifactsvc.NewService(repo, store, packer.New(cfg.TempDir))
 }
