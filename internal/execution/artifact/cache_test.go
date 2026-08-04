@@ -17,6 +17,7 @@ import (
 	"time"
 
 	artifactv1 "github.com/Duke1616/etask/api/proto/gen/etask/artifact/v1"
+	artifactarchive "github.com/Duke1616/etask/internal/artifact/archive"
 	"github.com/klauspost/compress/zstd"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -30,6 +31,7 @@ func TestArtifactCacheEnsure(t *testing.T) {
 		cache       *artifactCache
 		archive     []byte
 		ref         *artifactv1.ArtifactRef
+		layer       layerRef
 		client      artifactv1.ArtifactServiceClient
 		closeServer func()
 	}
@@ -45,7 +47,9 @@ func TestArtifactCacheEnsure(t *testing.T) {
 		{
 			name: "替换无效缓存并复用完成层", path: "lib/common.py", content: "VALUE = 1\n",
 			before: func(t *testing.T, current *state) {
-				target := filepath.Join(current.cache.cfg.Dir, "layers", artifactLayerKey(current.ref))
+				ref, err := parseLayerRef(current.ref)
+				require.NoError(t, err)
+				target := current.cache.layout.layerDir(ref)
 				require.NoError(t, os.MkdirAll(target, 0o750))
 				require.NoError(t, os.WriteFile(filepath.Join(target, ".ready"), []byte("broken"), 0o440))
 			},
@@ -54,7 +58,7 @@ func TestArtifactCacheEnsure(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, "VALUE = 1\n", string(content))
 				current.closeServer()
-				cached, err := current.cache.Ensure(t.Context(), current.client, current.ref)
+				cached, err := current.cache.Ensure(t.Context(), current.client, current.layer)
 				require.NoError(t, err)
 				require.Equal(t, root, cached)
 				current.closeServer = nil
@@ -89,7 +93,10 @@ func TestArtifactCacheEnsure(t *testing.T) {
 			if tc.after != nil {
 				defer tc.after(t, current)
 			}
-			root, err := current.cache.Ensure(t.Context(), current.client, current.ref)
+			layer, err := parseLayerRef(current.ref)
+			require.NoError(t, err)
+			current.layer = layer
+			root, err := current.cache.Ensure(t.Context(), current.client, current.layer)
 			if tc.wantError != "" {
 				require.ErrorContains(t, err, tc.wantError)
 				return
@@ -100,22 +107,11 @@ func TestArtifactCacheEnsure(t *testing.T) {
 	}
 }
 
-func TestArtifactCacheEnsureRejectsInvalidDependency(t *testing.T) {
-	testCases := []struct {
-		name      string
-		client    artifactv1.ArtifactServiceClient
-		ref       *artifactv1.ArtifactRef
-		wantError string
-	}{
-		{name: "拒绝空引用", client: artifactClientStub{}, wantError: "引用不能为空"},
-		{name: "拒绝空客户端", ref: validRef("ops_common"), wantError: "客户端尚未初始化"},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			_, err := newArtifactCache(Config{Dir: t.TempDir()}).Ensure(t.Context(), tc.client, tc.ref)
-			require.ErrorContains(t, err, tc.wantError)
-		})
-	}
+func TestArtifactCacheEnsureRejectsMissingClient(t *testing.T) {
+	ref, err := parseLayerRef(validRef("ops_common"))
+	require.NoError(t, err)
+	_, err = newArtifactCache(Config{Dir: t.TempDir()}).Ensure(t.Context(), nil, ref)
+	require.ErrorContains(t, err, "客户端尚未初始化")
 }
 
 func TestArtifactCachePrunesOldLayers(t *testing.T) {
@@ -139,11 +135,11 @@ func TestArtifactCachePrunesOldLayers(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestValidateArtifactRef(t *testing.T) {
+func TestParseLayerRef(t *testing.T) {
 	valid := &artifactv1.ArtifactRef{
 		ReleaseId: 1,
 		Digest:    strings.Repeat("a", 64), BlobChecksum: strings.Repeat("b", 64), Size: 1,
-		Format: supportedArtifactFormat, FormatVersion: supportedArtifactVersion,
+		Format: artifactarchive.Format, FormatVersion: artifactarchive.FormatVersion,
 	}
 	invalidChecksum := proto.Clone(valid).(*artifactv1.ArtifactRef)
 	invalidChecksum.BlobChecksum = "invalid"
@@ -154,13 +150,14 @@ func TestValidateArtifactRef(t *testing.T) {
 		ref       *artifactv1.ArtifactRef
 		wantError string
 	}{
+		{name: "空引用", wantError: "引用不能为空"},
 		{name: "合法引用", ref: valid},
 		{name: "非法校验和", ref: invalidChecksum, wantError: "校验和非法"},
 		{name: "不支持格式", ref: invalidFormat, wantError: "不支持的制品格式"},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := validateArtifactRef(tc.ref)
+			_, err := parseLayerRef(tc.ref)
 			if tc.wantError != "" {
 				require.ErrorContains(t, err, tc.wantError)
 				return
@@ -171,11 +168,15 @@ func TestValidateArtifactRef(t *testing.T) {
 }
 
 func TestArtifactLayerKeySeparatesDifferentBlobs(t *testing.T) {
-	first := &artifactv1.ArtifactRef{Digest: strings.Repeat("a", 64), BlobChecksum: strings.Repeat("b", 64)}
+	first := validRef("")
 	second := proto.Clone(first).(*artifactv1.ArtifactRef)
 	second.BlobChecksum = strings.Repeat("c", 64)
+	firstRef, err := parseLayerRef(first)
+	require.NoError(t, err)
+	secondRef, err := parseLayerRef(second)
+	require.NoError(t, err)
 
-	require.NotEqual(t, artifactLayerKey(first), artifactLayerKey(second))
+	require.NotEqual(t, firstRef.cacheKey(), secondRef.cacheKey())
 }
 
 type artifactTestServer struct {
@@ -213,9 +214,9 @@ func newArtifactClient(t *testing.T, data []byte) (artifactv1.ArtifactServiceCli
 func buildTestArtifact(t *testing.T, name, content string) ([]byte, string) {
 	t.Helper()
 	fileSum := sha256.Sum256([]byte(content))
-	manifest := cachedArtifactManifest{
-		FormatVersion: supportedArtifactVersion,
-		Files: []cachedManifestFile{{
+	manifest := artifactarchive.Manifest{
+		FormatVersion: artifactarchive.FormatVersion,
+		Files: []artifactarchive.ManifestFile{{
 			Path: name, Hash: hex.EncodeToString(fileSum[:]), Size: int64(len(content)),
 		}},
 	}
@@ -249,6 +250,6 @@ func buildTestRef(t *testing.T, name, content string) ([]byte, *artifactv1.Artif
 	return archive, &artifactv1.ArtifactRef{
 		ReleaseId: 1, Digest: digest,
 		BlobChecksum: hex.EncodeToString(checksum[:]), Size: int64(len(archive)),
-		Format: supportedArtifactFormat, FormatVersion: supportedArtifactVersion,
+		Format: artifactarchive.Format, FormatVersion: artifactarchive.FormatVersion,
 	}
 }

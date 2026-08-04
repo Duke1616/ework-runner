@@ -1,6 +1,4 @@
-package artifact
-
-// 本文件实现制品清单和文件完整性校验。
+package archive
 
 import (
 	"crypto/sha256"
@@ -11,27 +9,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	artifactv1 "github.com/Duke1616/etask/api/proto/gen/etask/artifact/v1"
 )
 
 const maxManifestSize = int64(4 << 20)
 
-type cachedManifestFile struct {
-	Path string `json:"path"`
-	Hash string `json:"hash"`
-	Size int64  `json:"size"`
-}
-
-type cachedArtifactManifest struct {
-	FormatVersion int32                `json:"formatVersion"`
-	Digest        string               `json:"digest,omitempty"`
-	Files         []cachedManifestFile `json:"files"`
-}
-
-func validateExtractedArtifact(root string, ref *artifactv1.ArtifactRef) error {
-	// 先限制 manifest 大小，再读取和解析，避免异常清单占用过多内存。
-	manifestPath := filepath.Join(root, ".etask", "manifest.json")
+func validateExtractedArtifact(root string, expected Metadata) error {
+	manifestPath := filepath.Join(root, filepath.FromSlash(ManifestPath))
 	info, err := os.Stat(manifestPath)
 	if err != nil {
 		return fmt.Errorf("读取制品清单失败: %w", err)
@@ -43,14 +26,14 @@ func validateExtractedArtifact(root string, ref *artifactv1.ArtifactRef) error {
 	if err != nil {
 		return fmt.Errorf("读取制品清单失败: %w", err)
 	}
-	var manifest cachedArtifactManifest
+	var manifest Manifest
 	if err = json.Unmarshal(data, &manifest); err != nil {
 		return fmt.Errorf("解析制品清单失败: %w", err)
 	}
-	if manifest.FormatVersion != ref.GetFormatVersion() || !strings.EqualFold(manifest.Digest, ref.GetDigest()) {
+	if manifest.FormatVersion != expected.FormatVersion || !strings.EqualFold(manifest.Digest, expected.Digest) {
 		return fmt.Errorf("制品清单与制品引用不一致")
 	}
-	// 复算不含 Digest 字段的语义摘要，确认清单内容未被替换。
+
 	digest := manifest.Digest
 	manifest.Digest = ""
 	identity, err := json.Marshal(manifest)
@@ -61,15 +44,14 @@ func validateExtractedArtifact(root string, ref *artifactv1.ArtifactRef) error {
 	if !strings.EqualFold(hex.EncodeToString(actualDigest[:]), digest) {
 		return fmt.Errorf("制品清单摘要校验失败")
 	}
-	// 逐文件验证清单后再反向扫描目录，确保既不缺文件也没有额外文件。
-	expected, err := validateManifestFiles(root, manifest.Files)
+	expectedFiles, err := validateManifestFiles(root, manifest.Files)
 	if err != nil {
 		return err
 	}
-	return rejectUnexpectedFiles(root, manifestPath, expected)
+	return rejectUnexpectedFiles(root, manifestPath, expectedFiles)
 }
 
-func validateManifestFiles(root string, files []cachedManifestFile) (map[string]struct{}, error) {
+func validateManifestFiles(root string, files []ManifestFile) (map[string]struct{}, error) {
 	expected := make(map[string]struct{}, len(files))
 	for _, file := range files {
 		path, err := safeExtractPath(root, file.Path)
@@ -107,7 +89,7 @@ func rejectUnexpectedFiles(root, manifestPath string, expected map[string]struct
 	})
 }
 
-func verifyExtractedFile(path string, expected cachedManifestFile) error {
+func verifyExtractedFile(path string, expected ManifestFile) error {
 	file, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("打开制品文件 %s 失败: %w", expected.Path, err)

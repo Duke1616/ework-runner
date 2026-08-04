@@ -1,4 +1,4 @@
-package packer
+package archive
 
 import (
 	"archive/tar"
@@ -13,23 +13,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPackerProducesDeterministicArtifact(t *testing.T) {
-	p := New(t.TempDir())
+func TestCodecProducesDeterministicArtifact(t *testing.T) {
+	codec := New(t.TempDir())
 	files := []domain.ArtifactFile{
 		{Path: "python/util.py", Code: "VALUE = 2\n"},
 		{Path: "common.sh", Code: "echo common\n"},
 	}
 
-	first, err := p.Pack(files)
+	first, err := codec.Pack(files)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = os.Remove(first.Path) })
-	second, err := p.Pack([]domain.ArtifactFile{files[1], files[0]})
+	second, err := codec.Pack([]domain.ArtifactFile{files[1], files[0]})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = os.Remove(second.Path) })
 
 	require.Equal(t, first.Digest, second.Digest)
 	require.Equal(t, first.BlobChecksum, second.BlobChecksum)
 	require.Equal(t, first.Size, second.Size)
+	require.Equal(t, Format, first.Format)
+	require.Equal(t, FormatVersion, first.FormatVersion)
 
 	entries, manifest := readArtifact(t, first.Path)
 	require.Equal(t, []string{ManifestPath, "common.sh", "python/util.py"}, entries)
@@ -39,8 +41,8 @@ func TestPackerProducesDeterministicArtifact(t *testing.T) {
 	require.Equal(t, "python/util.py", manifest.Files[1].Path)
 }
 
-func TestPackerRejectsInvalidFiles(t *testing.T) {
-	p := New(t.TempDir())
+func TestCodecRejectsInvalidFiles(t *testing.T) {
+	codec := New(t.TempDir())
 	tests := []struct {
 		name  string
 		files []domain.ArtifactFile
@@ -55,7 +57,7 @@ func TestPackerRejectsInvalidFiles(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := p.Pack(tt.files)
+			_, err := codec.Pack(tt.files)
 			require.ErrorContains(t, err, tt.text)
 		})
 	}

@@ -4,9 +4,9 @@ import (
 	"context"
 	"io"
 
+	artifactarchive "github.com/Duke1616/etask/internal/artifact/archive"
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/repository"
-	"github.com/Duke1616/etask/internal/service/artifact/packer"
 	"github.com/Duke1616/etask/pkg/blobstore"
 )
 
@@ -38,11 +38,11 @@ type Service interface {
 }
 
 type service struct {
-	repo   repository.ArtifactRepository
-	store  blobstore.Store
-	packer packer.Packer
+	repo    repository.ArtifactRepository
+	store   blobstore.Store
+	archive *artifactarchive.Codec
 }
 
-func NewService(repo repository.ArtifactRepository, store blobstore.Store, artifactPacker packer.Packer) Service {
-	return &service{repo: repo, store: store, packer: artifactPacker}
+func NewService(repo repository.ArtifactRepository, store blobstore.Store, archive *artifactarchive.Codec) Service {
+	return &service{repo: repo, store: store, archive: archive}
 }

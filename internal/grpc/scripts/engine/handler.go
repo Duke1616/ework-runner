@@ -88,7 +88,11 @@ func (h *Handler) Run(task *executor.Context) (runErr error) {
 
 func artifactRoots(task *executor.Context) ArtifactRoots {
 	roots := task.ArtifactRoots()
-	return ArtifactRoots{System: roots.Default, Dependencies: roots.Dependencies}
+	named := make(map[string]string, len(roots.Named))
+	for name, root := range roots.Named {
+		named[name] = root
+	}
+	return ArtifactRoots{System: roots.Default, Dependencies: roots.Dependencies, Named: named}
 }
 
 var _ executor.TaskHandler = (*Handler)(nil)

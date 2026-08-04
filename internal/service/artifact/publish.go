@@ -8,7 +8,6 @@ import (
 
 	"github.com/Duke1616/eiam/pkg/ctxutil"
 	"github.com/Duke1616/etask/internal/domain"
-	"github.com/Duke1616/etask/internal/service/artifact/packer"
 )
 
 func (s *service) Publish(ctx context.Context, target domain.ArtifactTarget,
@@ -23,7 +22,7 @@ func (s *service) Publish(ctx context.Context, target domain.ArtifactTarget,
 	if err != nil {
 		return domain.ArtifactRelease{}, err
 	}
-	packed, err := s.packer.Pack(files)
+	packed, err := s.archive.Pack(files)
 	if err != nil {
 		return domain.ArtifactRelease{}, err
 	}
@@ -36,7 +35,7 @@ func (s *service) Publish(ctx context.Context, target domain.ArtifactTarget,
 	}
 	defer file.Close()
 	objectKey := fmt.Sprintf("artifacts/%d/%s/%d/%s.%s", tenantID, target.Scope,
-		target.ProjectID, packed.Digest, packer.Format)
+		target.ProjectID, packed.Digest, packed.Format)
 	if err = s.store.Put(ctx, objectKey, file, packed.Size, packed.BlobChecksum); err != nil {
 		return domain.ArtifactRelease{}, fmt.Errorf("保存制品失败: %w", err)
 	}
@@ -44,8 +43,8 @@ func (s *service) Publish(ctx context.Context, target domain.ArtifactTarget,
 	release := domain.ArtifactRelease{
 		TenantID: tenantID, Scope: target.Scope, ProjectID: target.ProjectID,
 		SourceRevision: sourceRevision, Digest: packed.Digest, BlobChecksum: packed.BlobChecksum,
-		ObjectKey: objectKey, Size: packed.Size, Format: packer.Format,
-		FormatVersion: packer.FormatVersion, Message: strings.TrimSpace(message),
+		ObjectKey: objectKey, Size: packed.Size, Format: packed.Format,
+		FormatVersion: packed.FormatVersion, Message: strings.TrimSpace(message),
 		AuthorUserID: ctxutil.GetUserID(ctx).Int64(),
 	}
 	created, err := s.repo.CreateAndActivate(ctx, release)

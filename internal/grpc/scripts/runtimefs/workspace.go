@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/Duke1616/etask/internal/grpc/scripts/engine"
 )
@@ -30,13 +31,13 @@ func (f *WorkspaceFactory) Create(options engine.WorkspaceOptions) (engine.Works
 	if err != nil {
 		return nil, fmt.Errorf("创建任务工作区失败: %w", err)
 	}
-	workspace := &workspace{root: root}
+	ws := &workspace{root: root}
 	// prepare 任一步失败都删除本次临时目录，避免留下不可识别的半成品。
-	if err = workspace.prepare(options); err != nil {
-		_ = workspace.Close()
+	if err = ws.prepare(options); err != nil {
+		_ = ws.Close()
 		return nil, err
 	}
-	return workspace, nil
+	return ws, nil
 }
 
 // Prune 清理过期工作区。
@@ -81,8 +82,15 @@ func (w *workspace) prepare(options engine.WorkspaceOptions) error {
 			return fmt.Errorf("挂载 SYSTEM Python 命名空间失败: %w", err)
 		}
 	}
-	// 租户制品依赖已经由 Executor 聚合为具名目录，这里只挂载一次。
-	if options.Artifacts.Dependencies != "" {
+	// 新制品运行时直接提供不可变具名层，由工作区负责组合最终目录。
+	if len(options.Artifacts.Named) > 0 {
+		mounted, err := w.mountNamedDependencies(options.Artifacts.Named)
+		if err != nil {
+			return err
+		}
+		w.artifacts.Dependencies = mounted
+	} else if options.Artifacts.Dependencies != "" {
+		// 保留旧 Preparer 已聚合依赖目录的兼容路径。
 		mounted, err := w.mount("dependencies", options.Artifacts.Dependencies)
 		if err != nil {
 			return err
@@ -99,6 +107,47 @@ func (w *workspace) prepare(options engine.WorkspaceOptions) error {
 }
 
 func (w *workspace) mount(name, source string) (string, error) {
+	target := filepath.Join(w.root, name)
+	return mountDirectory(name, source, target)
+}
+
+func (w *workspace) mountNamedDependencies(layers map[string]string) (string, error) {
+	root := filepath.Join(w.root, "dependencies")
+	pythonRoot := filepath.Join(root, "python")
+	if err := os.MkdirAll(pythonRoot, 0o750); err != nil {
+		return "", fmt.Errorf("创建制品依赖目录失败: %w", err)
+	}
+	names := make([]string, 0, len(layers))
+	for name := range layers {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		if err := validateDependencyName(name); err != nil {
+			return "", err
+		}
+		mounted, err := mountDirectory(name, layers[name], filepath.Join(root, name))
+		if err != nil {
+			return "", err
+		}
+		pythonDir := filepath.Join(mounted, "python")
+		info, statErr := os.Stat(pythonDir)
+		if os.IsNotExist(statErr) {
+			continue
+		}
+		if statErr != nil {
+			return "", fmt.Errorf("检查制品依赖 %s 的 Python 目录失败: %w", name, statErr)
+		}
+		if info.IsDir() {
+			if err = os.Symlink(pythonDir, filepath.Join(pythonRoot, name)); err != nil {
+				return "", fmt.Errorf("挂载制品依赖 %s 的 Python 命名空间失败: %w", name, err)
+			}
+		}
+	}
+	return root, nil
+}
+
+func mountDirectory(name, source, target string) (string, error) {
 	absolute, err := filepath.Abs(source)
 	if err != nil {
 		return "", fmt.Errorf("解析 %s 制品目录失败: %w", name, err)
@@ -110,11 +159,17 @@ func (w *workspace) mount(name, source string) (string, error) {
 	if !info.IsDir() {
 		return "", fmt.Errorf("%s 制品路径不是目录: %s", name, absolute)
 	}
-	target := filepath.Join(w.root, name)
 	if err = os.Symlink(absolute, target); err != nil {
 		return "", fmt.Errorf("挂载 %s 制品失败: %w", name, err)
 	}
 	return target, nil
+}
+
+func validateDependencyName(name string) error {
+	if name == "" || name == "." || name == ".." || filepath.Base(name) != name || name == "etask" {
+		return fmt.Errorf("制品挂载名称非法或使用了运行时保留名: %q", name)
+	}
+	return nil
 }
 
 func (w *workspace) Root() string {

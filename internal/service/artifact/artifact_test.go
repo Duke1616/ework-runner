@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/Duke1616/eiam/pkg/ctxutil"
+	artifactarchive "github.com/Duke1616/etask/internal/artifact/archive"
 	"github.com/Duke1616/etask/internal/domain"
-	"github.com/Duke1616/etask/internal/service/artifact/packer"
 	"github.com/Duke1616/etask/pkg/blobstore"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -16,7 +16,7 @@ import (
 
 func TestServiceOpenTranslatesMissingRelease(t *testing.T) {
 	repo := artifactRepositoryStub{findByIDErr: gorm.ErrRecordNotFound}
-	svc := NewService(repo, artifactStoreStub{}, packer.New(""))
+	svc := NewService(repo, artifactStoreStub{}, artifactarchive.New(""))
 
 	_, err := svc.Open(context.Background(), 1, strings.Repeat("a", 64))
 	require.ErrorIs(t, err, blobstore.ErrNotFound)
@@ -26,7 +26,7 @@ func TestServiceStatusRequiresArtifactProject(t *testing.T) {
 	repo := artifactRepositoryStub{
 		project: domain.CodebookProject{ID: 7, ArtifactEnabled: false, SourceRevision: 4},
 	}
-	svc := NewService(repo, artifactStoreStub{}, packer.New(""))
+	svc := NewService(repo, artifactStoreStub{}, artifactarchive.New(""))
 
 	_, err := svc.Status(context.Background(), domain.ArtifactTarget{Scope: domain.CodebookScopeSystem})
 	require.NoError(t, err)
@@ -38,7 +38,7 @@ func TestServiceStatusRequiresArtifactProject(t *testing.T) {
 
 	repo.project.ArtifactEnabled = true
 	repo.project.ArtifactNamespace = "ops_common"
-	svc = NewService(repo, artifactStoreStub{}, packer.New(""))
+	svc = NewService(repo, artifactStoreStub{}, artifactarchive.New(""))
 	projectStatus, err := svc.Status(context.Background(), domain.ArtifactTarget{
 		Scope: domain.CodebookScopeTenant, ProjectID: 7,
 	})
@@ -57,7 +57,7 @@ func TestServiceResolveExecutionLayers(t *testing.T) {
 			{ID: 3, Scope: domain.CodebookScopeTenant, ProjectID: 9, Namespace: "db_common", Digest: strings.Repeat("e", 64), BlobChecksum: strings.Repeat("f", 64), Size: 1, Format: "tar.zst", FormatVersion: 1},
 		},
 	}
-	svc := NewService(repo, artifactStoreStub{}, packer.New(""))
+	svc := NewService(repo, artifactStoreStub{}, artifactarchive.New(""))
 
 	refs, err := svc.ResolveExecution(context.Background(), 7)
 	require.NoError(t, err)
@@ -69,7 +69,7 @@ func TestServiceResolveExecutionLayers(t *testing.T) {
 func TestServiceRejectsUnauthorizedArtifactWrite(t *testing.T) {
 	svc := NewService(artifactRepositoryStub{
 		project: domain.CodebookProject{ID: 7, ArtifactEnabled: true, ArtifactNamespace: "ops_common"},
-	}, artifactStoreStub{}, packer.New(""))
+	}, artifactStoreStub{}, artifactarchive.New(""))
 	systemTarget := domain.ArtifactTarget{Scope: domain.CodebookScopeSystem}
 	projectTarget := domain.ArtifactTarget{Scope: domain.CodebookScopeTenant, ProjectID: 7}
 

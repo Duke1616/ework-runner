@@ -134,21 +134,35 @@ func (c *Context) MergeResultJSON(value string) {
 	}
 }
 
-// ArtifactRoots 描述 Executor 为任务准备的制品运行目录。
+// ArtifactRoots 描述 Executor 为任务准备的不可变制品目录。
 type ArtifactRoots struct {
-	Default      string
+	Default string
+	// Dependencies 保留对旧聚合目录 Preparer 的兼容；新实现应优先返回 Named。
 	Dependencies string
+	Named        map[string]string
 }
 
 // ArtifactRoots 返回由 Executor 准备好的默认层和具名依赖层目录。
 func (c *Context) ArtifactRoots() ArtifactRoots {
-	return c.artifactRoots
+	return cloneArtifactRoots(c.artifactRoots)
 }
 
 // SetArtifactRoots 设置由 Executor 准备好的制品运行目录。
 // 该方法只应由执行运行时在调用 Handler 前使用。
 func (c *Context) SetArtifactRoots(roots ArtifactRoots) {
-	c.artifactRoots = roots
+	c.artifactRoots = cloneArtifactRoots(roots)
+}
+
+func cloneArtifactRoots(roots ArtifactRoots) ArtifactRoots {
+	if len(roots.Named) == 0 {
+		return roots
+	}
+	cloned := make(map[string]string, len(roots.Named))
+	for name, root := range roots.Named {
+		cloned[name] = root
+	}
+	roots.Named = cloned
+	return roots
 }
 
 // Log 记录一条任务日志。

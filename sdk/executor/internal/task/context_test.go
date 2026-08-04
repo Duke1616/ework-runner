@@ -58,6 +58,21 @@ func TestContext(t *testing.T) {
 				require.JSONEq(t, `{"status":"ok","count":1}`, current.context.ResultJSON())
 			},
 		},
+		{
+			name: "制品具名层不暴露共享 map",
+			before: func(_ *testing.T, current *state) {
+				current.context = NewContext(ContextOptions{TaskLogger: &contextLoggerStub{}})
+				input := ArtifactRoots{Named: map[string]string{"ops_common": "/cache/ops"}}
+				current.context.SetArtifactRoots(input)
+				input.Named["ops_common"] = "/changed/input"
+			},
+			assertions: func(t *testing.T, current *state) {
+				roots := current.context.ArtifactRoots()
+				require.Equal(t, "/cache/ops", roots.Named["ops_common"])
+				roots.Named["ops_common"] = "/changed/output"
+				require.Equal(t, "/cache/ops", current.context.ArtifactRoots().Named["ops_common"])
+			},
+		},
 	}
 
 	for _, tc := range testCases {

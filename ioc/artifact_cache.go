@@ -1,7 +1,7 @@
 package ioc
 
 import (
-	executorartifact "github.com/Duke1616/etask/internal/executor/artifact"
+	executorartifact "github.com/Duke1616/etask/internal/execution/artifact"
 	config "github.com/Duke1616/etask/pkg/config"
 	"github.com/Duke1616/etask/sdk/executor"
 )

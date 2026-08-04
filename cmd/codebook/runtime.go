@@ -6,11 +6,11 @@ import (
 	"strings"
 
 	"github.com/Duke1616/eiam/pkg/ctxutil"
+	artifactarchive "github.com/Duke1616/etask/internal/artifact/archive"
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/repository"
 	"github.com/Duke1616/etask/internal/repository/dao"
 	artifactsvc "github.com/Duke1616/etask/internal/service/artifact"
-	"github.com/Duke1616/etask/internal/service/artifact/packer"
 	codebooksvc "github.com/Duke1616/etask/internal/service/codebook"
 	"github.com/Duke1616/etask/ioc"
 	"github.com/Duke1616/etask/pkg/blobstore"
@@ -93,5 +93,5 @@ func newArtifactService(db *gorm.DB, cfg artifactsvc.Config, store blobstore.Sto
 	projectDAO := dao.NewGORMCodebookProjectDAO(db)
 	artifactDAO := dao.NewGORMArtifactDAO(db)
 	repo := repository.NewArtifactRepository(artifactDAO, codebookDAO, projectDAO)
-	return artifactsvc.NewService(repo, store, packer.New(cfg.TempDir))
+	return artifactsvc.NewService(repo, store, artifactarchive.New(cfg.TempDir))
 }

@@ -85,7 +85,7 @@ var (
 		dao.NewGORMArtifactDAO,
 		repository.NewArtifactRepository,
 		InitArtifactConfig,
-		InitArtifactPacker,
+		InitArtifactArchive,
 		InitArtifactStore,
 		artifactSvc.NewService,
 		wire.Bind(new(codebookSvc.WorkspaceArtifactReader), new(artifactSvc.Service)),

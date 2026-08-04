@@ -54,6 +54,20 @@ func TestWorkspaceFactoryCreate(t *testing.T) {
 				return engine.ArtifactRoots{System: state.system}
 			},
 		},
+		{
+			name: "具名制品在工作区内组合为兼容依赖目录",
+			before: func(t *testing.T, state *state) {
+				state.project = createPythonArtifact(t, "project")
+			},
+			artifacts: func(state *state) engine.ArtifactRoots {
+				return engine.ArtifactRoots{Named: map[string]string{"ops_common": state.project}}
+			},
+			assertions: func(t *testing.T, state *state) {
+				dependencies := filepath.Join(state.workspace.Root(), "dependencies")
+				requireEnvironment(t, state.workspace.Environment(), "ETASK_DEPENDENCIES_ROOT", dependencies)
+				require.FileExists(t, filepath.Join(dependencies, "python", "ops_common", "private", "util.py"))
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -98,8 +112,8 @@ func TestPythonArtifactNamespaces(t *testing.T) {
 			name: "SYSTEM 与租户制品使用独立命名空间",
 			before: func(t *testing.T) engine.ArtifactRoots {
 				return engine.ArtifactRoots{
-					System:       createPythonArtifact(t, "system"),
-					Dependencies: createTenantRoot(t, map[string]string{"ops_common": createPythonArtifact(t, "project")}),
+					System: createPythonArtifact(t, "system"),
+					Named:  map[string]string{"ops_common": createPythonArtifact(t, "project")},
 				}
 			},
 			code: "from ops_common.private import util as project\nfrom etask.private import util as system\nprint(project.VALUE + ':' + system.VALUE)\n",
@@ -116,9 +130,9 @@ func TestPythonArtifactNamespaces(t *testing.T) {
 		{
 			name: "租户内多个制品库按英文名隔离",
 			before: func(t *testing.T) engine.ArtifactRoots {
-				return engine.ArtifactRoots{Dependencies: createTenantRoot(t, map[string]string{
+				return engine.ArtifactRoots{Named: map[string]string{
 					"ops_common": createPythonArtifact(t, "ops"), "db_common": createPythonArtifact(t, "db"),
-				})}
+				}}
 			},
 			code: "from ops_common.private import util as ops\nfrom db_common.private import util as db\nprint(ops.VALUE + ':' + db.VALUE)\n",
 			want: "ops:db",
@@ -135,13 +149,23 @@ func TestPythonArtifactNamespaces(t *testing.T) {
 				})
 				return engine.ArtifactRoots{
 					System: system,
-					Dependencies: createTenantRoot(t, map[string]string{
+					Named: map[string]string{
 						"ops_common": operations, "db_common": database,
-					}),
+					},
 				}
 			},
 			code: "from ops_common.private.bridge import VALUE\nprint(VALUE)\n",
 			want: "system:db",
+		},
+		{
+			name: "兼容旧聚合依赖目录",
+			before: func(t *testing.T) engine.ArtifactRoots {
+				return engine.ArtifactRoots{Dependencies: createTenantRoot(t, map[string]string{
+					"ops_common": createPythonArtifact(t, "legacy"),
+				})}
+			},
+			code: "from ops_common.private import util\nprint(util.VALUE)\n",
+			want: "legacy",
 		},
 		{
 			name: "SYSTEM 模块支持包内相对引用",
@@ -184,6 +208,20 @@ func TestPythonArtifactNamespaces(t *testing.T) {
 			require.Equal(t, tc.want, strings.TrimSpace(string(output)))
 		})
 	}
+}
+
+func TestWorkspaceRejectsInvalidNamedArtifact(t *testing.T) {
+	factory, err := NewWorkspaceFactory(WorkspaceConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	_, err = factory.Create(engine.WorkspaceOptions{
+		ExecutionID: 1,
+		Extension:   ".sh",
+		Code:        []byte("echo ok\n"),
+		Artifacts: engine.ArtifactRoots{
+			Named: map[string]string{"../outside": t.TempDir()},
+		},
+	})
+	require.ErrorContains(t, err, "挂载名称非法")
 }
 
 func requireEnvironment(t *testing.T, environment []string, key, want string) {

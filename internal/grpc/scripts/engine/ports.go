@@ -12,6 +12,7 @@ import (
 type ArtifactRoots struct {
 	System       string
 	Dependencies string
+	Named        map[string]string
 }
 
 // WorkspaceOptions 描述创建单次执行工作区所需的信息。

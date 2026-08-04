@@ -8,11 +8,11 @@ import (
 	"github.com/Duke1616/etask/sdk/executor/internal/task"
 )
 
-// PreparedArtifacts 是一次任务独占的制品运行现场。
+// PreparedArtifacts 描述一次任务可用的制品目录。
 type PreparedArtifacts interface {
-	// Roots 返回 Handler 可读取的系统制品层和具名依赖层目录。
+	// Roots 返回 Handler 可读取的默认制品层和具名依赖层目录。
 	Roots() task.ArtifactRoots
-	// Close 清理本次准备产生的临时目录。
+	// Close 释放 Preparer 可能持有的任务级资源；无状态实现可以直接返回 nil。
 	Close() error
 }
 
