@@ -5,12 +5,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-
-	"github.com/Duke1616/etask/internal/grpc/scripts/engine"
 )
 
 // projectDirectory 创建任务本地目录树，不向脚本暴露缓存路径。
-func projectDirectory(source, target string, sandbox engine.Sandbox) error {
+func projectDirectory(source, target string, uid, gid uint32) error {
 	resolved, err := filepath.EvalSymlinks(source)
 	if err != nil {
 		return fmt.Errorf("解析制品路径失败: %w", err)
@@ -19,10 +17,10 @@ func projectDirectory(source, target string, sandbox engine.Sandbox) error {
 	if err != nil {
 		return fmt.Errorf("解析制品绝对路径失败: %w", err)
 	}
-	return projectPath(resolved, target, sandbox, make(map[string]bool))
+	return projectPath(resolved, target, uid, gid, make(map[string]bool))
 }
 
-func projectPath(source, target string, sandbox engine.Sandbox, ancestors map[string]bool) error {
+func projectPath(source, target string, uid, gid uint32, ancestors map[string]bool) error {
 	resolved := source
 	info, err := os.Lstat(resolved)
 	if err != nil {
@@ -51,7 +49,7 @@ func projectPath(source, target string, sandbox engine.Sandbox, ancestors map[st
 		if err = os.Mkdir(target, 0o750); err != nil {
 			return fmt.Errorf("创建投影目录失败: %w", err)
 		}
-		if err = os.Chown(target, int(sandbox.UID), int(sandbox.GID)); err != nil {
+		if err = os.Chown(target, int(uid), int(gid)); err != nil {
 			return fmt.Errorf("设置投影目录属主失败: %w", err)
 		}
 		entries, readErr := os.ReadDir(resolved)
@@ -59,7 +57,7 @@ func projectPath(source, target string, sandbox engine.Sandbox, ancestors map[st
 			return fmt.Errorf("读取制品目录失败: %w", readErr)
 		}
 		for _, entry := range entries {
-			if err = projectPath(filepath.Join(resolved, entry.Name()), filepath.Join(target, entry.Name()), sandbox, ancestors); err != nil {
+			if err = projectPath(filepath.Join(resolved, entry.Name()), filepath.Join(target, entry.Name()), uid, gid, ancestors); err != nil {
 				return err
 			}
 		}

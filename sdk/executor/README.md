@@ -33,7 +33,7 @@ func (SyncHandler) Run(ctx *executor.Context) error {
 - `Param`、`ParamInt`、`ParamInt64`、`ParamBool`：读取任务参数。
 - `GetResolvedParam`：按参数绑定模式读取最终值。
 - `SetResult`、`SetResults`、`AddResult`：写入结构化结果。
-- `ArtifactRoots`：读取已准备的系统制品层和具名依赖聚合目录。
+- `ArtifactRoots`：读取已准备的默认制品层和具名制品层。
 - `Context`：获取承载取消信号和租户信息的原生上下文。
 - `Log`、`Logger`：记录任务日志和系统日志。
 

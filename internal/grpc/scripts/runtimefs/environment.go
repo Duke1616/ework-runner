@@ -8,7 +8,12 @@ import (
 	"github.com/Duke1616/etask/internal/grpc/scripts/engine"
 )
 
-func buildEnvironment(roots engine.ArtifactRoots, workspace string, sandbox bool) []string {
+type mountedArtifactRoots struct {
+	system string
+	named  string
+}
+
+func buildEnvironment(roots mountedArtifactRoots, workspace string, access WorkspaceAccess) []string {
 	// 运行时变量覆盖宿主机同名值，保证脚本协议和结果通道稳定。
 	overrides := []string{
 		"FORCE_COLOR=1",
@@ -17,18 +22,12 @@ func buildEnvironment(roots engine.ArtifactRoots, workspace string, sandbox bool
 		"EWORK_RESULT_FD=3",
 		"ETASK_WORKSPACE_ROOT=" + workspace,
 	}
-	if sandbox {
-		overrides = append(overrides,
-			"HOME="+workspace,
-			"TMPDIR="+filepath.Join(workspace, "tmp"),
-			"PYTHONDONTWRITEBYTECODE=1",
-		)
+	overrides = append(overrides, access.Environment(workspace)...)
+	if roots.system != "" {
+		overrides = append(overrides, "ETASK_SYSTEM_ROOT="+roots.system)
 	}
-	if roots.System != "" {
-		overrides = append(overrides, "ETASK_SYSTEM_ROOT="+roots.System)
-	}
-	if roots.Dependencies != "" {
-		overrides = append(overrides, "ETASK_DEPENDENCIES_ROOT="+roots.Dependencies)
+	if roots.named != "" {
+		overrides = append(overrides, "ETASK_DEPENDENCIES_ROOT="+roots.named)
 	}
 	// 制品路径放在现有 PYTHONPATH 前，任务应优先使用本次固定版本。
 	paths := pythonPaths(roots, workspace)
@@ -38,12 +37,12 @@ func buildEnvironment(roots engine.ArtifactRoots, workspace string, sandbox bool
 	return engine.MergeEnvironment(os.Environ(), overrides)
 }
 
-func pythonPaths(roots engine.ArtifactRoots, workspace string) []string {
+func pythonPaths(roots mountedArtifactRoots, workspace string) []string {
 	paths := make([]string, 0, 3)
-	if roots.Dependencies != "" {
-		paths = append(paths, filepath.Join(roots.Dependencies, "python"), roots.Dependencies)
+	if roots.named != "" {
+		paths = append(paths, filepath.Join(roots.named, "python"), roots.named)
 	}
-	if roots.System != "" {
+	if roots.system != "" {
 		paths = append(paths, filepath.Join(workspace, ".etask_modules"))
 	}
 	return paths

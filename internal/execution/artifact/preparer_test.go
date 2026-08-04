@@ -57,7 +57,6 @@ func TestRuntimePrepareReturnsImmutableNamedLayers(t *testing.T) {
 	roots := prepared.Roots()
 	require.NotEmpty(t, roots.Default)
 	require.Equal(t, roots.Default, roots.Named["ops_common"])
-	require.Empty(t, roots.Dependencies)
 	require.NoError(t, prepared.Close())
 	require.DirExists(t, roots.Default)
 

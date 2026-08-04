@@ -35,14 +35,14 @@ func TestEngineExecute(t *testing.T) {
 			name:      "制品目录会注入并在执行后清理",
 			artifacts: []*artifactv1.ArtifactRef{{ReleaseId: 1}},
 			preparer: &preparerStub{prepared: &preparedStub{
-				roots: task.ArtifactRoots{Default: "/system", Dependencies: "/dependencies"},
+				roots: task.ArtifactRoots{Default: "/system", Named: map[string]string{"ops_common": "/ops"}},
 			}},
 			handler: handlerStub{run: func(ctx *task.Context) error {
 				roots := ctx.ArtifactRoots()
-				ctx.SetResult("roots", roots.Default+":"+roots.Dependencies)
+				ctx.SetResult("roots", roots.Default+":"+roots.Named["ops_common"])
 				return nil
 			}},
-			wantValue:  `{"roots":"/system:/dependencies"}`,
+			wantValue:  `{"roots":"/system:/ops"}`,
 			wantClosed: 1,
 		},
 		{

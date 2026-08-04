@@ -17,7 +17,7 @@ import (
 type commandRunner struct {
 	maxLogLineSize int
 	maxResultSize  int64
-	sandbox        Sandbox
+	launcher       ProcessLauncher
 }
 
 func (r commandRunner) Run(task *executor.Context, workspace Workspace, prepared PreparedCommand) error {
@@ -27,9 +27,6 @@ func (r commandRunner) Run(task *executor.Context, workspace Workspace, prepared
 	}
 	command.Dir = workspace.Root()
 	command.Env = MergeEnvironment(workspace.Environment(), prepared.Environment)
-	if err := configureCommandSandbox(command, r.sandbox); err != nil {
-		return err
-	}
 
 	// 子进程通过额外文件描述符 3 输出结构化 JSON，避免与普通日志混在 stdout。
 	resultReader, resultWriter, err := os.Pipe()
@@ -48,7 +45,7 @@ func (r commandRunner) Run(task *executor.Context, workspace Workspace, prepared
 	if err != nil {
 		return fmt.Errorf("获取标准错误管道失败: %w", err)
 	}
-	if err = command.Start(); err != nil {
+	if err = r.launcher.Start(command); err != nil {
 		return fmt.Errorf("启动执行命令失败: %w", err)
 	}
 	// 父进程必须关闭写端，读取协程才能在子进程退出后收到 EOF。

@@ -47,36 +47,45 @@ type RuntimeConfig struct {
 	Archive          ArchiveConfig `mapstructure:"archive" yaml:"archive"`
 }
 
-func (c RuntimeConfig) engineConfig(sandbox engine.Sandbox) engine.Config {
+type sandboxIdentity struct {
+	uid uint32
+	gid uint32
+}
+
+type executionProfile struct {
+	workspace runtimefs.WorkspaceAccess
+	launcher  engine.ProcessLauncher
+}
+
+func (c RuntimeConfig) engineConfig() engine.Config {
 	return engine.Config{
 		MaxCodeSize:      c.MaxCodeSize,
 		MaxArgsSize:      c.MaxArgsSize,
 		MaxVariablesSize: c.MaxVariablesSize,
 		MaxLogLineSize:   c.MaxLogLineSize,
 		MaxResultSize:    c.MaxResultSize,
-		Sandbox:          sandbox,
 	}
 }
 
-func (c RuntimeConfig) workspaceConfig(sandbox engine.Sandbox) runtimefs.WorkspaceConfig {
+func (c RuntimeConfig) workspaceConfig() runtimefs.WorkspaceConfig {
 	return runtimefs.WorkspaceConfig{
-		Dir: c.WorkspaceDir, MaxAge: c.WorkspaceMaxAge, Sandbox: sandbox,
+		Dir: c.WorkspaceDir, MaxAge: c.WorkspaceMaxAge,
 	}
 }
 
-func (c SandboxConfig) resolve(euid int) (engine.Sandbox, error) {
+func (c SandboxConfig) resolve(euid int) (*sandboxIdentity, error) {
 	mode := strings.ToLower(strings.TrimSpace(c.Mode))
 	if mode == "" {
 		mode = SandboxModeAuto
 	}
 	if mode != SandboxModeAuto && mode != SandboxModeRequired && mode != SandboxModeOff {
-		return engine.Sandbox{}, fmt.Errorf("脚本沙箱模式非法: %s", c.Mode)
+		return nil, fmt.Errorf("脚本沙箱模式非法: %s", c.Mode)
 	}
 	if mode == SandboxModeOff || (mode == SandboxModeAuto && euid != 0) {
-		return engine.Sandbox{}, nil
+		return nil, nil
 	}
 	if euid != 0 {
-		return engine.Sandbox{}, fmt.Errorf("脚本沙箱 required 模式要求 Executor 以 root 启动")
+		return nil, fmt.Errorf("脚本沙箱 required 模式要求 Executor 以 root 启动")
 	}
 	uid, gid := c.UID, c.GID
 	if uid == 0 {
@@ -86,13 +95,31 @@ func (c SandboxConfig) resolve(euid int) (engine.Sandbox, error) {
 		gid = 65534
 	}
 	if uid <= 0 || gid <= 0 || uid > math.MaxUint32 || gid > math.MaxUint32 {
-		return engine.Sandbox{}, fmt.Errorf("脚本沙箱 UID/GID 非法: %d/%d", uid, gid)
+		return nil, fmt.Errorf("脚本沙箱 UID/GID 非法: %d/%d", uid, gid)
 	}
-	return engine.Sandbox{Enabled: true, UID: uint32(uid), GID: uint32(gid)}, nil
+	return &sandboxIdentity{uid: uint32(uid), gid: uint32(gid)}, nil
 }
 
-func (c RuntimeConfig) resolveSandbox() (engine.Sandbox, error) {
-	return c.Sandbox.resolve(effectiveUID())
+func (c RuntimeConfig) executionProfile() (executionProfile, error) {
+	identity, err := c.Sandbox.resolve(effectiveUID())
+	if err != nil {
+		return executionProfile{}, err
+	}
+	if identity == nil {
+		return executionProfile{
+			workspace: runtimefs.NewHostWorkspaceAccess(),
+			launcher:  engine.NewHostProcessLauncher(),
+		}, nil
+	}
+	launcher, err := engine.NewCredentialProcessLauncher(identity.uid, identity.gid)
+	if err != nil {
+		return executionProfile{}, err
+	}
+	workspace, err := runtimefs.NewIsolatedWorkspaceAccess(identity.uid, identity.gid)
+	if err != nil {
+		return executionProfile{}, err
+	}
+	return executionProfile{workspace: workspace, launcher: launcher}, nil
 }
 
 func (c RuntimeConfig) archiveConfig() runtimefs.ArchiveConfig {

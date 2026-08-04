@@ -133,7 +133,7 @@ func TestServiceReceive(t *testing.T) {
 					t.Fatalf("制品准备/清理次数 = %d/%d, 期望 1/1",
 						fixture.preparer.prepares.Load(), fixture.preparer.prepared.closes.Load())
 				}
-				if roots := fixture.handler.roots.Load(); roots != "/system:/dependencies" {
+				if roots := fixture.handler.roots.Load(); roots != "/system:/ops" {
 					t.Fatalf("Handler 收到的制品目录 = %v", roots)
 				}
 			},
@@ -196,7 +196,7 @@ func newServiceFixture(t *testing.T) *serviceFixture {
 	t.Helper()
 	handler := &serviceHandlerFake{started: make(chan struct{}, 1)}
 	preparer := &servicePreparerFake{prepared: &servicePreparedFake{
-		roots: executor.ArtifactRoots{Default: "/system", Dependencies: "/dependencies"},
+		roots: executor.ArtifactRoots{Default: "/system", Named: map[string]string{"ops_common": "/ops"}},
 	}}
 	return &serviceFixture{
 		service:  NewService([]executor.TaskHandler{handler}, preparer, nil, nil),
@@ -227,7 +227,7 @@ func (h *serviceHandlerFake) Run(ctx *executor.Context) error {
 	default:
 	}
 	roots := ctx.ArtifactRoots()
-	h.roots.Store(roots.Default + ":" + roots.Dependencies)
+	h.roots.Store(roots.Default + ":" + roots.Named["ops_common"])
 	if h.block != nil {
 		<-h.block
 	}

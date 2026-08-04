@@ -6,15 +6,12 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/Duke1616/etask/internal/grpc/scripts/engine"
 )
 
 // WorkspaceConfig 描述工作区目录和清理策略。
 type WorkspaceConfig struct {
-	Dir     string
-	MaxAge  time.Duration
-	Sandbox engine.Sandbox
+	Dir    string
+	MaxAge time.Duration
 }
 
 // NormalizeWorkspaceConfig 补全并校验工作区配置。

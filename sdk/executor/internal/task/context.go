@@ -137,9 +137,7 @@ func (c *Context) MergeResultJSON(value string) {
 // ArtifactRoots 描述 Executor 为任务准备的不可变制品目录。
 type ArtifactRoots struct {
 	Default string
-	// Dependencies 保留对旧聚合目录 Preparer 的兼容；新实现应优先返回 Named。
-	Dependencies string
-	Named        map[string]string
+	Named   map[string]string
 }
 
 // ArtifactRoots 返回由 Executor 准备好的默认层和具名依赖层目录。

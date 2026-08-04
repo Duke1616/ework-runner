@@ -74,7 +74,7 @@ func (e *Engine) Execute(ctx context.Context, command Command) (result Result, e
 		}
 	}()
 
-	// 准备器返回本次任务固定的制品根；Close 兼容需要任务级现场的旧实现。
+	// 准备器返回本次任务固定的制品根；Close 释放实现可能持有的任务级资源。
 	prepared, err := e.prepareArtifacts(command)
 	if err != nil {
 		return Result{}, err

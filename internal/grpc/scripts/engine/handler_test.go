@@ -68,7 +68,9 @@ func TestHandlerRun(t *testing.T) {
 			current.workspace.code = filepath.Join(current.workspace.root, "task.sh")
 			config := tc.config
 			adapter := tc.adapter
-			handler, err := NewHandler(config, &adapter, current.workspace, current.archiver)
+			handler, err := NewHandler(
+				config, &adapter, current.workspace, current.archiver, NewHostProcessLauncher(),
+			)
 			require.NoError(t, err)
 			current.handler = handler
 			current.task = executor.NewContext(executor.ContextOptions{
@@ -95,6 +97,11 @@ func TestHandlerRun(t *testing.T) {
 			require.Equal(t, tc.wantFailed, current.archiver.records[0].Failed)
 		})
 	}
+}
+
+func TestNewHandlerRejectsMissingProcessLauncher(t *testing.T) {
+	_, err := NewHandler(Config{}, &adapterFake{}, &workspaceFake{}, &archiverFake{}, nil)
+	require.ErrorContains(t, err, "依赖不能为空")
 }
 
 type workspaceFake struct {

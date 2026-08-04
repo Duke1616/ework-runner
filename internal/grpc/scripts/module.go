@@ -23,12 +23,12 @@ type Runtime struct {
 
 // NewRuntime 根据配置装配工作区、归档器和语言处理器。
 func NewRuntime(config RuntimeConfig) (*Runtime, error) {
-	sandbox, err := config.resolveSandbox()
+	profile, err := config.executionProfile()
 	if err != nil {
 		return nil, err
 	}
 	// 文件系统能力先独立构造，语言处理器只依赖抽象端口。
-	workspaces, err := runtimefs.NewWorkspaceFactory(config.workspaceConfig(sandbox))
+	workspaces, err := runtimefs.NewWorkspaceFactory(config.workspaceConfig(), profile.workspace)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +43,9 @@ func NewRuntime(config RuntimeConfig) (*Runtime, error) {
 	// 每种语言复用同一套执行编排，仅替换命令和参数适配逻辑。
 	handlers := make([]executor.TaskHandler, 0, len(adapters))
 	for _, adapter := range adapters {
-		handler, handlerErr := engine.NewHandler(config.engineConfig(sandbox), adapter, workspaces, archiver)
+		handler, handlerErr := engine.NewHandler(
+			config.engineConfig(), adapter, workspaces, archiver, profile.launcher,
+		)
 		if handlerErr != nil {
 			return nil, fmt.Errorf("创建 %s 脚本处理器失败: %w", adapter.Name(), handlerErr)
 		}

@@ -41,6 +41,9 @@ func TestWorkspaceFactoryCreate(t *testing.T) {
 			},
 			assertions: func(t *testing.T, state *state) {
 				require.NoFileExists(t, filepath.Join(state.workspace.Root(), "third_party"))
+				mounted, err := os.Lstat(filepath.Join(state.workspace.Root(), "system"))
+				require.NoError(t, err)
+				require.NotZero(t, mounted.Mode()&os.ModeSymlink)
 				requireEnvironment(t, state.workspace.Environment(), "ETASK_SYSTEM_ROOT", filepath.Join(state.workspace.Root(), "system"))
 			},
 		},
@@ -76,7 +79,7 @@ func TestWorkspaceFactoryCreate(t *testing.T) {
 			if tc.before != nil {
 				tc.before(t, current)
 			}
-			factory, err := NewWorkspaceFactory(WorkspaceConfig{Dir: t.TempDir()})
+			factory, err := NewWorkspaceFactory(WorkspaceConfig{Dir: t.TempDir()}, NewHostWorkspaceAccess())
 			require.NoError(t, err)
 			current.factory = factory
 			current.workspace, err = factory.Create(engine.WorkspaceOptions{
@@ -158,16 +161,6 @@ func TestPythonArtifactNamespaces(t *testing.T) {
 			want: "system:db",
 		},
 		{
-			name: "兼容旧聚合依赖目录",
-			before: func(t *testing.T) engine.ArtifactRoots {
-				return engine.ArtifactRoots{Dependencies: createTenantRoot(t, map[string]string{
-					"ops_common": createPythonArtifact(t, "legacy"),
-				})}
-			},
-			code: "from ops_common.private import util\nprint(util.VALUE)\n",
-			want: "legacy",
-		},
-		{
 			name: "SYSTEM 模块支持包内相对引用",
 			before: func(t *testing.T) engine.ArtifactRoots {
 				return engine.ArtifactRoots{System: createPythonArtifactFiles(t, map[string]string{
@@ -189,7 +182,9 @@ func TestPythonArtifactNamespaces(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			factory, factoryErr := NewWorkspaceFactory(WorkspaceConfig{Dir: t.TempDir()})
+			factory, factoryErr := NewWorkspaceFactory(
+				WorkspaceConfig{Dir: t.TempDir()}, NewHostWorkspaceAccess(),
+			)
 			require.NoError(t, factoryErr)
 			workspace, createErr := factory.Create(engine.WorkspaceOptions{
 				ExecutionID: 1, Extension: ".py", Code: []byte(tc.code), Artifacts: tc.before(t),
@@ -211,7 +206,7 @@ func TestPythonArtifactNamespaces(t *testing.T) {
 }
 
 func TestWorkspaceRejectsInvalidNamedArtifact(t *testing.T) {
-	factory, err := NewWorkspaceFactory(WorkspaceConfig{Dir: t.TempDir()})
+	factory, err := NewWorkspaceFactory(WorkspaceConfig{Dir: t.TempDir()}, NewHostWorkspaceAccess())
 	require.NoError(t, err)
 	_, err = factory.Create(engine.WorkspaceOptions{
 		ExecutionID: 1,
@@ -260,17 +255,5 @@ func createFlatPythonArtifact(t *testing.T) string {
 	require.NoError(t, os.MkdirAll(packageDir, 0o750))
 	require.NoError(t, os.WriteFile(filepath.Join(packageDir, "want_result.py"),
 		[]byte("def want_result(**kwargs): print(kwargs['status'])\n"), 0o440))
-	return root
-}
-
-func createTenantRoot(t *testing.T, artifacts map[string]string) string {
-	t.Helper()
-	root := t.TempDir()
-	pythonRoot := filepath.Join(root, "python")
-	require.NoError(t, os.MkdirAll(pythonRoot, 0o750))
-	for namespace, artifactRoot := range artifacts {
-		require.NoError(t, os.Symlink(artifactRoot, filepath.Join(root, namespace)))
-		require.NoError(t, os.Symlink(filepath.Join(artifactRoot, "python"), filepath.Join(pythonRoot, namespace)))
-	}
 	return root
 }

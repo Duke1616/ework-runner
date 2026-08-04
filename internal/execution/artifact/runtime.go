@@ -18,7 +18,7 @@ func (p Prepared) Roots() executor.ArtifactRoots {
 	return p.roots
 }
 
-// Close 保留 PreparedArtifacts 的兼容契约；缓存层本身不属于单次任务。
+// Close 实现 PreparedArtifacts 契约；不可变缓存层没有任务级资源需要释放。
 func (p Prepared) Close() error {
 	return nil
 }

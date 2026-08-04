@@ -13,17 +13,21 @@ type Handler struct {
 	adapter    Adapter
 	workspaces WorkspaceFactory
 	archiver   Archiver
+	launcher   ProcessLauncher
 }
 
 // NewHandler 创建面向端口依赖的脚本处理器。
-func NewHandler(config Config, adapter Adapter, workspaces WorkspaceFactory, archiver Archiver) (*Handler, error) {
+func NewHandler(config Config, adapter Adapter, workspaces WorkspaceFactory, archiver Archiver,
+	launcher ProcessLauncher) (*Handler, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	if adapter == nil || workspaces == nil || archiver == nil {
+	if adapter == nil || workspaces == nil || archiver == nil || launcher == nil {
 		return nil, fmt.Errorf("脚本处理器依赖不能为空")
 	}
-	return &Handler{config: config, adapter: adapter, workspaces: workspaces, archiver: archiver}, nil
+	return &Handler{
+		config: config, adapter: adapter, workspaces: workspaces, archiver: archiver, launcher: launcher,
+	}, nil
 }
 
 // Name 返回语言 handler 名称。
@@ -82,7 +86,7 @@ func (h *Handler) Run(task *executor.Context) (runErr error) {
 	runner := commandRunner{
 		maxLogLineSize: h.config.MaxLogLineSize,
 		maxResultSize:  h.config.MaxResultSize,
-		sandbox:        h.config.Sandbox,
+		launcher:       h.launcher,
 	}
 	return runner.Run(task, workspace, prepared)
 }
@@ -93,7 +97,7 @@ func artifactRoots(task *executor.Context) ArtifactRoots {
 	for name, root := range roots.Named {
 		named[name] = root
 	}
-	return ArtifactRoots{System: roots.Default, Dependencies: roots.Dependencies, Named: named}
+	return ArtifactRoots{System: roots.Default, Named: named}
 }
 
 var _ executor.TaskHandler = (*Handler)(nil)

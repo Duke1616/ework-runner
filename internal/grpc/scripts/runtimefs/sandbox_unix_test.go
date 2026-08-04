@@ -18,12 +18,9 @@ func TestSandboxWorkspaceProjectsArtifactsWithoutCacheMutation(t *testing.T) {
 	require.NoError(t, os.Chmod(sourceFile, 0o444))
 
 	workspaceParent := t.TempDir()
-	factory, err := NewWorkspaceFactory(WorkspaceConfig{
-		Dir: filepath.Join(workspaceParent, "runs"),
-		Sandbox: engine.Sandbox{
-			Enabled: true, UID: uint32(os.Geteuid()), GID: uint32(os.Getegid()),
-		},
-	})
+	factory, err := NewWorkspaceFactory(
+		WorkspaceConfig{Dir: filepath.Join(workspaceParent, "runs")}, isolatedTestAccess(t),
+	)
 	require.NoError(t, err)
 	workspace, err := factory.Create(engine.WorkspaceOptions{
 		ExecutionID: 1, Extension: ".sh", Code: []byte("echo ok\n"),
@@ -50,62 +47,45 @@ func TestSandboxWorkspaceProjectsArtifactsWithoutCacheMutation(t *testing.T) {
 	require.DirExists(t, filepath.Join(workspace.Root(), "tmp"))
 }
 
-func TestSandboxWorkspacePreservesDependencyLayouts(t *testing.T) {
-	tests := []struct {
-		name      string
-		artifacts func(t *testing.T) engine.ArtifactRoots
-	}{
-		{
-			name: "具名制品",
-			artifacts: func(t *testing.T) engine.ArtifactRoots {
-				return engine.ArtifactRoots{Named: map[string]string{
-					"ops_common": createPythonArtifact(t, "named"),
-				}}
-			},
-		},
-		{
-			name: "旧聚合依赖目录",
-			artifacts: func(t *testing.T) engine.ArtifactRoots {
-				return engine.ArtifactRoots{Dependencies: createTenantRoot(t, map[string]string{
-					"ops_common": createPythonArtifact(t, "legacy"),
-				})}
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			factory, err := NewWorkspaceFactory(WorkspaceConfig{
-				Dir: filepath.Join(t.TempDir(), "runs"),
-				Sandbox: engine.Sandbox{
-					Enabled: true, UID: uint32(os.Geteuid()), GID: uint32(os.Getegid()),
-				},
-			})
-			require.NoError(t, err)
-			workspace, err := factory.Create(engine.WorkspaceOptions{
-				ExecutionID: 1, Extension: ".py", Code: []byte("print('ok')\n"), Artifacts: tt.artifacts(t),
-			})
-			require.NoError(t, err)
-			defer func() { require.NoError(t, workspace.Close()) }()
-			require.FileExists(t, filepath.Join(
-				workspace.Root(), "dependencies", "python", "ops_common", "private", "util.py",
-			))
-		})
-	}
+func TestSandboxWorkspacePreservesNamedArtifactLayout(t *testing.T) {
+	factory, err := NewWorkspaceFactory(
+		WorkspaceConfig{Dir: filepath.Join(t.TempDir(), "runs")}, isolatedTestAccess(t),
+	)
+	require.NoError(t, err)
+	workspace, err := factory.Create(engine.WorkspaceOptions{
+		ExecutionID: 1, Extension: ".py", Code: []byte("print('ok')\n"),
+		Artifacts: engine.ArtifactRoots{Named: map[string]string{
+			"ops_common": createPythonArtifact(t, "named"),
+		}},
+	})
+	require.NoError(t, err)
+	defer func() { require.NoError(t, workspace.Close()) }()
+	require.FileExists(t, filepath.Join(
+		workspace.Root(), "dependencies", "python", "ops_common", "private", "util.py",
+	))
 }
 
 func TestSandboxWorkspaceRejectsArtifactSymlinkCycle(t *testing.T) {
 	source := t.TempDir()
 	require.NoError(t, os.Symlink(source, filepath.Join(source, "cycle")))
-	factory, err := NewWorkspaceFactory(WorkspaceConfig{
-		Dir: filepath.Join(t.TempDir(), "runs"),
-		Sandbox: engine.Sandbox{
-			Enabled: true, UID: uint32(os.Geteuid()), GID: uint32(os.Getegid()),
-		},
-	})
+	factory, err := NewWorkspaceFactory(
+		WorkspaceConfig{Dir: filepath.Join(t.TempDir(), "runs")}, isolatedTestAccess(t),
+	)
 	require.NoError(t, err)
 	_, err = factory.Create(engine.WorkspaceOptions{
 		ExecutionID: 1, Extension: ".sh", Code: []byte("echo ok\n"),
 		Artifacts: engine.ArtifactRoots{System: source},
 	})
 	require.ErrorContains(t, err, "循环链接")
+}
+
+func isolatedTestAccess(t *testing.T) WorkspaceAccess {
+	t.Helper()
+	uid, gid := uint32(os.Geteuid()), uint32(os.Getegid())
+	if uid == 0 {
+		uid, gid = 65534, 65534
+	}
+	access, err := NewIsolatedWorkspaceAccess(uid, gid)
+	require.NoError(t, err)
+	return access
 }
