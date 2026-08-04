@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/Duke1616/etask/internal/domain"
@@ -61,6 +62,20 @@ func TestCodecRejectsInvalidFiles(t *testing.T) {
 			require.ErrorContains(t, err, tt.text)
 		})
 	}
+}
+
+func TestCodecExtractsWorldReadableImmutableFiles(t *testing.T) {
+	codec := New(t.TempDir())
+	packed, err := codec.Pack([]domain.ArtifactFile{{Path: "common.sh", Code: "echo ok\n"}})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.Remove(packed.Path) })
+	target := t.TempDir()
+	require.NoError(t, codec.Extract(packed.Path, target, Metadata{
+		Digest: packed.Digest, Format: packed.Format, FormatVersion: packed.FormatVersion,
+	}, ExtractLimits{MaxUnpackedSize: 1 << 20, MaxFileCount: 10}))
+	info, err := os.Stat(filepath.Join(target, "common.sh"))
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o444), info.Mode().Perm())
 }
 
 func readArtifact(t *testing.T, filePath string) ([]string, Manifest) {

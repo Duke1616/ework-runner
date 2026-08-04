@@ -5,6 +5,11 @@ runtime:
   workspace_dir: "/tmp/etask/runs"
   # 历史工作目录保留时间
   workspace_max_age: 24h
+  # root 运行时自动将脚本降权；required 可用于强制生产节点校验。
+  sandbox:
+    mode: auto
+    uid: 65534
+    gid: 65534
   # 脚本代码最大限制
   max_code_size: "4MB"
   # 脚本入参最大限制

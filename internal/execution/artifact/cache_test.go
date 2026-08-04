@@ -116,6 +116,7 @@ func TestArtifactCacheEnsureRejectsMissingClient(t *testing.T) {
 
 func TestArtifactCachePrunesOldLayers(t *testing.T) {
 	root := t.TempDir()
+	require.NoError(t, os.Chmod(root, 0o755))
 	cache := newArtifactCache(Config{Dir: root, MaxCacheSize: 9})
 	layersDir := filepath.Join(root, "layers")
 	oldLayer := filepath.Join(layersDir, "old")
@@ -129,7 +130,10 @@ func TestArtifactCachePrunesOldLayers(t *testing.T) {
 	require.NoError(t, os.Chtimes(filepath.Join(oldLayer, ".ready"), oldTime, oldTime))
 
 	require.NoError(t, cache.Prune())
-	_, err := os.Stat(oldLayer)
+	rootInfo, err := os.Stat(root)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o750), rootInfo.Mode().Perm())
+	_, err = os.Stat(oldLayer)
 	require.ErrorIs(t, err, os.ErrNotExist)
 	_, err = os.Stat(newLayer)
 	require.NoError(t, err)

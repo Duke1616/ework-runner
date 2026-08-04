@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/Duke1616/etask/internal/grpc/scripts/engine"
 )
@@ -27,17 +28,49 @@ func (f *WorkspaceFactory) Create(options engine.WorkspaceOptions) (engine.Works
 	if err := os.MkdirAll(f.config.Dir, 0o750); err != nil {
 		return nil, fmt.Errorf("创建任务工作区根目录失败: %w", err)
 	}
+	if err := prepareWorkspaceRoot(f.config.Dir, f.config.Sandbox); err != nil {
+		return nil, fmt.Errorf("准备任务工作区根目录失败: %w", err)
+	}
 	root, err := os.MkdirTemp(f.config.Dir, fmt.Sprintf("%d-*", options.ExecutionID))
 	if err != nil {
 		return nil, fmt.Errorf("创建任务工作区失败: %w", err)
 	}
-	ws := &workspace{root: root}
+	ws := &workspace{root: root, sandbox: f.config.Sandbox}
+	if err = ws.setTaskOwner(root); err != nil {
+		_ = ws.Close()
+		return nil, fmt.Errorf("设置任务工作区属主失败: %w", err)
+	}
 	// prepare 任一步失败都删除本次临时目录，避免留下不可识别的半成品。
 	if err = ws.prepare(options); err != nil {
 		_ = ws.Close()
 		return nil, err
 	}
 	return ws, nil
+}
+
+func prepareWorkspaceRoot(root string, sandbox engine.Sandbox) error {
+	if !sandbox.Enabled {
+		return nil
+	}
+	parent := filepath.Dir(root)
+	parentInfo, err := os.Stat(parent)
+	if err != nil {
+		return err
+	}
+	// 仅在父目录没有 other execute 时授予沙箱组穿越权限，不开放目录枚举。
+	if parentInfo.Mode().Perm()&0o001 == 0 {
+		if err = os.Chown(parent, -1, int(sandbox.GID)); err != nil {
+			return err
+		}
+		parentMode := (parentInfo.Mode().Perm() &^ 0o070) | 0o010
+		if err = os.Chmod(parent, parentMode); err != nil {
+			return err
+		}
+	}
+	if err = os.Chown(root, -1, int(sandbox.GID)); err != nil {
+		return err
+	}
+	return os.Chmod(root, 0o710)
 }
 
 // Prune 清理过期工作区。
@@ -47,6 +80,12 @@ func (f *WorkspaceFactory) Prune() error {
 
 // Validate 校验工作区目录可写。
 func (f *WorkspaceFactory) Validate() error {
+	if err := os.MkdirAll(f.config.Dir, 0o750); err != nil {
+		return err
+	}
+	if err := prepareWorkspaceRoot(f.config.Dir, f.config.Sandbox); err != nil {
+		return err
+	}
 	return ValidateDirectory(f.config.Dir)
 }
 
@@ -55,6 +94,7 @@ type workspace struct {
 	codeFile    string
 	artifacts   engine.ArtifactRoots
 	environment []string
+	sandbox     engine.Sandbox
 }
 
 func (w *workspace) prepare(options engine.WorkspaceOptions) error {
@@ -67,7 +107,7 @@ func (w *workspace) prepare(options engine.WorkspaceOptions) error {
 		}
 		w.artifacts.System = mounted
 		modules := filepath.Join(w.root, ".etask_modules")
-		if err = os.MkdirAll(modules, 0o750); err != nil {
+		if err = w.mkdirTask(modules, 0o750); err != nil {
 			return fmt.Errorf("创建 Python 制品命名空间失败: %w", err)
 		}
 		// 显式 python 目录用于纯 Python 制品；混合语言 SYSTEM 制品则将根目录映射到 etask。
@@ -102,19 +142,27 @@ func (w *workspace) prepare(options engine.WorkspaceOptions) error {
 	if err := os.WriteFile(w.codeFile, options.Code, 0o700); err != nil {
 		return fmt.Errorf("写入任务脚本失败: %w", err)
 	}
-	w.environment = buildEnvironment(w.artifacts, w.root)
+	if err := w.setTaskOwner(w.codeFile); err != nil {
+		return fmt.Errorf("设置任务脚本属主失败: %w", err)
+	}
+	if w.sandbox.Enabled {
+		if err := w.mkdirTask(filepath.Join(w.root, "tmp"), 0o700); err != nil {
+			return fmt.Errorf("创建任务临时目录失败: %w", err)
+		}
+	}
+	w.environment = buildEnvironment(w.artifacts, w.root, w.sandbox.Enabled)
 	return nil
 }
 
 func (w *workspace) mount(name, source string) (string, error) {
 	target := filepath.Join(w.root, name)
-	return mountDirectory(name, source, target)
+	return w.mountDirectory(name, source, target)
 }
 
 func (w *workspace) mountNamedDependencies(layers map[string]string) (string, error) {
 	root := filepath.Join(w.root, "dependencies")
 	pythonRoot := filepath.Join(root, "python")
-	if err := os.MkdirAll(pythonRoot, 0o750); err != nil {
+	if err := w.mkdirTask(pythonRoot, 0o750); err != nil {
 		return "", fmt.Errorf("创建制品依赖目录失败: %w", err)
 	}
 	names := make([]string, 0, len(layers))
@@ -126,7 +174,7 @@ func (w *workspace) mountNamedDependencies(layers map[string]string) (string, er
 		if err := validateDependencyName(name); err != nil {
 			return "", err
 		}
-		mounted, err := mountDirectory(name, layers[name], filepath.Join(root, name))
+		mounted, err := w.mountDirectory(name, layers[name], filepath.Join(root, name))
 		if err != nil {
 			return "", err
 		}
@@ -147,7 +195,7 @@ func (w *workspace) mountNamedDependencies(layers map[string]string) (string, er
 	return root, nil
 }
 
-func mountDirectory(name, source, target string) (string, error) {
+func (w *workspace) mountDirectory(name, source, target string) (string, error) {
 	absolute, err := filepath.Abs(source)
 	if err != nil {
 		return "", fmt.Errorf("解析 %s 制品目录失败: %w", name, err)
@@ -159,7 +207,11 @@ func mountDirectory(name, source, target string) (string, error) {
 	if !info.IsDir() {
 		return "", fmt.Errorf("%s 制品路径不是目录: %s", name, absolute)
 	}
-	if err = os.Symlink(absolute, target); err != nil {
+	if w.sandbox.Enabled {
+		if err = projectDirectory(absolute, target, w.sandbox); err != nil {
+			return "", fmt.Errorf("投影 %s 制品失败: %w", name, err)
+		}
+	} else if err = os.Symlink(absolute, target); err != nil {
 		return "", fmt.Errorf("挂载 %s 制品失败: %w", name, err)
 	}
 	return target, nil
@@ -192,7 +244,44 @@ func (w *workspace) WriteFile(name string, content []byte, mode os.FileMode) (st
 	if err := os.WriteFile(path, content, mode); err != nil {
 		return "", err
 	}
+	if err := w.setTaskOwner(path); err != nil {
+		return "", err
+	}
 	return path, nil
+}
+
+func (w *workspace) mkdirTask(path string, mode os.FileMode) error {
+	if err := os.MkdirAll(path, mode); err != nil {
+		return err
+	}
+	if !w.sandbox.Enabled {
+		return nil
+	}
+	relative, err := filepath.Rel(w.root, path)
+	if err != nil || relative == ".." || filepath.IsAbs(relative) {
+		return fmt.Errorf("任务目录超出工作区: %s", path)
+	}
+	current := w.root
+	if err = w.setTaskOwner(current); err != nil {
+		return err
+	}
+	if relative == "." {
+		return nil
+	}
+	for _, part := range strings.Split(relative, string(filepath.Separator)) {
+		current = filepath.Join(current, part)
+		if err = w.setTaskOwner(current); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (w *workspace) setTaskOwner(path string) error {
+	if !w.sandbox.Enabled {
+		return nil
+	}
+	return os.Chown(path, int(w.sandbox.UID), int(w.sandbox.GID))
 }
 
 func (w *workspace) Close() error {

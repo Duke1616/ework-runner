@@ -13,8 +13,8 @@ import (
 	"github.com/gotomicro/ego/core/elog"
 )
 
-// TaskLogger 任务日志记录器接口
-type TaskLogger interface {
+// Logger 任务日志记录器接口
+type Logger interface {
 	// Log 记录一条支持格式化参数的任务日志。
 	Log(format string, args ...any)
 	// Close 刷新剩余日志并释放后台资源。
@@ -22,11 +22,11 @@ type TaskLogger interface {
 }
 
 type maskingTaskLogger struct {
-	next  TaskLogger
+	next  Logger
 	masks []string
 }
 
-func newMaskingTaskLogger(next TaskLogger, masks []string) TaskLogger {
+func newMaskingTaskLogger(next Logger, masks []string) Logger {
 	if len(masks) == 0 {
 		return next
 	}
@@ -65,7 +65,7 @@ func (s *grpcLogSink) WriteBatch(ctx context.Context, logs []string) error {
 }
 
 func newTaskLogger(ctx context.Context, executionID int64,
-	reporter reporterv1.ReporterServiceClient, sysLogger *elog.Component) TaskLogger {
+	reporter reporterv1.ReporterServiceClient, sysLogger *elog.Component) Logger {
 	return tasklog.New(ctx, &grpcLogSink{executionID: executionID, reporter: reporter}, tasklog.Options{
 		OnError: func(err error) {
 			if sysLogger != nil {

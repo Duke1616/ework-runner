@@ -29,7 +29,7 @@ type ContextOptions struct {
 	Parameters []Parameter
 	Reporter   reporterv1.ReporterServiceClient
 	Logger     *elog.Component
-	TaskLogger TaskLogger
+	TaskLogger Logger
 }
 
 // Context 向任务处理器提供参数、日志、结果和制品运行目录。
@@ -45,7 +45,7 @@ type Context struct {
 	resLock sync.RWMutex
 
 	logger     *elog.Component
-	taskLogger TaskLogger
+	taskLogger Logger
 }
 
 // NewContext 创建拥有独立参数快照的任务上下文。
@@ -113,8 +113,8 @@ func (c *Context) Params() map[string]string {
 	return maps.Clone(c.params)
 }
 
-// TaskLogger 返回当前任务日志实现，供共享执行引擎复用。
-func (c *Context) TaskLogger() TaskLogger {
+// Logger 返回当前任务日志实现，供共享执行引擎复用。
+func (c *Context) TaskLogger() Logger {
 	return c.taskLogger
 }
 

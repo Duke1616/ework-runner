@@ -47,6 +47,11 @@ func (l cacheLayout) ensure() error {
 	if err := os.MkdirAll(l.layersDir(), 0o750); err != nil {
 		return fmt.Errorf("创建制品缓存层目录失败: %w", err)
 	}
+	for _, dir := range []string{l.root, l.tempDir(), l.layersDir()} {
+		if err := os.Chmod(dir, 0o750); err != nil {
+			return fmt.Errorf("收紧制品缓存目录权限失败: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -79,6 +84,9 @@ func newArtifactCache(cfg Config) *artifactCache {
 }
 
 func (c *artifactCache) Prune() error {
+	if err := c.layout.ensure(); err != nil {
+		return err
+	}
 	return pruneCache(c.layout.root, c.cfg.MaxCacheSize)
 }
 
@@ -110,13 +118,13 @@ func (c *artifactCache) Ensure(ctx context.Context, client artifactv1.ArtifactSe
 
 func (c *artifactCache) ensureOnce(ctx context.Context, client artifactv1.ArtifactServiceClient,
 	ref layerRef) (string, error) {
+	if err := c.layout.ensure(); err != nil {
+		return "", err
+	}
 	targetDir := c.layout.layerDir(ref)
 	if readyArtifact(targetDir, ref) {
 		touchArtifact(targetDir)
 		return targetDir, nil
-	}
-	if err := c.layout.ensure(); err != nil {
-		return "", err
 	}
 	return c.materialize(ctx, client, ref, targetDir)
 }

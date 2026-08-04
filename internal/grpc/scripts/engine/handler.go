@@ -82,6 +82,7 @@ func (h *Handler) Run(task *executor.Context) (runErr error) {
 	runner := commandRunner{
 		maxLogLineSize: h.config.MaxLogLineSize,
 		maxResultSize:  h.config.MaxResultSize,
+		sandbox:        h.config.Sandbox,
 	}
 	return runner.Run(task, workspace, prepared)
 }

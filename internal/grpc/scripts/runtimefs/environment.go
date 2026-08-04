@@ -8,7 +8,7 @@ import (
 	"github.com/Duke1616/etask/internal/grpc/scripts/engine"
 )
 
-func buildEnvironment(roots engine.ArtifactRoots, workspace string) []string {
+func buildEnvironment(roots engine.ArtifactRoots, workspace string, sandbox bool) []string {
 	// 运行时变量覆盖宿主机同名值，保证脚本协议和结果通道稳定。
 	overrides := []string{
 		"FORCE_COLOR=1",
@@ -16,6 +16,13 @@ func buildEnvironment(roots engine.ArtifactRoots, workspace string) []string {
 		"PYTHONUNBUFFERED=1",
 		"EWORK_RESULT_FD=3",
 		"ETASK_WORKSPACE_ROOT=" + workspace,
+	}
+	if sandbox {
+		overrides = append(overrides,
+			"HOME="+workspace,
+			"TMPDIR="+filepath.Join(workspace, "tmp"),
+			"PYTHONDONTWRITEBYTECODE=1",
+		)
 	}
 	if roots.System != "" {
 		overrides = append(overrides, "ETASK_SYSTEM_ROOT="+roots.System)

@@ -8,6 +8,13 @@ import (
 	"github.com/Duke1616/etask/sdk/executor"
 )
 
+// Sandbox 描述脚本子进程使用的非特权身份。
+type Sandbox struct {
+	Enabled bool
+	UID     uint32
+	GID     uint32
+}
+
 // ArtifactRoots 描述脚本运行时使用的系统制品层和租户依赖层目录。
 type ArtifactRoots struct {
 	System       string

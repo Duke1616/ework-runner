@@ -23,7 +23,7 @@ type Command struct {
 	Artifacts      []*artifactv1.ArtifactRef
 	ArtifactClient artifactv1.ArtifactServiceClient
 	Logger         *elog.Component
-	TaskLogger     task.TaskLogger
+	TaskLogger     task.Logger
 	Reporter       reporterv1.ReporterServiceClient
 }
 
@@ -74,7 +74,7 @@ func (e *Engine) Execute(ctx context.Context, command Command) (result Result, e
 		}
 	}()
 
-	// 制品目录按任务临时组合，Handler 返回后无论成功失败都必须清理聚合层。
+	// 准备器返回本次任务固定的制品根；Close 兼容需要任务级现场的旧实现。
 	prepared, err := e.prepareArtifacts(command)
 	if err != nil {
 		return Result{}, err

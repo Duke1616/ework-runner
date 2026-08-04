@@ -94,4 +94,4 @@ type contextLoggerStub struct{}
 func (*contextLoggerStub) Log(string, ...any) {}
 func (*contextLoggerStub) Close()             {}
 
-var _ TaskLogger = (*contextLoggerStub)(nil)
+var _ Logger = (*contextLoggerStub)(nil)

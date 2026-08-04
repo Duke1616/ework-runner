@@ -51,8 +51,12 @@ func writeCacheMarker(dir string, marker cacheMarker) error {
 	if err != nil {
 		return fmt.Errorf("序列化制品缓存标记失败: %w", err)
 	}
-	if err = os.WriteFile(filepath.Join(dir, ".ready"), data, 0o440); err != nil {
+	path := filepath.Join(dir, ".ready")
+	if err = os.WriteFile(path, data, 0o444); err != nil {
 		return fmt.Errorf("写入制品缓存标记失败: %w", err)
+	}
+	if err = os.Chmod(path, 0o444); err != nil {
+		return fmt.Errorf("设置制品缓存标记权限失败: %w", err)
 	}
 	return nil
 }

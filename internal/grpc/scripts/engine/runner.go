@@ -17,6 +17,7 @@ import (
 type commandRunner struct {
 	maxLogLineSize int
 	maxResultSize  int64
+	sandbox        Sandbox
 }
 
 func (r commandRunner) Run(task *executor.Context, workspace Workspace, prepared PreparedCommand) error {
@@ -26,6 +27,9 @@ func (r commandRunner) Run(task *executor.Context, workspace Workspace, prepared
 	}
 	command.Dir = workspace.Root()
 	command.Env = MergeEnvironment(workspace.Environment(), prepared.Environment)
+	if err := configureCommandSandbox(command, r.sandbox); err != nil {
+		return err
+	}
 
 	// 子进程通过额外文件描述符 3 输出结构化 JSON，避免与普通日志混在 stdout。
 	resultReader, resultWriter, err := os.Pipe()

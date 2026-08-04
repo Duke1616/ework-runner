@@ -82,7 +82,7 @@ func extractFile(reader io.Reader, path string, size int64) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return fmt.Errorf("创建制品父目录失败: %w", err)
 	}
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o440)
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o444)
 	if err != nil {
 		return fmt.Errorf("创建制品文件失败: %w", err)
 	}
@@ -93,6 +93,9 @@ func extractFile(reader io.Reader, path string, size int64) error {
 	}
 	if closeErr != nil {
 		return fmt.Errorf("关闭制品文件失败: %w", closeErr)
+	}
+	if err = os.Chmod(path, 0o444); err != nil {
+		return fmt.Errorf("设置制品文件只读权限失败: %w", err)
 	}
 	return nil
 }
