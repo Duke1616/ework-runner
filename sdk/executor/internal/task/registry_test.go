@@ -67,6 +67,18 @@ func TestHandlerRegistry(t *testing.T) {
 	}
 }
 
+func TestHandlerRegistryRejectsDuplicateAtomically(t *testing.T) {
+	registry := NewHandlerRegistry()
+	err := registry.RegisterChecked(handlerStub{name: "shell"}, handlerStub{name: "shell"})
+	require.ErrorContains(t, err, "名称重复")
+	require.Empty(t, registry.Names())
+
+	require.NoError(t, registry.RegisterChecked(handlerStub{name: "python"}))
+	err = registry.RegisterChecked(handlerStub{name: "shell"}, handlerStub{name: "python"})
+	require.ErrorContains(t, err, "名称重复")
+	require.Equal(t, []string{"python"}, registry.Names())
+}
+
 type handlerStub struct{ name string }
 
 func (h handlerStub) Name() string          { return h.name }

@@ -8,23 +8,20 @@ import (
 
 	artifactv1 "github.com/Duke1616/etask/api/proto/gen/etask/artifact/v1"
 	reporterv1 "github.com/Duke1616/etask/api/proto/gen/etask/reporter/v1"
-	"github.com/Duke1616/etask/sdk/executor/internal/artifactport"
+	"github.com/Duke1616/etask/sdk/executor/artifact"
 	"github.com/Duke1616/etask/sdk/executor/internal/task"
 	"github.com/gotomicro/ego/core/elog"
 )
 
 // Command 描述执行一次任务所需的全部进程内输入。
 type Command struct {
-	Context        context.Context
-	Task           task.TaskInfo
-	Params         map[string]string
-	Metadata       map[string]string
-	Parameters     []task.Parameter
-	Artifacts      []*artifactv1.ArtifactRef
-	ArtifactClient artifactv1.ArtifactServiceClient
-	Logger         *elog.Component
-	TaskLogger     task.Logger
-	Reporter       reporterv1.ReporterServiceClient
+	Context    context.Context
+	Task       task.TaskInfo
+	Params     map[string]string
+	Metadata   map[string]string
+	Parameters []task.Parameter
+	Artifacts  []*artifactv1.ArtifactRef
+	TaskLogger task.Logger
 }
 
 // Result 描述一次 Handler 执行产生的结构化结果。
@@ -34,13 +31,46 @@ type Result struct {
 
 // Engine 统一编排制品准备、Context 创建和 Handler 调用。
 type Engine struct {
-	handlers  *task.HandlerRegistry
-	artifacts artifactport.Preparer
+	handlers       *task.HandlerRegistry
+	artifacts      artifact.Preparer
+	artifactClient artifactv1.ArtifactServiceClient
+	reporter       reporterv1.ReporterServiceClient
+	progress       task.ProgressReporter
+	logger         *elog.Component
+}
+
+// Option 配置 Engine 生命周期内稳定持有的基础设施依赖。
+type Option func(*Engine)
+
+// WithArtifactClient 注入制品下载客户端。
+func WithArtifactClient(client artifactv1.ArtifactServiceClient) Option {
+	return func(engine *Engine) { engine.artifactClient = client }
+}
+
+// WithReporter 注入任务日志、进度和终态使用的上报客户端。
+func WithReporter(reporter reporterv1.ReporterServiceClient) Option {
+	return func(engine *Engine) { engine.reporter = reporter }
+}
+
+// WithProgressReporter 注入运行环境的进度状态端口。
+func WithProgressReporter(reporter task.ProgressReporter) Option {
+	return func(engine *Engine) { engine.progress = reporter }
+}
+
+// WithLogger 注入 Engine 和任务 Context 使用的系统日志器。
+func WithLogger(logger *elog.Component) Option {
+	return func(engine *Engine) { engine.logger = logger }
 }
 
 // New 创建进程内执行引擎。
-func New(handlers *task.HandlerRegistry, artifacts artifactport.Preparer) *Engine {
-	return &Engine{handlers: handlers, artifacts: artifacts}
+func New(handlers *task.HandlerRegistry, artifacts artifact.Preparer, options ...Option) *Engine {
+	engine := &Engine{handlers: handlers, artifacts: artifacts}
+	for _, option := range options {
+		if option != nil {
+			option(engine)
+		}
+	}
+	return engine
 }
 
 // Execute 准备任务运行现场并同步执行 Handler。
@@ -52,11 +82,19 @@ func (e *Engine) Execute(ctx context.Context, command Command) (result Result, e
 	if command.Context == nil {
 		command.Context = context.Background()
 	}
+	taskLogger := command.TaskLogger
+	if taskLogger == nil {
+		taskLogger = newTaskLogger(command.Context, command.Task.ExecutionID, e.reporter, e.logger)
+	}
+	progress := e.progress
+	if progress == nil && e.reporter != nil {
+		progress = grpcProgressReporter{client: e.reporter}
+	}
 	// 执行引擎持有任务日志器，并保证所有返回路径都会关闭它。
 	taskCtx := task.NewContext(task.ContextOptions{
 		Context: command.Context, Task: command.Task, Params: command.Params,
 		Metadata: command.Metadata, Parameters: command.Parameters,
-		Logger: command.Logger, TaskLogger: command.TaskLogger, Reporter: command.Reporter,
+		Logger: newSystemLogger(e.logger, command.Task), TaskLogger: taskLogger, Progress: progress,
 	})
 	defer taskCtx.Close()
 	if e.handlers == nil {
@@ -69,8 +107,8 @@ func (e *Engine) Execute(ctx context.Context, command Command) (result Result, e
 	// 执行引擎是扩展 Handler 的最后一道隔离边界，panic 时仍保留已产生的结果。
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			result.Value = taskCtx.ResultJSON()
-			err = fmt.Errorf("任务处理器发生 panic: %v", recovered)
+			result.Value, err = taskCtx.Result()
+			err = errors.Join(fmt.Errorf("任务处理器发生 panic: %v", recovered), err)
 		}
 	}()
 
@@ -89,9 +127,11 @@ func (e *Engine) Execute(ctx context.Context, command Command) (result Result, e
 	}
 	// Handler 只接触稳定的 Context，不感知下载、缓存和传输协议。
 	if err = handler.Run(taskCtx); err != nil {
-		return Result{Value: taskCtx.ResultJSON()}, err
+		value, resultErr := taskCtx.Result()
+		return Result{Value: value}, errors.Join(err, resultErr)
 	}
-	return Result{Value: taskCtx.ResultJSON()}, nil
+	value, err := taskCtx.Result()
+	return Result{Value: value}, err
 }
 
 // Prune 清理制品准备器维护的本地缓存。
@@ -102,14 +142,14 @@ func (e *Engine) Prune() error {
 	return e.artifacts.Prune()
 }
 
-func (e *Engine) prepareArtifacts(command Command) (artifactport.PreparedArtifacts, error) {
+func (e *Engine) prepareArtifacts(command Command) (artifact.PreparedArtifacts, error) {
 	if len(command.Artifacts) == 0 {
 		return nil, nil
 	}
 	if e.artifacts == nil {
 		return nil, fmt.Errorf("任务声明了制品，但执行引擎未配置制品准备器")
 	}
-	prepared, err := e.artifacts.Prepare(command.Context, command.ArtifactClient, command.Artifacts)
+	prepared, err := e.artifacts.Prepare(command.Context, e.artifactClient, command.Artifacts)
 	if err != nil {
 		return nil, fmt.Errorf("准备代码制品失败: %w", err)
 	}

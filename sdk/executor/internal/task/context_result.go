@@ -4,9 +4,8 @@ package task
 
 import (
 	"encoding/json"
+	"fmt"
 	"maps"
-
-	"github.com/gotomicro/ego/core/elog"
 )
 
 // AddResult 将一组字段合并到任务结果。
@@ -34,15 +33,24 @@ func (c *Context) SetResults(data map[string]any) {
 
 // ResultJSON 返回序列化后的任务结果；没有结果时返回空字符串。
 func (c *Context) ResultJSON() string {
+	value, err := c.Result()
+	if err != nil {
+		c.Logger().Error("序列化任务结果失败", "error", err)
+		return ""
+	}
+	return value
+}
+
+// Result 返回序列化后的任务结果，并将不可序列化值作为执行错误暴露给引擎。
+func (c *Context) Result() (string, error) {
 	c.resLock.RLock()
 	defer c.resLock.RUnlock()
 	if len(c.results) == 0 {
-		return ""
+		return "", nil
 	}
 	data, err := json.Marshal(c.results)
 	if err != nil {
-		c.Logger().Error("序列化任务结果失败", elog.FieldErr(err))
-		return ""
+		return "", fmt.Errorf("序列化任务结果失败: %w", err)
 	}
-	return string(data)
+	return string(data), nil
 }

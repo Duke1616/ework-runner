@@ -9,7 +9,7 @@ import (
 	"github.com/Duke1616/etask/internal/service/scheduler"
 	grpcpkg "github.com/Duke1616/etask/pkg/grpc"
 	"github.com/Duke1616/etask/pkg/grpc/registry"
-	"github.com/Duke1616/etask/sdk/executor"
+	"github.com/Duke1616/etask/sdk/executor/artifact"
 	"github.com/gotomicro/ego/server"
 	"github.com/gotomicro/ego/server/egin"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -36,7 +36,7 @@ type Base struct {
 
 // ExecutionRuntime 保存 Agent 和 Executor 共享的本地执行能力。
 type ExecutionRuntime struct {
-	ArtifactPreparer executor.ArtifactPreparer
+	ArtifactPreparer artifact.Preparer
 	ScriptRuntime    *scripts.Runtime
 }
 

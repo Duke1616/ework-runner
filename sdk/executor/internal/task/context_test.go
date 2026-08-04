@@ -89,9 +89,41 @@ func TestContext(t *testing.T) {
 	}
 }
 
+func TestContextReportProgress(t *testing.T) {
+	reporter := &progressReporterStub{}
+	ctx := NewContext(ContextOptions{
+		Context:  t.Context(),
+		Task:     TaskInfo{ExecutionID: 10, TaskID: 20, Name: "task", ExecutorNodeID: "node-1"},
+		Progress: reporter, TaskLogger: &contextLoggerStub{},
+	})
+	require.NoError(t, ctx.ReportProgress(120))
+	require.Equal(t, int32(100), reporter.progress)
+	require.Equal(t, int64(10), reporter.task.ExecutionID)
+}
+
+func TestContextResultRejectsUnsupportedValue(t *testing.T) {
+	ctx := NewContext(ContextOptions{TaskLogger: &contextLoggerStub{}})
+	ctx.SetResult("invalid", func() {})
+	_, err := ctx.Result()
+	require.ErrorContains(t, err, "序列化任务结果失败")
+}
+
 type contextLoggerStub struct{}
 
 func (*contextLoggerStub) Log(string, ...any) {}
 func (*contextLoggerStub) Close()             {}
 
 var _ Logger = (*contextLoggerStub)(nil)
+
+type progressReporterStub struct {
+	task     TaskInfo
+	progress int32
+}
+
+func (r *progressReporterStub) ReportProgress(_ context.Context, task TaskInfo, progress int32) error {
+	r.task = task
+	r.progress = progress
+	return nil
+}
+
+var _ ProgressReporter = (*progressReporterStub)(nil)

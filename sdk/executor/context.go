@@ -1,9 +1,6 @@
 package executor
 
-import (
-	"github.com/Duke1616/etask/sdk/executor/internal/artifactport"
-	"github.com/Duke1616/etask/sdk/executor/internal/task"
-)
+import "github.com/Duke1616/etask/sdk/executor/internal/task"
 
 type (
 	// TaskInfo 描述一次任务执行的只读身份信息。
@@ -14,12 +11,12 @@ type (
 	Context = task.Context
 	// TaskLogger 定义任务日志写入和关闭行为。
 	TaskLogger = task.Logger
+	// SystemLogger 定义 Handler 可选的结构化系统日志端口。
+	SystemLogger = task.SystemLogger
 	// ArtifactRoots 描述 Executor 为任务准备的默认层和具名层。
 	ArtifactRoots = task.ArtifactRoots
-	// PreparedArtifacts 是一次任务使用的固定制品视图。
-	PreparedArtifacts = artifactport.PreparedArtifacts
-	// ArtifactPreparer 定义 Executor 可选的制品本地物化能力。
-	ArtifactPreparer = artifactport.Preparer
+	// ProgressReporter 定义任务进度的运行环境上报能力。
+	ProgressReporter = task.ProgressReporter
 )
 
 // NewContext 创建任务处理器上下文。

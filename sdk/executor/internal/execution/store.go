@@ -42,13 +42,29 @@ func (s *Store) Begin(state *executorv1.ExecutionState, cancel context.CancelCau
 	// 新执行进入时顺便回收过期终态，避免额外常驻清理协程。
 	s.cleanupLocked(time.Now())
 	if current, exists := s.entries[state.GetId()]; exists {
-		if current.state.GetStatus() == executorv1.ExecutionStatus_CANCELLED || current.completedAt.IsZero() {
+		status := current.state.GetStatus()
+		if current.completedAt.IsZero() ||
+			(status != executorv1.ExecutionStatus_FAILED_RETRYABLE &&
+				status != executorv1.ExecutionStatus_FAILED_RESCHEDULABLE) {
 			return clone(current.state), false
 		}
 	}
 	stored := clone(state)
 	s.entries[state.GetId()] = entry{state: stored, cancel: cancel}
 	return clone(stored), true
+}
+
+// Progress 更新运行中任务的本地进度并返回状态副本。
+func (s *Store) Progress(id int64, progress int32) (*executorv1.ExecutionState, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current, exists := s.entries[id]
+	if !exists || current.state.GetStatus() != executorv1.ExecutionStatus_RUNNING {
+		return nil, false
+	}
+	current.state.RunningProgress = progress
+	s.entries[id] = current
+	return clone(current.state), true
 }
 
 // Finish 将执行更新为终态并释放取消函数。
@@ -97,6 +113,21 @@ func (s *Store) Cancel(id int64) (*executorv1.ExecutionState, bool) {
 	s.mu.RUnlock()
 	cancel(ErrInterrupted)
 	return state, true
+}
+
+// CancelAll 在锁外取消当前仍在运行的全部执行。
+func (s *Store) CancelAll(cause error) {
+	s.mu.RLock()
+	cancels := make([]context.CancelCauseFunc, 0, len(s.entries))
+	for _, current := range s.entries {
+		if current.cancel != nil {
+			cancels = append(cancels, current.cancel)
+		}
+	}
+	s.mu.RUnlock()
+	for _, cancel := range cancels {
+		cancel(cause)
+	}
 }
 
 // Terminate 将本地状态立即置为 CANCELLED，并取消正在运行的 Handler。

@@ -7,17 +7,29 @@ import (
 	"encoding/json"
 	"maps"
 	"sync"
-
-	reporterv1 "github.com/Duke1616/etask/api/proto/gen/etask/reporter/v1"
-	"github.com/gotomicro/ego/core/elog"
 )
 
 // TaskInfo 描述一次任务执行的只读身份信息。
 type TaskInfo struct {
-	ExecutionID int64
-	TaskID      int64
-	Name        string
-	Handler     string
+	ExecutionID    int64
+	TaskID         int64
+	Name           string
+	Handler        string
+	ExecutorNodeID string
+}
+
+// ProgressReporter 将任务进度交给具体运行环境持久化和传播。
+type ProgressReporter interface {
+	ReportProgress(ctx context.Context, task TaskInfo, progress int32) error
+}
+
+// SystemLogger 提供 Handler 可选的结构化系统日志能力。
+// fields 支持 key/value 对，运行时也可适配自身的字段类型。
+type SystemLogger interface {
+	Debug(message string, fields ...any)
+	Info(message string, fields ...any)
+	Warn(message string, fields ...any)
+	Error(message string, fields ...any)
 }
 
 // ContextOptions 描述创建任务上下文所需的依赖和输入。
@@ -27,8 +39,8 @@ type ContextOptions struct {
 	Params     map[string]string
 	Metadata   map[string]string
 	Parameters []Parameter
-	Reporter   reporterv1.ReporterServiceClient
-	Logger     *elog.Component
+	Progress   ProgressReporter
+	Logger     SystemLogger
 	TaskLogger Logger
 }
 
@@ -44,8 +56,9 @@ type Context struct {
 	results map[string]any
 	resLock sync.RWMutex
 
-	logger     *elog.Component
+	logger     SystemLogger
 	taskLogger Logger
+	progress   ProgressReporter
 }
 
 // NewContext 创建拥有独立参数快照的任务上下文。
@@ -57,7 +70,7 @@ func NewContext(options ContextOptions) *Context {
 	}
 	logger := options.Logger
 	if logger == nil {
-		logger = elog.DefaultLogger
+		logger = noopSystemLogger{}
 	}
 	params := maps.Clone(options.Params)
 	if params == nil {
@@ -74,12 +87,13 @@ func NewContext(options ContextOptions) *Context {
 	// 日志缓冲和传输由具体实现负责，敏感变量统一在最外层脱敏。
 	taskLogger := options.TaskLogger
 	if taskLogger == nil {
-		taskLogger = newTaskLogger(ctx, options.Task.ExecutionID, options.Reporter, logger)
+		taskLogger = noopTaskLogger{}
 	}
 	taskLogger = newMaskingTaskLogger(taskLogger, secretMasks(params))
 	return &Context{
 		ctx: ctx, task: options.Task, params: params, metadata: metadata, parameters: parameters,
 		results: make(map[string]any), logger: logger, taskLogger: taskLogger,
+		progress: options.Progress,
 	}
 }
 
@@ -171,18 +185,15 @@ func (c *Context) Log(format string, args ...any) {
 // ReportProgress 记录规范化到 0 到 100 的任务进度。
 func (c *Context) ReportProgress(progress int) error {
 	progress = max(0, min(progress, 100))
-	c.Logger().Debug("进度上报", elog.Int("progress", progress))
-	return nil
+	if c.progress == nil {
+		c.Logger().Debug("任务未配置进度上报器", "progress", progress)
+		return nil
+	}
+	return c.progress.ReportProgress(c.ctx, c.task, int32(progress))
 }
 
 // Logger 返回包含任务身份字段的系统日志组件。
-func (c *Context) Logger() *elog.Component {
-	return c.logger.With(
-		elog.Int64("executionID", c.task.ExecutionID),
-		elog.Int64("taskID", c.task.TaskID),
-		elog.String("taskName", c.task.Name),
-	)
-}
+func (c *Context) Logger() SystemLogger { return c.logger }
 
 // Close 刷新任务日志并释放上下文资源。
 func (c *Context) Close() {

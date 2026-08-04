@@ -12,6 +12,7 @@ import (
 	servicemocks "github.com/Duke1616/etask/internal/agent/service/mocks"
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/sdk/executor"
+	"github.com/Duke1616/etask/sdk/executor/artifact"
 	"go.uber.org/mock/gomock"
 )
 
@@ -245,7 +246,7 @@ type servicePreparerFake struct {
 
 func (p *servicePreparerFake) Prune() error { return nil }
 func (p *servicePreparerFake) Prepare(context.Context, artifactv1.ArtifactServiceClient,
-	[]*artifactv1.ArtifactRef) (executor.PreparedArtifacts, error) {
+	[]*artifactv1.ArtifactRef) (artifact.PreparedArtifacts, error) {
 	p.prepares.Add(1)
 	return p.prepared, nil
 }

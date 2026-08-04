@@ -5,7 +5,7 @@ package ioc
 
 import (
 	"github.com/Duke1616/etask/internal/agent"
-	"github.com/Duke1616/etask/sdk/executor"
+	"github.com/Duke1616/etask/sdk/executor/node"
 	"github.com/google/wire"
 )
 
@@ -54,7 +54,7 @@ func InitSchedulerApplication(base *Base) *SchedulerApplication {
 }
 
 // InitExecutorModule 构造原生 Executor 模块。
-func InitExecutorModule(base *Base, runtime *ExecutionRuntime) *executor.Executor {
+func InitExecutorModule(base *Base, runtime *ExecutionRuntime) *node.Executor {
 	wire.Build(
 		InitExecutor,
 		wire.FieldsOf(new(*Base), "Etcd"),

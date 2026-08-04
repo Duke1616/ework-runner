@@ -8,6 +8,7 @@ import (
 
 	grpcpkg "github.com/Duke1616/etask/pkg/grpc"
 	"github.com/Duke1616/etask/pkg/grpc/registry"
+	"github.com/Duke1616/etask/sdk/executor/internal/task"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,6 +47,26 @@ func TestNormalizeConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestExecutorRejectsInvalidOrLateHandlerRegistration(t *testing.T) {
+	executor, err := NewExecutor(Config{Server: validServerConfig()}, registryStub{})
+	require.NoError(t, err)
+	require.Error(t, executor.RegisterHandlers(nil))
+	require.Error(t, executor.registrationErr)
+
+	valid, err := NewExecutor(Config{Server: validServerConfig()}, registryStub{})
+	require.NoError(t, err)
+	require.NoError(t, valid.RegisterHandlers(runtimeHandlerStub{name: "shell"}))
+	valid.initialized = true
+	require.ErrorContains(t, valid.RegisterHandlers(runtimeHandlerStub{name: "python"}), "已初始化")
+}
+
+type runtimeHandlerStub struct{ name string }
+
+func (h runtimeHandlerStub) Name() string             { return h.name }
+func (h runtimeHandlerStub) Desc() string             { return h.name }
+func (runtimeHandlerStub) Metadata() []task.Parameter { return nil }
+func (runtimeHandlerStub) Run(*task.Context) error    { return nil }
 
 func validServerConfig() grpcpkg.ServerConfig {
 	return grpcpkg.ServerConfig{ServiceId: "node-1", ServiceName: "executor", ListenAddr: "127.0.0.1:0"}

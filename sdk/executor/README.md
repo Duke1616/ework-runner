@@ -1,15 +1,26 @@
 # Executor SDK
 
-Executor SDK 将任务处理器 API 与 gRPC、制品缓存、执行状态等基础设施隔离。业务处理器只依赖 `TaskHandler` 和 `Context`。
+Executor SDK 将稳定的 Handler 契约与可选运行时分开：
 
-Shell/Python 处理器支持的运行时环境变量、Runner 变量读取方式和制品路径约定见 [`internal/grpc/scripts/README.md`](../../internal/grpc/scripts/README.md)。
+- `sdk/executor`：Handler、Context 和参数契约。
+- `sdk/executor/node`：标准 gRPC Executor 节点，包含 EGO、Registry、PUSH/PULL 和生命周期。
+- `sdk/executor/engine`：Kafka 等自定义传输使用的进程内执行管线。
+- `sdk/executor/artifact`：Node 和 Engine 可选的制品物化契约。
 
-## 定义处理器
+Shell/Python 处理器支持的环境变量、Runner 变量和制品路径约定见 [`internal/grpc/scripts/README.md`](../../internal/grpc/scripts/README.md)。
+
+## 定义 Handler
+
+Handler 只导入轻量根包：
 
 ```go
 package handler
 
-import "github.com/Duke1616/etask/sdk/executor"
+import (
+    "fmt"
+
+    "github.com/Duke1616/etask/sdk/executor"
+)
 
 type SyncHandler struct{}
 
@@ -18,50 +29,91 @@ func (SyncHandler) Desc() string { return "同步业务数据" }
 func (SyncHandler) Metadata() []executor.Parameter { return nil }
 
 func (SyncHandler) Run(ctx *executor.Context) error {
-    action := ctx.Param("action")
-    if action == "sync_db" {
-        return db.Exec(ctx.Param("sql"))
+    if ctx.Param("action") != "sync_db" {
+        return fmt.Errorf("不支持的操作: %s", ctx.Param("action"))
     }
-    return fmt.Errorf("不支持的操作: %s", action)
+    ctx.Log("开始同步")
+    ctx.SetResult("status", "ok")
+    return nil
 }
 ```
 
-## 核心 API
-
-### Context
+`Context` 主要能力：
 
 - `Param`、`ParamInt`、`ParamInt64`、`ParamBool`：读取任务参数。
-- `GetResolvedParam`：按参数绑定模式读取最终值。
+- `GetResolvedParam`：按 Handler 元数据解析参数绑定。
 - `SetResult`、`SetResults`、`AddResult`：写入结构化结果。
-- `ArtifactRoots`：读取已准备的默认制品层和具名制品层。
-- `Context`：获取承载取消信号和租户信息的原生上下文。
-- `Log`、`Logger`：记录任务日志和系统日志。
+- `ArtifactRoots`：读取已准备的默认层和具名制品层。
+- `Log`、`Logger`：记录任务日志和结构化系统日志。
+- `ReportProgress`：上报规范化到 0-100 的任务进度。
 
-### Executor
+## 启动标准 Node
 
-- `NewExecutor(config, registry)`：创建执行节点。
-- `RegisterHandler(handlers...)`：注册任务处理器。
-- `InitComponents()`：初始化缓存、客户端和 gRPC Server。
-- `Server()`：返回供应用启动的 gRPC Server。
+标准 gRPC Executor 显式导入 `node` 子包：
 
-## 内部结构
+```go
+import (
+    "github.com/Duke1616/etask/sdk/executor/node"
+    "github.com/gotomicro/ego"
+)
+
+exec, err := node.New(cfg, registry, SyncHandler{})
+if err != nil {
+    return err
+}
+return ego.New().Serve(exec).Run()
+```
+
+`node.Executor` 本身实现 `server.Server`。直接启动它可以在停止时取消 PULL 循环、等待执行中任务并关闭调度连接。
+
+需要制品物化或手动装配时，使用细粒度入口：
+
+```go
+exec, err := node.NewExecutor(cfg, registry,
+    node.WithArtifactPreparer(preparer),
+)
+if err != nil {
+    return err
+}
+if err = exec.RegisterHandlers(handlers...); err != nil {
+    return err
+}
+if err = exec.InitComponents(); err != nil {
+    return err
+}
+return ego.New().Serve(exec).Run()
+```
+
+## 自定义传输
+
+Kafka、本地队列或其他非 gRPC 传输使用 `engine` 子包：
+
+```go
+handlers := engine.NewHandlerRegistry()
+if err := handlers.RegisterChecked(myHandlers...); err != nil {
+    return err
+}
+pipeline := engine.New(handlers, artifacts,
+    engine.WithArtifactClient(artifactClient),
+    engine.WithLogger(logger),
+)
+result, err := pipeline.Execute(ctx, engine.Command{/* task input */})
+```
+
+Engine 的 artifact、reporter 和 logger 是生命周期依赖，通过构造选项注入，不放入单次 `Command`。调度端 Codebook、Runner 等参数绑定解析属于 etask 内部业务，不是 Executor SDK 扩展点。
+
+## 包结构
 
 ```text
 executor
-├── context.go              # 公开任务上下文
-├── handler.go              # Handler、Parameter 等公开契约
-├── binding.go              # 参数绑定公开契约
-├── config.go               # Executor 公开配置
-├── executor.go             # Executor 构造入口
-├── README.md
+├── context.go              # Handler 上下文和端口
+├── handler.go              # Handler、Parameter 等稳定契约
+├── artifact                # 可选制品契约
+├── engine                  # 自定义传输执行管线
+├── node                    # 标准 gRPC Executor 运行时
 └── internal
-    ├── task                # Context、日志和 Handler 注册实现
-    ├── binding             # 调度侧参数绑定解析实现
-    ├── runtime             # gRPC、PULL、执行编排和生命周期
-    ├── artifactport        # SDK 与可选制品实现之间的接口
-    └── execution           # 执行状态与取消生命周期
+    ├── task                # Context 和 Handler 注册实现
+    ├── engine              # 单一执行核心
+    ├── runtime             # gRPC、PULL、状态和生命周期
+    └── execution           # 执行状态与取消管理
 ```
-
-公开概念保留在根目录，只有实现细节进入 `internal`。业务代码统一导入 `sdk/executor`，不需要了解内部组合关系。
-
-具体的制品缓存和本地物化属于 etask Executor 基础设施，位于 `internal/executor/artifact`，通过 `ArtifactPreparer` 接口注入 SDK。制品作用域、项目和租户规则由 `internal/domain` 与 `internal/service/artifact` 负责。

@@ -16,10 +16,10 @@ import (
 	"github.com/Duke1616/etask/internal/service/acquirer"
 	artifactSvc "github.com/Duke1616/etask/internal/service/artifact"
 	codebookSvc "github.com/Duke1616/etask/internal/service/codebook"
+	taskbinding "github.com/Duke1616/etask/internal/service/task/binding"
 	"github.com/Duke1616/etask/internal/sse"
 	"github.com/Duke1616/etask/pkg/grpc/registry"
 	"github.com/Duke1616/etask/pkg/retry"
-	"github.com/Duke1616/etask/sdk/executor"
 	"github.com/gotomicro/ego/core/elog"
 )
 
@@ -89,7 +89,7 @@ type executionService struct {
 	taskAcquirer acquirer.TaskAcquirer  // 任务抢占器
 	producer     event.CompleteProducer // 任务完成事件生产者
 	registry     registry.Registry
-	resolvers    *executor.BindingResolverRegistry
+	resolvers    *taskbinding.Registry
 	artifactSvc  artifactSvc.Service
 	codebookSvc  codebookSvc.Service
 	events       *sse.Hubs
@@ -104,7 +104,7 @@ func NewExecutionService(
 	logSvc LogService,
 	producer event.CompleteProducer,
 	registry registry.Registry,
-	resolvers *executor.BindingResolverRegistry,
+	resolvers *taskbinding.Registry,
 	artifactSvc artifactSvc.Service,
 	codebookSvc codebookSvc.Service,
 	events *sse.Hubs,

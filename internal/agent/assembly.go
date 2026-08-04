@@ -15,7 +15,7 @@ import (
 	grpcpkg "github.com/Duke1616/etask/pkg/grpc"
 	"github.com/Duke1616/etask/pkg/grpc/registry"
 	"github.com/Duke1616/etask/pkg/grpc/registry/etcd"
-	"github.com/Duke1616/etask/sdk/executor"
+	"github.com/Duke1616/etask/sdk/executor/artifact"
 	"github.com/ecodeclub/mq-api"
 	"github.com/google/uuid"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -31,7 +31,7 @@ type Instance struct {
 }
 
 func InitModule(q mq.MQ, etcdClient *clientv3.Client,
-	preparer executor.ArtifactPreparer, scriptRuntime *scripts.Runtime) *Module {
+	preparer artifact.Preparer, scriptRuntime *scripts.Runtime) *Module {
 	registry := InitRegistry(etcdClient)
 	if err := scriptRuntime.Initialize(); err != nil {
 		panic(err)

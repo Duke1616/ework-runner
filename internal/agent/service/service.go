@@ -12,6 +12,8 @@ import (
 	"github.com/Duke1616/etask/internal/agent/domain"
 	internaldomain "github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/sdk/executor"
+	"github.com/Duke1616/etask/sdk/executor/artifact"
+	executionengine "github.com/Duke1616/etask/sdk/executor/engine"
 	"github.com/gotomicro/ego/core/elog"
 )
 
@@ -40,9 +42,8 @@ type ExecutionRequest struct {
 }
 
 type service struct {
-	registry        *executor.HandlerRegistry
-	engine          *executor.ExecutionEngine
-	artifactClient  artifactv1.ArtifactServiceClient
+	registry        *executionengine.HandlerRegistry
+	engine          *executionengine.Engine
 	executionClient executorv1.TaskExecutionServiceClient
 	logger          *elog.Component
 	mu              sync.Mutex
@@ -62,16 +63,20 @@ type executionEntry struct {
 }
 
 // NewService 创建独立 Agent 执行服务。
-func NewService(handlers []executor.TaskHandler, preparer executor.ArtifactPreparer,
+func NewService(handlers []executor.TaskHandler, preparer artifact.Preparer,
 	artifactClient artifactv1.ArtifactServiceClient,
 	executions executorv1.TaskExecutionServiceClient) Service {
-	registry := executor.NewHandlerRegistry()
+	registry := executionengine.NewHandlerRegistry()
 	registry.Register(handlers...)
+	logger := elog.DefaultLogger.With(elog.FieldComponentName("agent.execution"))
 	return &service{
-		registry: registry, engine: executor.NewExecutionEngine(registry, preparer),
-		artifactClient:  artifactClient,
+		registry: registry,
+		engine: executionengine.New(registry, preparer,
+			executionengine.WithArtifactClient(artifactClient),
+			executionengine.WithLogger(logger),
+		),
 		executionClient: executions,
-		logger:          elog.DefaultLogger.With(elog.FieldComponentName("agent.execution")),
+		logger:          logger,
 		executions:      make(map[string]*executionEntry),
 		active:          make(map[int64]*executionEntry),
 		terminated:      make(map[int64]time.Time),
@@ -115,15 +120,14 @@ func (s *service) Receive(ctx context.Context, request ExecutionRequest) (domain
 		return domain.ExecutionOutput{}, err
 	}
 	// 与独立 Executor 复用同一个 Engine，制品和 Handler 行为保持一致。
-	result, err := s.engine.Execute(runCtx, executor.ExecutionCommand{
+	result, err := s.engine.Execute(runCtx, executionengine.Command{
 		Context: runCtx,
 		Task: executor.TaskInfo{
 			ExecutionID: execution.ID, TaskID: execution.Task.ID,
 			Name: execution.Task.Name, Handler: execution.Task.GrpcConfig.HandlerName,
 		},
 		Params: execution.GRPCParams(), Parameters: s.handlerMetadata(execution.Task.GrpcConfig.HandlerName),
-		Artifacts: refs, ArtifactClient: s.artifactClient,
-		Logger: s.logger, TaskLogger: request.TaskLogger,
+		Artifacts: refs, TaskLogger: request.TaskLogger,
 	})
 	output := domain.ExecutionOutput{Result: result.Value}
 	err = s.finish(entry, output, err)

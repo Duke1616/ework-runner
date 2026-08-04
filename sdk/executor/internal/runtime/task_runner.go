@@ -25,22 +25,40 @@ func (e *Executor) startExecution(ctx context.Context, req *executorv1.ExecuteRe
 		if err != nil {
 			return nil, fmt.Errorf("启动前查询 execution 状态失败: %w", err)
 		}
-		if response.GetExecution().GetStatus() == executorv1.ExecutionStatus_CANCELLED {
+		status := response.GetExecution().GetStatus()
+		if status == executorv1.ExecutionStatus_CANCELLED {
 			state, _ := e.executions.Terminate(eid, response.GetExecution().GetTaskResult())
 			return &executorv1.ExecuteResponse{ExecutionState: state}, nil
+		}
+		if status == executorv1.ExecutionStatus_SUCCESS || status == executorv1.ExecutionStatus_FAILED {
+			return &executorv1.ExecuteResponse{ExecutionState: &executorv1.ExecutionState{
+				Id: eid, TaskId: response.GetExecution().GetTaskId(),
+				TaskName: response.GetExecution().GetTaskName(), Status: status,
+				TaskResult: response.GetExecution().GetTaskResult(),
+			}}, nil
 		}
 	}
 	// 执行上下文脱离单次 RPC 生命周期，但保留租户并允许 Interrupt 主动取消。
 	runCtx, cancel := context.WithCancelCause(executionContext(ctx, req.GetTenantId()))
+	e.runMu.Lock()
+	if e.stopping {
+		e.runMu.Unlock()
+		cancel(nil)
+		return nil, fmt.Errorf("Executor 正在停止，不再接收新任务")
+	}
 	// Begin 同时承担幂等保护，相同执行 ID 正在运行时直接返回已有状态。
 	state, started := e.executions.Begin(initialState(req, e.config.Server.ServiceId), cancel)
 	if !started {
+		e.runMu.Unlock()
 		cancel(nil)
 		e.logger.Warn("任务已在执行中", elog.Int64("eid", eid))
 		return &executorv1.ExecuteResponse{ExecutionState: state}, nil
 	}
+	e.runWG.Add(1)
+	e.runMu.Unlock()
 	e.logger.Info("启动异步任务执行", elog.Int64("eid", eid))
 	go func() {
+		defer e.runWG.Done()
 		defer cancel(nil)
 		e.runTask(runCtx, req)
 	}()
@@ -64,10 +82,10 @@ func (e *Executor) runTask(ctx context.Context, req *executorv1.ExecuteRequest) 
 		Task: task.TaskInfo{
 			ExecutionID: executionID, TaskID: req.GetTaskId(),
 			Name: req.GetTaskName(), Handler: req.GetTaskHandlerName(),
+			ExecutorNodeID: e.config.Server.ServiceId,
 		},
 		Params: req.GetParams(), Parameters: e.handlerMetadata(req.GetTaskHandlerName()),
-		Artifacts: req.GetArtifacts(), ArtifactClient: e.artifactClient,
-		Logger: e.logger, Reporter: e.reporterClient,
+		Artifacts: req.GetArtifacts(),
 	})
 	e.finishTask(ctx, executionID, result.Value, logger, err)
 }

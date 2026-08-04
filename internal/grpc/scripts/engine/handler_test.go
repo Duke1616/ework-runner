@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/Duke1616/etask/sdk/executor"
-	"github.com/gotomicro/ego/core/elog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -75,7 +74,7 @@ func TestHandlerRun(t *testing.T) {
 			current.handler = handler
 			current.task = executor.NewContext(executor.ContextOptions{
 				Context: t.Context(), Task: executor.TaskInfo{ExecutionID: 9, TaskID: 1, Name: "test", Handler: "shell"},
-				Params: tc.params, Logger: elog.DefaultLogger, TaskLogger: &taskLoggerFake{},
+				Params: tc.params, TaskLogger: &taskLoggerFake{},
 			})
 			if tc.before != nil {
 				tc.before(t, current)

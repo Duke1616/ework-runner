@@ -12,6 +12,7 @@ import (
 	executorv1 "github.com/Duke1616/etask/api/proto/gen/etask/executor/v1"
 	reporterv1 "github.com/Duke1616/etask/api/proto/gen/etask/reporter/v1"
 	grpcpkg "github.com/Duke1616/etask/pkg/grpc"
+	enginepkg "github.com/Duke1616/etask/sdk/executor/internal/engine"
 	"github.com/gotomicro/ego/core/elog"
 )
 
@@ -21,6 +22,9 @@ func (e *Executor) InitComponents() error {
 	defer e.initMu.Unlock()
 	if e.initialized {
 		return nil
+	}
+	if e.registrationErr != nil {
+		return fmt.Errorf("Executor 任务处理器注册失败: %w", e.registrationErr)
 	}
 	// 启动前清理上次异常退出留下的半成品，避免任务读取不完整缓存。
 	if e.artifacts != nil {
@@ -42,6 +46,16 @@ func (e *Executor) InitComponents() error {
 	e.agentClient = executorv1.NewAgentServiceClient(connection)
 	e.executionClient = executorv1.NewTaskExecutionServiceClient(connection)
 	e.artifactClient = artifactv1.NewArtifactServiceClient(connection)
+	e.schedulerConn = connection
+	// Engine 持有节点生命周期内稳定的客户端；单次 Command 只描述任务输入。
+	e.engine = enginepkg.New(e.hr, e.artifacts,
+		enginepkg.WithArtifactClient(e.artifactClient),
+		enginepkg.WithReporter(e.reporterClient),
+		enginepkg.WithProgressReporter(executionProgressReporter{
+			executions: e.executions, reporter: e.reporterClient,
+		}),
+		enginepkg.WithLogger(e.logger),
+	)
 	// gRPC Server 负责 PUSH 模式接收任务，同时通过 metadata 发布节点能力。
 	e.server = grpcpkg.NewServer(
 		e.config.Server,
@@ -91,7 +105,10 @@ func (e *Executor) pullTasks(ctx context.Context) {
 		}
 		if response != nil && response.HasTask && response.TaskReq != nil {
 			e.logger.Info("拉取到待执行任务", elog.Int64("eid", response.TaskReq.GetEid()))
-			_, _ = e.Execute(context.Background(), response.TaskReq)
+			if _, executeErr := e.Execute(context.Background(), response.TaskReq); executeErr != nil {
+				e.logger.Error("启动拉取任务失败",
+					elog.Int64("eid", response.TaskReq.GetEid()), elog.FieldErr(executeErr))
+			}
 		}
 	}
 }

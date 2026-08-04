@@ -104,3 +104,30 @@ func TestStoreTerminateBeforeExecuteCreatesTombstone(t *testing.T) {
 	require.Equal(t, executorv1.ExecutionStatus_CANCELLED, state.GetStatus())
 	require.NoError(t, ctx.Err())
 }
+
+func TestStoreDoesNotRestartCompletedExecution(t *testing.T) {
+	store := NewStore()
+	ctx, cancel := context.WithCancelCause(t.Context())
+	defer cancel(nil)
+	initial := &executorv1.ExecutionState{Id: 12, Status: executorv1.ExecutionStatus_RUNNING}
+	_, started := store.Begin(initial, cancel)
+	require.True(t, started)
+	_, finished := store.Finish(12, executorv1.ExecutionStatus_SUCCESS, "done")
+	require.True(t, finished)
+
+	state, started := store.Begin(initial, func(error) {})
+	require.False(t, started)
+	require.Equal(t, executorv1.ExecutionStatus_SUCCESS, state.GetStatus())
+	require.NoError(t, ctx.Err())
+}
+
+func TestStoreProgressUpdatesRunningState(t *testing.T) {
+	store := NewStore()
+	_, started := store.Begin(&executorv1.ExecutionState{
+		Id: 13, Status: executorv1.ExecutionStatus_RUNNING,
+	}, func(error) {})
+	require.True(t, started)
+	state, updated := store.Progress(13, 42)
+	require.True(t, updated)
+	require.Equal(t, int32(42), state.GetRunningProgress())
+}

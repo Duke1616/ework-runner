@@ -9,7 +9,6 @@ import (
 	"github.com/Duke1616/etask/internal/domain"
 	codebookSvc "github.com/Duke1616/etask/internal/service/codebook"
 	runnerSvc "github.com/Duke1616/etask/internal/service/runner"
-	"github.com/Duke1616/etask/sdk/executor"
 	"github.com/samber/lo"
 )
 
@@ -18,8 +17,8 @@ const (
 	RunnerBinding   = "runner"
 )
 
-func NewScriptBindingResolvers(codebookSvc codebookSvc.Service, runnerSvc runnerSvc.Service) *executor.BindingResolverRegistry {
-	return executor.NewBindingResolverRegistry().
+func NewScriptBindingResolvers(codebookSvc codebookSvc.Service, runnerSvc runnerSvc.Service) *Registry {
+	return NewRegistry().
 		Register(CodebookBinding, CodebookResolver{svc: codebookSvc}).
 		Register(RunnerBinding, RunnerResolver{svc: runnerSvc})
 }
@@ -28,7 +27,7 @@ type CodebookResolver struct {
 	svc codebookSvc.Service
 }
 
-func (r CodebookResolver) Resolve(ctx context.Context, req executor.BindingResolveRequest) (string, error) {
+func (r CodebookResolver) Resolve(ctx context.Context, req ResolveRequest) (string, error) {
 	id, err := parseID(req.Value, req.ParamKey)
 	if err != nil {
 		return "", err
@@ -45,7 +44,7 @@ type RunnerResolver struct {
 	svc runnerSvc.Service
 }
 
-func (r RunnerResolver) Resolve(ctx context.Context, req executor.BindingResolveRequest) (string, error) {
+func (r RunnerResolver) Resolve(ctx context.Context, req ResolveRequest) (string, error) {
 	id, err := parseID(req.Value, req.ParamKey)
 	if err != nil {
 		return "", err
@@ -85,5 +84,5 @@ type variable struct {
 	Secret bool   `json:"secret"`
 }
 
-var _ executor.BindingResolver = CodebookResolver{}
-var _ executor.BindingResolver = RunnerResolver{}
+var _ Resolver = CodebookResolver{}
+var _ Resolver = RunnerResolver{}

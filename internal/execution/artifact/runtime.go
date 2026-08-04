@@ -6,6 +6,7 @@ import (
 
 	artifactv1 "github.com/Duke1616/etask/api/proto/gen/etask/artifact/v1"
 	"github.com/Duke1616/etask/sdk/executor"
+	executorartifact "github.com/Duke1616/etask/sdk/executor/artifact"
 )
 
 // Prepared 描述任务可直接使用的不可变缓存目录。
@@ -40,7 +41,7 @@ func (r *Runtime) Prune() error {
 
 // Prepare 下载任务声明的默认制品层和具名依赖层。
 func (r *Runtime) Prepare(ctx context.Context, client artifactv1.ArtifactServiceClient,
-	refs []*artifactv1.ArtifactRef) (executor.PreparedArtifacts, error) {
+	refs []*artifactv1.ArtifactRef) (executorartifact.PreparedArtifacts, error) {
 	layers, err := parseLayerSet(refs)
 	if err != nil {
 		return nil, err
@@ -66,4 +67,4 @@ func (r *Runtime) Prepare(ctx context.Context, client artifactv1.ArtifactService
 	return prepared, nil
 }
 
-var _ executor.ArtifactPreparer = (*Runtime)(nil)
+var _ executorartifact.Preparer = (*Runtime)(nil)

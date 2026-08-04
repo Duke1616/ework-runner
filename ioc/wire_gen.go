@@ -33,7 +33,7 @@ import (
 	"github.com/Duke1616/etask/internal/web/resource"
 	runner2 "github.com/Duke1616/etask/internal/web/runner"
 	variable2 "github.com/Duke1616/etask/internal/web/variable"
-	"github.com/Duke1616/etask/sdk/executor"
+	"github.com/Duke1616/etask/sdk/executor/node"
 )
 
 // Injectors from wire.go:
@@ -93,7 +93,7 @@ func InitSchedulerApplication(base *Base) *SchedulerApplication {
 	crypto := InitCrypto()
 	runnerRepository := repository.NewRunnerRepository(runnerDAO, variableDAO, crypto)
 	runnerService := runner.NewService(runnerRepository, executionPoolRepository)
-	v3 := binding.NewScriptBindingResolvers(codebookService, runnerService)
+	bindingRegistry := binding.NewScriptBindingResolvers(codebookService, runnerService)
 	artifactDAO := dao.NewGORMArtifactDAO(db)
 	artifactRepository := repository.NewArtifactRepository(artifactDAO, codebookDAO, codebookProjectDAO)
 	config := InitArtifactConfig()
@@ -101,7 +101,7 @@ func InitSchedulerApplication(base *Base) *SchedulerApplication {
 	codec := InitArtifactArchive(config)
 	artifactService := artifact.NewService(artifactRepository, store, codec)
 	hubs := sse.NewHubs()
-	executionService := task.NewExecutionService(string2, taskExecutionRepository, service, logService, completeProducer, registry, v3, artifactService, codebookService, hubs)
+	executionService := task.NewExecutionService(string2, taskExecutionRepository, service, logService, completeProducer, registry, bindingRegistry, artifactService, codebookService, hubs)
 	handler := manager.NewHandler(service, logService, executionService, hubs)
 	workspaceService := codebook.NewWorkspaceService(iCodebookRepository, artifactService)
 	codebookHandler := codebook2.NewHandler(codebookService, workspaceService)
@@ -150,23 +150,23 @@ func InitSchedulerApplication(base *Base) *SchedulerApplication {
 	completeConsumer := InitCompleteEventConsumer(mq, service, executionService, taskAcquirer, hubs)
 	poolSyncer := pool.NewSyncer(executionPoolRepository, client)
 	agentEventConsumer := InitAgentEventConsumer(mq, executionService)
-	v4 := InitTasks(retryCompensator, rescheduleCompensator, interruptCompensator, terminationCompensator, completeConsumer, poolSyncer, agentEventConsumer)
+	v3 := InitTasks(retryCompensator, rescheduleCompensator, interruptCompensator, terminationCompensator, completeConsumer, poolSyncer, agentEventConsumer)
 	schedulerApplication := &SchedulerApplication{
 		Web:       component,
 		GRPC:      server,
 		Scheduler: scheduler,
-		Tasks:     v4,
+		Tasks:     v3,
 	}
 	return schedulerApplication
 }
 
 // InitExecutorModule 构造原生 Executor 模块。
-func InitExecutorModule(base *Base, runtime *ExecutionRuntime) *executor.Executor {
+func InitExecutorModule(base *Base, runtime *ExecutionRuntime) *node.Executor {
 	client := base.Etcd
 	v := runtime.ArtifactPreparer
 	scriptsRuntime := runtime.ScriptRuntime
-	executorExecutor := InitExecutor(client, v, scriptsRuntime)
-	return executorExecutor
+	executor := InitExecutor(client, v, scriptsRuntime)
+	return executor
 }
 
 // InitAgentModule 构造 Kafka Agent 模块。

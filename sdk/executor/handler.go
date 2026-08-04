@@ -1,4 +1,4 @@
-// Package executor 提供任务处理器和执行节点 SDK。
+// Package executor 定义轻量的任务处理器和执行上下文契约。
 package executor
 
 import "github.com/Duke1616/etask/sdk/executor/internal/task"
@@ -16,11 +16,4 @@ type (
 	TaskHandler = task.TaskHandler
 	// HandlerMeta 是处理器展示和注册元数据。
 	HandlerMeta = task.HandlerMeta
-	// HandlerRegistry 并发安全地管理任务处理器。
-	HandlerRegistry = task.HandlerRegistry
 )
-
-// NewHandlerRegistry 创建任务处理器注册中心。
-func NewHandlerRegistry() *HandlerRegistry {
-	return task.NewHandlerRegistry()
-}

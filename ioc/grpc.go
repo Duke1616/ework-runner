@@ -18,7 +18,8 @@ import (
 	grpcpkg "github.com/Duke1616/etask/pkg/grpc"
 	"github.com/Duke1616/etask/pkg/grpc/pool"
 	registrysdk "github.com/Duke1616/etask/pkg/grpc/registry"
-	"github.com/Duke1616/etask/sdk/executor"
+	"github.com/Duke1616/etask/sdk/executor/artifact"
+	"github.com/Duke1616/etask/sdk/executor/node"
 	"github.com/spf13/viper"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
@@ -26,7 +27,7 @@ import (
 
 // InitExecutor 初始化原生 gRPC 执行器节点
 func InitExecutor(etcdClient *clientv3.Client,
-	artifactPreparer executor.ArtifactPreparer, scriptRuntime *scripts.Runtime) *executor.Executor {
+	artifactPreparer artifact.Preparer, scriptRuntime *scripts.Runtime) *node.Executor {
 	var serverCfg grpcpkg.ServerConfig
 	if err := config.UnmarshalKey("grpc.server.executor", &serverCfg); err != nil {
 		panic(err)
@@ -40,7 +41,7 @@ func InitExecutor(etcdClient *clientv3.Client,
 		panic(err)
 	}
 
-	cfg := executor.Config{
+	cfg := node.Config{
 		Mode:           resolveMode(),
 		Desc:           viper.GetString("executor.desc"),
 		IsolationLevel: viper.GetString("executor.isolation_level"),
@@ -49,14 +50,16 @@ func InitExecutor(etcdClient *clientv3.Client,
 	}
 
 	reg := InitExecutorRegistry(etcdClient)
-	exec, err := executor.NewExecutor(cfg, reg,
-		executor.WithArtifactPreparer(artifactPreparer),
+	exec, err := node.NewExecutor(cfg, reg,
+		node.WithArtifactPreparer(artifactPreparer),
 	)
 	if err != nil {
 		panic(err)
 	}
 
-	exec.RegisterHandler(scriptRuntime.Handlers()...)
+	if err = exec.RegisterHandlers(scriptRuntime.Handlers()...); err != nil {
+		panic(err)
+	}
 
 	// 立即初始化组件，确保 Server() 等方法能够返回有效对象
 	if err = exec.InitComponents(); err != nil {

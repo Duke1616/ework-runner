@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/Duke1616/etask/sdk/executor"
-	"github.com/gotomicro/ego/core/elog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -52,7 +51,7 @@ printf 'workspace-only\n' > "$ETASK_SYSTEM_ROOT/common.sh"
 `,
 			"args": `{}`, "variables": `[]`,
 		},
-		Logger: elog.DefaultLogger, TaskLogger: sandboxTaskLogger{},
+		TaskLogger: sandboxTaskLogger{},
 	})
 	task.SetArtifactRoots(executor.ArtifactRoots{Default: artifactRoot})
 	require.NoError(t, runtime.Handlers()[0].Run(task))

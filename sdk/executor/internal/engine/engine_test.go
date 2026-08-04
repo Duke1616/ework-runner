@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	artifactv1 "github.com/Duke1616/etask/api/proto/gen/etask/artifact/v1"
-	"github.com/Duke1616/etask/sdk/executor/internal/artifactport"
+	"github.com/Duke1616/etask/sdk/executor/artifact"
 	"github.com/Duke1616/etask/sdk/executor/internal/task"
 )
 
@@ -17,7 +17,7 @@ func TestEngineExecute(t *testing.T) {
 	testCases := []struct {
 		name       string
 		artifacts  []*artifactv1.ArtifactRef
-		preparer   artifactport.Preparer
+		preparer   artifact.Preparer
 		handler    task.TaskHandler
 		wantValue  string
 		wantErr    string
@@ -73,6 +73,14 @@ func TestEngineExecute(t *testing.T) {
 			wantValue: `{"partial":"panic"}`,
 			wantErr:   "任务处理器发生 panic: unexpected",
 		},
+		{
+			name: "不可序列化结果转换为执行错误",
+			handler: handlerStub{run: func(ctx *task.Context) error {
+				ctx.SetResult("invalid", func() {})
+				return nil
+			}},
+			wantErr: "序列化任务结果失败",
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -121,7 +129,7 @@ type preparerStub struct {
 
 func (p *preparerStub) Prune() error { return nil }
 func (p *preparerStub) Prepare(context.Context, artifactv1.ArtifactServiceClient,
-	[]*artifactv1.ArtifactRef) (artifactport.PreparedArtifacts, error) {
+	[]*artifactv1.ArtifactRef) (artifact.PreparedArtifacts, error) {
 	return p.prepared, nil
 }
 

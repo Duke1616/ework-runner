@@ -5,8 +5,6 @@ package task
 import (
 	"encoding/json"
 	"strconv"
-
-	"github.com/gotomicro/ego/core/elog"
 )
 
 // Param 返回指定参数的字符串值。
@@ -66,5 +64,5 @@ func (c *Context) BindPayload(target any) error {
 }
 
 func (c *Context) logInvalidParam(key, value string, err error) {
-	c.Logger().Warn("任务参数类型转换失败", elog.String("key", key), elog.String("value", value), elog.FieldErr(err))
+	c.Logger().Warn("任务参数类型转换失败", "key", key, "value", value, "error", err)
 }

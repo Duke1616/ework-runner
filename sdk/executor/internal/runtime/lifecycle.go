@@ -4,8 +4,10 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/Duke1616/etask/sdk/executor/internal/execution"
 	"github.com/gotomicro/ego/server"
 )
 
@@ -38,19 +40,32 @@ func (e *Executor) Start() error {
 // Stop 停止 PULL 循环和 Executor gRPC Server。
 func (e *Executor) Stop() error {
 	e.stopPullLoop()
+	e.stopAcceptingExecutions()
+	e.executions.CancelAll(execution.ErrInterrupted)
+	var err error
 	if e.server == nil {
-		return nil
+		err = nil
+	} else {
+		err = e.server.Stop()
 	}
-	return e.server.Stop()
+	return errors.Join(err, e.closeConnection())
 }
 
 // GracefulStop 停止 PULL 循环并优雅关闭 Executor gRPC Server。
 func (e *Executor) GracefulStop(ctx context.Context) error {
 	e.stopPullLoop()
+	e.stopAcceptingExecutions()
+	var err error
 	if e.server == nil {
-		return nil
+		err = nil
+	} else {
+		err = e.server.GracefulStop(ctx)
 	}
-	return e.server.GracefulStop(ctx)
+	if waitErr := e.waitExecutions(ctx); waitErr != nil {
+		e.executions.CancelAll(execution.ErrInterrupted)
+		err = errors.Join(err, waitErr)
+	}
+	return errors.Join(err, e.closeConnection())
 }
 
 // Info 返回 Executor 服务注册信息。
@@ -68,6 +83,37 @@ func (e *Executor) stopPullLoop() {
 		e.pullCancel()
 		e.pullCancel = nil
 	}
+}
+
+func (e *Executor) stopAcceptingExecutions() {
+	e.runMu.Lock()
+	e.stopping = true
+	e.runMu.Unlock()
+}
+
+func (e *Executor) waitExecutions(ctx context.Context) error {
+	done := make(chan struct{})
+	go func() {
+		e.runWG.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (e *Executor) closeConnection() error {
+	e.initMu.Lock()
+	defer e.initMu.Unlock()
+	if e.schedulerConn == nil {
+		return nil
+	}
+	err := e.schedulerConn.Close()
+	e.schedulerConn = nil
+	return err
 }
 
 var _ server.Server = (*Executor)(nil)
