@@ -69,10 +69,10 @@ func (h *Handler) Run(task *executor.Context) (runErr error) {
 			Args:        request.args, Variables: request.variables,
 			Failed: runErr != nil,
 		}); archiveErr != nil {
-			task.Logger().Error("归档脚本执行现场失败", elog.FieldErr(archiveErr))
+			task.SystemLogger().Error("归档脚本执行现场失败", elog.FieldErr(archiveErr))
 		}
 		if closeErr := workspace.Close(); closeErr != nil {
-			task.Logger().Error("清理脚本工作区失败", elog.FieldErr(closeErr))
+			task.SystemLogger().Error("清理脚本工作区失败", elog.FieldErr(closeErr))
 		}
 	}()
 

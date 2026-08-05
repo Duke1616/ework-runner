@@ -32,7 +32,7 @@ func TestContext(t *testing.T) {
 					Parameters: []Parameter{{Key: "code", Bindings: map[string]Binding{
 						"test": &BindingOption{Resolver: func(_ *Context, value string) (string, error) { return "resolved-" + value, nil }},
 					}}},
-					TaskLogger: &contextLoggerStub{},
+					ExecutionLogger: &executionLoggerStub{},
 				})
 				current.params["code"] = "changed"
 				current.metadata["code"] = "changed"
@@ -48,7 +48,7 @@ func TestContext(t *testing.T) {
 		{
 			name: "结果替换不持有外部 map",
 			before: func(_ *testing.T, current *state) {
-				current.context = NewContext(ContextOptions{TaskLogger: &contextLoggerStub{}})
+				current.context = NewContext(ContextOptions{ExecutionLogger: &executionLoggerStub{}})
 				result := map[string]any{"status": "ok"}
 				current.context.SetResults(result)
 				result["status"] = "changed"
@@ -61,7 +61,7 @@ func TestContext(t *testing.T) {
 		{
 			name: "制品具名层不暴露共享 map",
 			before: func(_ *testing.T, current *state) {
-				current.context = NewContext(ContextOptions{TaskLogger: &contextLoggerStub{}})
+				current.context = NewContext(ContextOptions{ExecutionLogger: &executionLoggerStub{}})
 				input := ArtifactRoots{Named: map[string]string{"ops_common": "/cache/ops"}}
 				current.context.SetArtifactRoots(input)
 				input.Named["ops_common"] = "/changed/input"
@@ -94,7 +94,7 @@ func TestContextReportProgress(t *testing.T) {
 	ctx := NewContext(ContextOptions{
 		Context:  t.Context(),
 		Task:     TaskInfo{ExecutionID: 10, TaskID: 20, Name: "task", ExecutorNodeID: "node-1"},
-		Progress: reporter, TaskLogger: &contextLoggerStub{},
+		Progress: reporter, ExecutionLogger: &executionLoggerStub{},
 	})
 	require.NoError(t, ctx.ReportProgress(120))
 	require.Equal(t, int32(100), reporter.progress)
@@ -102,18 +102,18 @@ func TestContextReportProgress(t *testing.T) {
 }
 
 func TestContextResultRejectsUnsupportedValue(t *testing.T) {
-	ctx := NewContext(ContextOptions{TaskLogger: &contextLoggerStub{}})
+	ctx := NewContext(ContextOptions{ExecutionLogger: &executionLoggerStub{}})
 	ctx.SetResult("invalid", func() {})
 	_, err := ctx.Result()
 	require.ErrorContains(t, err, "序列化任务结果失败")
 }
 
-type contextLoggerStub struct{}
+type executionLoggerStub struct{}
 
-func (*contextLoggerStub) Log(string, ...any) {}
-func (*contextLoggerStub) Close()             {}
+func (*executionLoggerStub) Log(string, ...any) {}
+func (*executionLoggerStub) Close()             {}
 
-var _ Logger = (*contextLoggerStub)(nil)
+var _ ExecutionLogger = (*executionLoggerStub)(nil)
 
 type progressReporterStub struct {
 	task     TaskInfo

@@ -23,7 +23,8 @@ type ProgressReporter interface {
 	ReportProgress(ctx context.Context, task TaskInfo, progress int32) error
 }
 
-// SystemLogger 提供 Handler 可选的结构化系统日志能力。
+// SystemLogger 提供 Executor 和 Handler 的结构化内部诊断日志能力。
+// 日志进入宿主进程日志，不进入用户可见的任务执行日志流。
 // fields 支持 key/value 对，运行时也可适配自身的字段类型。
 type SystemLogger interface {
 	Debug(message string, fields ...any)
@@ -34,14 +35,14 @@ type SystemLogger interface {
 
 // ContextOptions 描述创建任务上下文所需的依赖和输入。
 type ContextOptions struct {
-	Context    context.Context
-	Task       TaskInfo
-	Params     map[string]string
-	Metadata   map[string]string
-	Parameters []Parameter
-	Progress   ProgressReporter
-	Logger     SystemLogger
-	TaskLogger Logger
+	Context         context.Context
+	Task            TaskInfo
+	Params          map[string]string
+	Metadata        map[string]string
+	Parameters      []Parameter
+	Progress        ProgressReporter
+	SystemLogger    SystemLogger
+	ExecutionLogger ExecutionLogger
 }
 
 // Context 向任务处理器提供参数、日志、结果和制品运行目录。
@@ -56,9 +57,9 @@ type Context struct {
 	results map[string]any
 	resLock sync.RWMutex
 
-	logger     SystemLogger
-	taskLogger Logger
-	progress   ProgressReporter
+	systemLogger    SystemLogger
+	executionLogger ExecutionLogger
+	progress        ProgressReporter
 }
 
 // NewContext 创建拥有独立参数快照的任务上下文。
@@ -68,9 +69,9 @@ func NewContext(options ContextOptions) *Context {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	logger := options.Logger
-	if logger == nil {
-		logger = noopSystemLogger{}
+	systemLogger := options.SystemLogger
+	if systemLogger == nil {
+		systemLogger = noopSystemLogger{}
 	}
 	params := maps.Clone(options.Params)
 	if params == nil {
@@ -85,14 +86,14 @@ func NewContext(options ContextOptions) *Context {
 		parameters[parameter.Key] = parameter
 	}
 	// 日志缓冲和传输由具体实现负责，敏感变量统一在最外层脱敏。
-	taskLogger := options.TaskLogger
-	if taskLogger == nil {
-		taskLogger = noopTaskLogger{}
+	executionLogger := options.ExecutionLogger
+	if executionLogger == nil {
+		executionLogger = noopExecutionLogger{}
 	}
-	taskLogger = newMaskingTaskLogger(taskLogger, secretMasks(params))
+	executionLogger = newMaskingExecutionLogger(executionLogger, secretMasks(params))
 	return &Context{
 		ctx: ctx, task: options.Task, params: params, metadata: metadata, parameters: parameters,
-		results: make(map[string]any), logger: logger, taskLogger: taskLogger,
+		results: make(map[string]any), systemLogger: systemLogger, executionLogger: executionLogger,
 		progress: options.Progress,
 	}
 }
@@ -125,11 +126,6 @@ func (c *Context) HandlerName() string {
 // Params 返回任务参数快照。
 func (c *Context) Params() map[string]string {
 	return maps.Clone(c.params)
-}
-
-// Logger 返回当前任务日志实现，供共享执行引擎复用。
-func (c *Context) TaskLogger() Logger {
-	return c.taskLogger
 }
 
 // MergeResultJSON 将共享执行引擎产生的结构化结果合并到当前 Context。
@@ -177,28 +173,28 @@ func cloneArtifactRoots(roots ArtifactRoots) ArtifactRoots {
 	return roots
 }
 
-// Log 记录一条任务日志。
+// Log 记录一条用户可见的任务执行日志。
 func (c *Context) Log(format string, args ...any) {
-	c.taskLogger.Log(format, args...)
+	c.executionLogger.Log(format, args...)
 }
 
 // ReportProgress 记录规范化到 0 到 100 的任务进度。
 func (c *Context) ReportProgress(progress int) error {
 	progress = max(0, min(progress, 100))
 	if c.progress == nil {
-		c.Logger().Debug("任务未配置进度上报器", "progress", progress)
+		c.SystemLogger().Debug("任务未配置进度上报器", "progress", progress)
 		return nil
 	}
 	return c.progress.ReportProgress(c.ctx, c.task, int32(progress))
 }
 
-// Logger 返回包含任务身份字段的系统日志组件。
-func (c *Context) Logger() SystemLogger { return c.logger }
+// SystemLogger 返回包含任务身份字段的内部诊断日志组件。
+func (c *Context) SystemLogger() SystemLogger { return c.systemLogger }
 
 // Close 刷新任务日志并释放上下文资源。
 func (c *Context) Close() {
-	if c.taskLogger != nil {
-		c.taskLogger.Close()
+	if c.executionLogger != nil {
+		c.executionLogger.Close()
 	}
 }
 

@@ -119,11 +119,11 @@ func (c *ExecuteConsumer) Consume(ctx context.Context) error {
 		ctx = ctxutil.WithOriginTenantID(ctx, command.TenantID)
 	}
 	// 日志器在执行期间批量发布 LOG_BATCH，关闭时同步刷新尾部日志。
-	taskLogger := newKafkaTaskLogger(ctx, c.publisher, command, c.logger)
+	executionLogger := newKafkaExecutionLogger(ctx, c.publisher, command, c.logger)
 	output, executeErr := c.svc.Receive(ctx, service.ExecutionRequest{
-		DispatchID: command.DispatchID,
-		Execution:  command.Execution(),
-		TaskLogger: taskLogger,
+		DispatchID:      command.DispatchID,
+		Execution:       command.Execution(),
+		ExecutionLogger: executionLogger,
 	})
 	status := domain.TaskExecutionStatusSuccess
 	result := output.Result
@@ -146,7 +146,7 @@ func (c *ExecuteConsumer) Consume(ctx context.Context) error {
 			ID: command.ExecutionID, TaskID: command.TaskID, TaskName: command.TaskName,
 			Status: status, ExecutorNodeID: c.instance.ID, TaskResult: result,
 		},
-		PendingLogs: taskLogger.PendingLogs(),
+		PendingLogs: executionLogger.PendingLogs(),
 	})
 }
 
@@ -165,7 +165,7 @@ func (c *ExecuteConsumer) ConsumeControl(ctx context.Context) error {
 		return err
 	}
 	if ctxutil.GetTenantID(ctx).Int64() <= 0 {
-		return fmt.Errorf("Agent 终止命令缺少租户身份: execution_id=%d", command.ExecutionID)
+		return fmt.Errorf("agent 终止命令缺少租户身份: execution_id=%d", command.ExecutionID)
 	}
 	c.svc.Terminate(command.ExecutionID, command.Reason)
 	return nil

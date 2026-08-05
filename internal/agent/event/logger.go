@@ -11,7 +11,7 @@ import (
 	"github.com/gotomicro/ego/core/elog"
 )
 
-type kafkaTaskLogger struct {
+type kafkaExecutionLogger struct {
 	*tasklog.Logger
 }
 
@@ -24,14 +24,14 @@ type kafkaLogSink struct {
 	sequence uint64
 }
 
-func newKafkaTaskLogger(ctx context.Context, publisher ExecutionEventPublisher,
-	command ExecuteCommand, logger *elog.Component) *kafkaTaskLogger {
-	return newKafkaTaskLoggerWithOptions(ctx, publisher, command, logger,
+func newKafkaExecutionLogger(ctx context.Context, publisher ExecutionEventPublisher,
+	command ExecuteCommand, logger *elog.Component) *kafkaExecutionLogger {
+	return newKafkaExecutionLoggerWithOptions(ctx, publisher, command, logger,
 		tasklog.DefaultBufferSize, tasklog.DefaultFlushPeriod)
 }
 
-func newKafkaTaskLoggerWithOptions(ctx context.Context, publisher ExecutionEventPublisher,
-	command ExecuteCommand, logger *elog.Component, bufferSize int, interval time.Duration) *kafkaTaskLogger {
+func newKafkaExecutionLoggerWithOptions(ctx context.Context, publisher ExecutionEventPublisher,
+	command ExecuteCommand, logger *elog.Component, bufferSize int, interval time.Duration) *kafkaExecutionLogger {
 	sink := &kafkaLogSink{
 		publisher: publisher, dispatchID: command.DispatchID,
 		execution: internaldomain.ExecutionState{
@@ -47,7 +47,7 @@ func newKafkaTaskLoggerWithOptions(ctx context.Context, publisher ExecutionEvent
 			}
 		},
 	})
-	return &kafkaTaskLogger{Logger: buffer}
+	return &kafkaExecutionLogger{Logger: buffer}
 }
 
 func (s *kafkaLogSink) WriteBatch(ctx context.Context, logs []string) error {

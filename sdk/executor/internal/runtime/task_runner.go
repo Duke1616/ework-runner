@@ -87,7 +87,7 @@ func (e *Executor) runTask(ctx context.Context, req *executorv1.ExecuteRequest) 
 			ExecutorNodeID: e.config.Server.ServiceId,
 		},
 		Params: req.GetParams(), Parameters: e.handlerMetadata(req.GetTaskHandlerName()),
-		Artifacts: artifactRefs(req.GetArtifacts()), TaskLogger: e.newTaskLogger(ctx, executionID),
+		Artifacts: artifactRefs(req.GetArtifacts()), ExecutionLogger: e.newExecutionLogger(ctx, executionID),
 	})
 	e.finishTask(ctx, executionID, result.Value, logger, err)
 }

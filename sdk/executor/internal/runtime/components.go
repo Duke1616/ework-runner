@@ -80,7 +80,7 @@ func (e *Executor) initEngine() {
 		enginepkg.WithProgressReporter(executionProgressReporter{
 			executions: e.executions, reporter: e.reporterClient,
 		}),
-		enginepkg.WithLogger(egolog.New(e.logger)),
+		enginepkg.WithSystemLogger(egolog.New(e.logger)),
 	)
 }
 

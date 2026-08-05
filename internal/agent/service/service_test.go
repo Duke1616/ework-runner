@@ -21,7 +21,7 @@ func TestServiceTerminateCancelsCurrentAndFutureDelivery(t *testing.T) {
 		fixture := newServiceFixture(t)
 		fixture.handler.block = make(chan struct{})
 		done := make(chan error, 1)
-		logger := newTaskLoggerMock(t)
+		logger := newExecutionLoggerMock(t)
 		go func() {
 			_, err := fixture.service.Receive(context.Background(),
 				executionRequest(fixture, "dispatch-1", logger))
@@ -41,7 +41,7 @@ func TestServiceTerminateCancelsCurrentAndFutureDelivery(t *testing.T) {
 		fixture := newServiceFixture(t)
 		fixture.service.Terminate(fixture.execution.ID, "管理员强制结束")
 		_, err := fixture.service.Receive(context.Background(),
-			executionRequest(fixture, "dispatch-late", newTaskLoggerMock(t)))
+			executionRequest(fixture, "dispatch-late", newExecutionLoggerMock(t)))
 		if !errors.Is(err, ErrExecutionTerminated) {
 			t.Fatalf("Receive() 错误 = %v, 期望 ErrExecutionTerminated", err)
 		}
@@ -69,7 +69,7 @@ func TestServiceReceive(t *testing.T) {
 				var wg sync.WaitGroup
 				outputs := make([]string, 2)
 				errs := make([]error, 2)
-				loggers := []*servicemocks.MockTaskLogger{newTaskLoggerMock(t), newTaskLoggerMock(t)}
+				loggers := []*servicemocks.MockExecutionLogger{newExecutionLoggerMock(t), newExecutionLoggerMock(t)}
 				for index := range outputs {
 					wg.Add(1)
 					go func(index int) {
@@ -103,7 +103,7 @@ func TestServiceReceive(t *testing.T) {
 			},
 			run: func(t *testing.T, fixture *serviceFixture) {
 				for _, dispatchID := range []string{"dispatch-1", "dispatch-2"} {
-					if _, err := fixture.service.Receive(context.Background(), executionRequest(fixture, dispatchID, newTaskLoggerMock(t))); err != nil {
+					if _, err := fixture.service.Receive(context.Background(), executionRequest(fixture, dispatchID, newExecutionLoggerMock(t))); err != nil {
 						t.Fatalf("Receive() 返回意外错误: %v", err)
 					}
 				}
@@ -125,7 +125,7 @@ func TestServiceReceive(t *testing.T) {
 				return fixture, func() {}
 			},
 			run: func(t *testing.T, fixture *serviceFixture) {
-				if _, err := fixture.service.Receive(context.Background(), executionRequest(fixture, "dispatch-1", newTaskLoggerMock(t))); err != nil {
+				if _, err := fixture.service.Receive(context.Background(), executionRequest(fixture, "dispatch-1", newExecutionLoggerMock(t))); err != nil {
 					t.Fatalf("Receive() 返回意外错误: %v", err)
 				}
 			},
@@ -151,7 +151,7 @@ func TestServiceReceive(t *testing.T) {
 			},
 			run: func(t *testing.T, fixture *serviceFixture) {
 				ctrl := gomock.NewController(t)
-				logger := servicemocks.NewMockTaskLogger(ctrl)
+				logger := servicemocks.NewMockExecutionLogger(ctrl)
 				gomock.InOrder(
 					logger.EXPECT().Log("%s", "token=[MASKED]"),
 					logger.EXPECT().Close(),
@@ -175,13 +175,13 @@ func TestServiceReceive(t *testing.T) {
 	}
 }
 
-func executionRequest(fixture *serviceFixture, dispatchID string, logger executor.TaskLogger) ExecutionRequest {
-	return ExecutionRequest{DispatchID: dispatchID, Execution: fixture.execution, TaskLogger: logger}
+func executionRequest(fixture *serviceFixture, dispatchID string, logger executor.ExecutionLogger) ExecutionRequest {
+	return ExecutionRequest{DispatchID: dispatchID, Execution: fixture.execution, ExecutionLogger: logger}
 }
 
-func newTaskLoggerMock(t *testing.T) *servicemocks.MockTaskLogger {
+func newExecutionLoggerMock(t *testing.T) *servicemocks.MockExecutionLogger {
 	t.Helper()
-	logger := servicemocks.NewMockTaskLogger(gomock.NewController(t))
+	logger := servicemocks.NewMockExecutionLogger(gomock.NewController(t))
 	logger.EXPECT().Close()
 	return logger
 }

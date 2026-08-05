@@ -98,7 +98,7 @@ func streamOutput(task *executor.Context, reader io.Reader, maxLineSize int, wai
 			return
 		}
 		if err != nil {
-			task.Logger().Error("读取脚本输出失败", elog.FieldErr(err))
+			task.SystemLogger().Error("读取脚本输出失败", elog.FieldErr(err))
 			return
 		}
 		line = line[:0]
@@ -118,7 +118,7 @@ func streamResult(task *executor.Context, reader io.Reader, maximum int64, wait 
 			return
 		}
 		if err != nil {
-			task.Logger().Error("解析流式结果碎片失败", elog.FieldErr(err))
+			task.SystemLogger().Error("解析流式结果碎片失败", elog.FieldErr(err))
 			_, _ = io.Copy(io.Discard, reader)
 			return
 		}
@@ -126,7 +126,7 @@ func streamResult(task *executor.Context, reader io.Reader, maximum int64, wait 
 			task.AddResult(partial)
 		} else if !exceeded {
 			exceeded = true
-			task.Logger().Error("脚本结果超过大小限制", elog.Int64("maxResultSize", maximum))
+			task.SystemLogger().Error("脚本结果超过大小限制", elog.Int64("maxResultSize", maximum))
 		}
 	}
 }

@@ -12,12 +12,12 @@ import (
 
 // Command 描述执行一次任务所需的全部进程内输入。
 type Command struct {
-	Task       task.TaskInfo
-	Params     map[string]string
-	Metadata   map[string]string
-	Parameters []task.Parameter
-	Artifacts  []artifact.Ref
-	TaskLogger task.Logger
+	Task            task.TaskInfo
+	Params          map[string]string
+	Metadata        map[string]string
+	Parameters      []task.Parameter
+	Artifacts       []artifact.Ref
+	ExecutionLogger task.ExecutionLogger
 }
 
 // Result 描述一次 Handler 执行产生的结构化结果。
@@ -27,11 +27,11 @@ type Result struct {
 
 // Engine 统一编排制品准备、Context 创建和 Handler 调用。
 type Engine struct {
-	handlers   *task.HandlerRegistry
-	artifacts  artifact.Preparer
-	downloader artifact.Downloader
-	progress   task.ProgressReporter
-	logger     task.SystemLogger
+	handlers     *task.HandlerRegistry
+	artifacts    artifact.Preparer
+	downloader   artifact.Downloader
+	progress     task.ProgressReporter
+	systemLogger task.SystemLogger
 }
 
 // Option 配置 Engine 生命周期内稳定持有的基础设施依赖。
@@ -47,9 +47,9 @@ func WithProgressReporter(reporter task.ProgressReporter) Option {
 	return func(engine *Engine) { engine.progress = reporter }
 }
 
-// WithLogger 注入 Engine 和任务 Context 使用的系统日志端口。
-func WithLogger(logger task.SystemLogger) Option {
-	return func(engine *Engine) { engine.logger = logger }
+// WithSystemLogger 注入 Engine 和任务 Context 使用的系统日志端口。
+func WithSystemLogger(logger task.SystemLogger) Option {
+	return func(engine *Engine) { engine.systemLogger = logger }
 }
 
 // New 创建进程内执行引擎。
@@ -68,12 +68,13 @@ func (e *Engine) Execute(ctx context.Context, command Command) (result Result, e
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	taskLogger := command.TaskLogger
-	// 执行引擎持有任务日志器，并保证所有返回路径都会关闭它。
+	executionLogger := command.ExecutionLogger
+	// 执行引擎持有执行日志器，并保证所有返回路径都会关闭它。
 	taskCtx := task.NewContext(task.ContextOptions{
 		Context: ctx, Task: command.Task, Params: command.Params,
 		Metadata: command.Metadata, Parameters: command.Parameters,
-		Logger: scopedSystemLogger(e.logger, command.Task), TaskLogger: taskLogger, Progress: e.progress,
+		SystemLogger: scopedSystemLogger(e.systemLogger, command.Task), ExecutionLogger: executionLogger,
+		Progress: e.progress,
 	})
 	defer taskCtx.Close()
 	if e.handlers == nil {

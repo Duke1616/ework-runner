@@ -26,7 +26,7 @@ func (s grpcLogSink) WriteBatch(ctx context.Context, logs []string) error {
 	return err
 }
 
-func (e *Executor) newTaskLogger(ctx context.Context, executionID int64) task.Logger {
+func (e *Executor) newExecutionLogger(ctx context.Context, executionID int64) task.ExecutionLogger {
 	if e.reporterClient == nil {
 		return nil
 	}

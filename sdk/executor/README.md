@@ -96,12 +96,15 @@ if err := handlers.Register(myHandlers...); err != nil {
 pipeline := engine.New(handlers, artifacts,
     engine.WithArtifactDownloader(downloader),
     engine.WithProgressReporter(progressReporter),
-    engine.WithLogger(systemLogger),
+    engine.WithSystemLogger(systemLogger),
 )
-result, err := pipeline.Execute(ctx, engine.Command{/* task input */})
+result, err := pipeline.Execute(ctx, engine.Command{
+    /* task input */
+    ExecutionLogger: executionLogger,
+})
 ```
 
-Engine 的 artifact downloader、progress reporter 和 system logger 是生命周期依赖，通过构造选项注入；单次任务的 `TaskLogger` 放在 `Command` 中。这些契约都不依赖 gRPC 或 EGO，具体传输和日志实现由 adapter 提供。调度端 Codebook、Runner 等参数绑定解析属于 etask 内部业务，不是 Executor SDK 扩展点。
+Engine 的 artifact downloader、progress reporter 和 system logger 是生命周期依赖，通过构造选项注入；单次任务面向用户的 `ExecutionLogger` 放在 `Command` 中。这些契约都不依赖 gRPC 或 EGO，具体传输和日志实现由 adapter 提供。调度端 Codebook、Runner 等参数绑定解析属于 etask 内部业务，不是 Executor SDK 扩展点。
 
 ## 包结构
 

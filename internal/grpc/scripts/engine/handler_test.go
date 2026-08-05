@@ -74,7 +74,7 @@ func TestHandlerRun(t *testing.T) {
 			current.handler = handler
 			current.task = executor.NewContext(executor.ContextOptions{
 				Context: t.Context(), Task: executor.TaskInfo{ExecutionID: 9, TaskID: 1, Name: "test", Handler: "shell"},
-				Params: tc.params, TaskLogger: &taskLoggerFake{},
+				Params: tc.params, ExecutionLogger: &executionLoggerFake{},
 			})
 			if tc.before != nil {
 				tc.before(t, current)
@@ -152,10 +152,10 @@ func (a *archiverFake) Archive(record ArchiveRecord) error {
 func (a *archiverFake) Prune() error    { return nil }
 func (a *archiverFake) Validate() error { return nil }
 
-type taskLoggerFake struct{}
+type executionLoggerFake struct{}
 
-func (taskLoggerFake) Log(string, ...any) {}
-func (taskLoggerFake) Close()             {}
+func (executionLoggerFake) Log(string, ...any) {}
+func (executionLoggerFake) Close()             {}
 
 var _ WorkspaceFactory = (*workspaceFake)(nil)
 var _ Adapter = (*adapterFake)(nil)

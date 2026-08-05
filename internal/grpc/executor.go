@@ -50,7 +50,7 @@ func (h *DemoTaskHandler) Metadata() []executor.Parameter {
 }
 
 func (h *DemoTaskHandler) Run(ctx *executor.Context) error {
-	logger := ctx.Logger()
+	logger := ctx.SystemLogger()
 
 	// 获取参数
 	start := ctx.ParamInt("start")

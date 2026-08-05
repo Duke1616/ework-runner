@@ -35,7 +35,7 @@ func (c *Context) SetResults(data map[string]any) {
 func (c *Context) ResultJSON() string {
 	value, err := c.Result()
 	if err != nil {
-		c.Logger().Error("序列化任务结果失败", "error", err)
+		c.SystemLogger().Error("序列化任务结果失败", "error", err)
 		return ""
 	}
 	return value

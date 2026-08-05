@@ -51,7 +51,7 @@ printf 'workspace-only\n' > "$ETASK_SYSTEM_ROOT/common.sh"
 `,
 			"args": `{}`, "variables": `[]`,
 		},
-		TaskLogger: sandboxTaskLogger{},
+		ExecutionLogger: sandboxExecutionLogger{},
 	})
 	task.SetArtifactRoots(executor.ArtifactRoots{Default: artifactRoot})
 	require.NoError(t, runtime.Handlers()[0].Run(task))
@@ -60,7 +60,7 @@ printf 'workspace-only\n' > "$ETASK_SYSTEM_ROOT/common.sh"
 	require.Equal(t, "original\n", string(content))
 }
 
-type sandboxTaskLogger struct{}
+type sandboxExecutionLogger struct{}
 
-func (sandboxTaskLogger) Log(string, ...any) {}
-func (sandboxTaskLogger) Close()             {}
+func (sandboxExecutionLogger) Log(string, ...any) {}
+func (sandboxExecutionLogger) Close()             {}

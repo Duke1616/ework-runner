@@ -64,5 +64,5 @@ func (c *Context) BindPayload(target any) error {
 }
 
 func (c *Context) logInvalidParam(key, value string, err error) {
-	c.Logger().Warn("任务参数类型转换失败", "key", key, "value", value, "error", err)
+	c.SystemLogger().Warn("任务参数类型转换失败", "key", key, "value", value, "error", err)
 }

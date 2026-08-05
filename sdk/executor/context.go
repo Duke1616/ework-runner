@@ -9,9 +9,9 @@ type (
 	ContextOptions = task.ContextOptions
 	// Context 向任务处理器提供参数、日志、结果和制品目录。
 	Context = task.Context
-	// TaskLogger 定义任务日志写入和关闭行为。
-	TaskLogger = task.Logger
-	// SystemLogger 定义 Handler 可选的结构化系统日志端口。
+	// ExecutionLogger 定义用户可见的任务执行日志写入和关闭行为。
+	ExecutionLogger = task.ExecutionLogger
+	// SystemLogger 定义 Executor 和 Handler 的结构化内部诊断日志端口。
 	SystemLogger = task.SystemLogger
 	// ArtifactRoots 描述 Executor 为任务准备的默认层和具名层。
 	ArtifactRoots = task.ArtifactRoots

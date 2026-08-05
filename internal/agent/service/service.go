@@ -23,7 +23,7 @@ const executionRetention = 30 * time.Minute
 
 var ErrExecutionTerminated = errors.New("execution 已被强制终止")
 
-//go:generate go tool mockgen -package=servicemocks -destination=./mocks/task_logger.mock.go -typed github.com/Duke1616/etask/sdk/executor TaskLogger
+//go:generate go tool mockgen -package=servicemocks -destination=./mocks/execution_logger.mock.go -typed github.com/Duke1616/etask/sdk/executor ExecutionLogger
 
 // Service 定义独立 Kafka Agent 的执行能力。
 type Service interface {
@@ -36,11 +36,11 @@ type Service interface {
 }
 
 // ExecutionRequest 汇总一次 Agent 执行所需的输入。
-// TaskLogger 由执行引擎持有，并在 Receive 返回前关闭。
+// ExecutionLogger 由执行引擎持有，并在 Receive 返回前关闭。
 type ExecutionRequest struct {
-	DispatchID string
-	Execution  internaldomain.TaskExecution
-	TaskLogger executor.TaskLogger
+	DispatchID      string
+	Execution       internaldomain.TaskExecution
+	ExecutionLogger executor.ExecutionLogger
 }
 
 type service struct {
@@ -77,7 +77,7 @@ func NewService(handlers []executor.TaskHandler, preparer artifact.Preparer,
 		registry: registry,
 		engine: executionengine.New(registry, preparer,
 			executionengine.WithArtifactDownloader(artifactgrpc.NewDownloader(artifactClient)),
-			executionengine.WithLogger(egolog.New(logger)),
+			executionengine.WithSystemLogger(egolog.New(logger)),
 		),
 		executionClient: executions,
 		logger:          logger,
@@ -95,13 +95,13 @@ func (s *service) ListHandlers() []executor.HandlerMeta {
 // Receive 幂等执行一条 Kafka 命令。
 func (s *service) Receive(ctx context.Context, request ExecutionRequest) (domain.ExecutionOutput, error) {
 	execution := request.Execution
-	if request.DispatchID == "" || execution.ID <= 0 || execution.Task.GrpcConfig == nil || request.TaskLogger == nil {
+	if request.DispatchID == "" || execution.ID <= 0 || execution.Task.GrpcConfig == nil || request.ExecutionLogger == nil {
 		return domain.ExecutionOutput{}, fmt.Errorf("agent 执行命令缺少派发 ID、执行 ID、处理器配置或日志器")
 	}
 	// dispatchID 是消息重投的幂等键；非 owner 等待首次执行结果而不重复运行。
 	entry, owner, runCtx := s.begin(ctx, request.DispatchID, execution.ID)
 	if !owner {
-		request.TaskLogger.Close()
+		request.ExecutionLogger.Close()
 		select {
 		case <-ctx.Done():
 			return domain.ExecutionOutput{}, ctx.Err()
@@ -110,7 +110,7 @@ func (s *service) Receive(ctx context.Context, request ExecutionRequest) (domain
 		}
 	}
 	if err := s.ensureNotCancelled(runCtx, execution.ID); err != nil {
-		request.TaskLogger.Close()
+		request.ExecutionLogger.Close()
 		if errors.Is(err, ErrExecutionTerminated) {
 			s.Terminate(execution.ID, err.Error())
 		}
@@ -119,7 +119,7 @@ func (s *service) Receive(ctx context.Context, request ExecutionRequest) (domain
 	}
 	refs, err := internaldomain.ArtifactRefsToExecutor(execution.Artifacts)
 	if err != nil {
-		request.TaskLogger.Close()
+		request.ExecutionLogger.Close()
 		s.finish(entry, domain.ExecutionOutput{}, err)
 		return domain.ExecutionOutput{}, err
 	}
@@ -130,7 +130,7 @@ func (s *service) Receive(ctx context.Context, request ExecutionRequest) (domain
 			Name: execution.Task.Name, Handler: execution.Task.GrpcConfig.HandlerName,
 		},
 		Params: execution.GRPCParams(), Parameters: s.handlerMetadata(execution.Task.GrpcConfig.HandlerName),
-		Artifacts: refs, TaskLogger: request.TaskLogger,
+		Artifacts: refs, ExecutionLogger: request.ExecutionLogger,
 	})
 	output := domain.ExecutionOutput{Result: result.Value}
 	err = s.finish(entry, output, err)

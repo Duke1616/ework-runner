@@ -7,27 +7,27 @@ import (
 	"strings"
 )
 
-// Logger 任务日志记录器接口
-type Logger interface {
+// ExecutionLogger 定义用户可见的任务执行日志写入和关闭行为。
+type ExecutionLogger interface {
 	// Log 记录一条支持格式化参数的任务日志。
 	Log(format string, args ...any)
 	// Close 刷新剩余日志并释放后台资源。
 	Close()
 }
 
-type maskingTaskLogger struct {
-	next  Logger
+type maskingExecutionLogger struct {
+	next  ExecutionLogger
 	masks []string
 }
 
-func newMaskingTaskLogger(next Logger, masks []string) Logger {
+func newMaskingExecutionLogger(next ExecutionLogger, masks []string) ExecutionLogger {
 	if len(masks) == 0 {
 		return next
 	}
-	return &maskingTaskLogger{next: next, masks: masks}
+	return &maskingExecutionLogger{next: next, masks: masks}
 }
 
-func (l *maskingTaskLogger) Log(format string, args ...any) {
+func (l *maskingExecutionLogger) Log(format string, args ...any) {
 	message := fmt.Sprintf(format, args...)
 	for _, mask := range l.masks {
 		message = strings.ReplaceAll(message, mask, "[MASKED]")
@@ -35,14 +35,14 @@ func (l *maskingTaskLogger) Log(format string, args ...any) {
 	l.next.Log("%s", message)
 }
 
-func (l *maskingTaskLogger) Close() {
+func (l *maskingExecutionLogger) Close() {
 	l.next.Close()
 }
 
-type noopTaskLogger struct{}
+type noopExecutionLogger struct{}
 
-func (noopTaskLogger) Log(string, ...any) {}
-func (noopTaskLogger) Close()             {}
+func (noopExecutionLogger) Log(string, ...any) {}
+func (noopExecutionLogger) Close()             {}
 
 type noopSystemLogger struct{}
 

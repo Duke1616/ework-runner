@@ -13,12 +13,12 @@ import (
 
 // Command 描述传输适配器提交的一次任务。
 type Command struct {
-	Task       executor.TaskInfo
-	Params     map[string]string
-	Metadata   map[string]string
-	Parameters []executor.Parameter
-	Artifacts  []artifact.Ref
-	TaskLogger executor.TaskLogger
+	Task            executor.TaskInfo
+	Params          map[string]string
+	Metadata        map[string]string
+	Parameters      []executor.Parameter
+	Artifacts       []artifact.Ref
+	ExecutionLogger executor.ExecutionLogger
 }
 
 // Result 表示一次执行返回的结构化结果。
@@ -35,9 +35,9 @@ type Engine struct {
 type Option func(*options)
 
 type options struct {
-	downloader artifact.Downloader
-	progress   executor.ProgressReporter
-	logger     executor.SystemLogger
+	downloader   artifact.Downloader
+	progress     executor.ProgressReporter
+	systemLogger executor.SystemLogger
 }
 
 // New 创建供自定义传输使用的执行引擎。
@@ -51,7 +51,7 @@ func New(handlers *HandlerRegistry, artifacts artifact.Preparer, opts ...Option)
 	return &Engine{inner: internalengine.New(internalHandlerRegistry(handlers), artifacts,
 		internalengine.WithArtifactDownloader(applied.downloader),
 		internalengine.WithProgressReporter(applied.progress),
-		internalengine.WithLogger(applied.logger),
+		internalengine.WithSystemLogger(applied.systemLogger),
 	)}
 }
 
@@ -65,9 +65,9 @@ func WithProgressReporter(reporter executor.ProgressReporter) Option {
 	return func(options *options) { options.progress = reporter }
 }
 
-// WithLogger 将系统日志端口绑定到 Engine 生命周期。
-func WithLogger(logger executor.SystemLogger) Option {
-	return func(options *options) { options.logger = logger }
+// WithSystemLogger 将系统日志端口绑定到 Engine 生命周期。
+func WithSystemLogger(logger executor.SystemLogger) Option {
+	return func(options *options) { options.systemLogger = logger }
 }
 
 // Execute 同步执行一次任务。
@@ -75,7 +75,7 @@ func (e *Engine) Execute(ctx context.Context, command Command) (Result, error) {
 	result, err := e.inner.Execute(ctx, internalengine.Command{
 		Task: command.Task, Params: command.Params,
 		Metadata: command.Metadata, Parameters: command.Parameters, Artifacts: command.Artifacts,
-		TaskLogger: command.TaskLogger,
+		ExecutionLogger: command.ExecutionLogger,
 	})
 	return Result{Value: result.Value}, err
 }
