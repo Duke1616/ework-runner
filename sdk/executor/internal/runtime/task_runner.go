@@ -47,7 +47,7 @@ func (e *Executor) startExecution(ctx context.Context, req *executorv1.ExecuteRe
 	if e.stopping {
 		e.runMu.Unlock()
 		cancel(nil)
-		return nil, fmt.Errorf("Executor 正在停止，不再接收新任务")
+		return nil, fmt.Errorf("executor 正在停止，不再接收新任务")
 	}
 	// Begin 同时承担幂等保护，相同执行 ID 正在运行时直接返回已有状态。
 	state, started := e.executions.Begin(initialState(req, e.config.Server.ServiceId), cancel)

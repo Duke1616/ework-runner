@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  vet:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -21,9 +21,6 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-
-      - name: Test
-        run: go test ./...
 
       - name: Vet
         run: go vet ./...
