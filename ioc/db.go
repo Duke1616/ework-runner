@@ -3,11 +3,10 @@ package ioc
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
 	"os"
 	"time"
-
-	"github.com/Duke1616/etask/internal/repository/dao"
 
 	"github.com/Duke1616/eiam/pkg/gormx"
 	"github.com/spf13/viper"
@@ -20,8 +19,25 @@ import (
 )
 
 func InitDB() *gorm.DB {
+	db, err := openDB()
+	if err != nil {
+		panic(err)
+	}
+	RunMigrations(db)
+
+	// 注册多租户插件，自动隔离 CRUD 操作。
+	if err = db.Use(gormx.NewTenantPlugin()); err != nil {
+		panic(err)
+	}
+	return db
+}
+
+// openDB 建立数据库连接，结构初始化由 InitDB 统一触发。
+func openDB() (*gorm.DB, error) {
 	dsn := viper.GetString("mysql.dsn")
-	WaitForDBSetup(dsn)
+	if err := waitForDBSetup(dsn); err != nil {
+		return nil, err
+	}
 
 	type DataBaseConnConfigurator struct {
 		DBConnectString           string //连接字符串
@@ -55,38 +71,25 @@ func InitDB() *gorm.DB {
 		Logger: myLogger,
 	})
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-
-	// AutoMigrate 创建/更新表结构（新增列、新建表）
-	if err = dao.InitTables(db); err != nil {
-		panic(err)
-	}
-
-	// goose 处理 AutoMigrate 无法覆盖的变更：
-	// ENUM 修改、列删除、索引调整等需要版本化管理的 DDL
-	RunMigrations(db)
-
-	// 注册多租户插件，自动隔离 CRUD 操作
-	err = db.Use(gormx.NewTenantPlugin())
-	if err != nil {
-		panic(err)
-	}
-
-	return db
+	return db, nil
 }
 
-func WaitForDBSetup(dsn string) {
+func waitForDBSetup(dsn string) error {
+	if dsn == "" {
+		return fmt.Errorf("mysql.dsn 不能为空")
+	}
 	sqlDB, err := sql.Open("mysql", dsn)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	defer sqlDB.Close()
 	const maxInterval = 10 * time.Second
 	const maxRetries = 10
 	strategy, err := retry.NewExponentialBackoffRetryStrategy(time.Second, maxInterval, maxRetries)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	const timeout = 5 * time.Second
@@ -99,8 +102,9 @@ func WaitForDBSetup(dsn string) {
 		}
 		next, ok := strategy.Next()
 		if !ok {
-			panic("WaitForDBSetup 重试失败......")
+			return fmt.Errorf("等待数据库就绪失败: %w", err)
 		}
 		time.Sleep(next)
 	}
+	return nil
 }

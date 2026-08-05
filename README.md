@@ -134,6 +134,16 @@ task agent
 task executor          
 ```
 
+### 3. Docker Compose 部署
+
+部署前在 `deploy/prod.yaml` 中配置数据库 DSN、加密密钥和 gRPC 认证令牌，然后启动服务：
+
+```bash
+docker compose -f deploy/docker-compose.yaml up -d
+```
+
+服务启动时会在 MySQL advisory lock 保护下初始化表并执行 Goose 迁移，多个实例可安全地并发启动。`deploy/prod.yaml` 默认启用脚本降权执行。
+
 ---
 
 <div align="center">

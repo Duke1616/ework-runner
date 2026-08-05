@@ -31,11 +31,11 @@ type Scheduler struct {
 
 // Config 调度器配置
 type Config struct {
-	BatchTimeout     time.Duration `yaml:"batchTimeout"`     // 批量查询超时时间
-	BatchSize        int           `yaml:"batchSize"`        // 批量获取任务数量
-	PreemptedTimeout time.Duration `yaml:"preemptedTimeout"` // 表示处于 PREEMPTED 状态任务的超时时间（毫秒）
-	ScheduleInterval time.Duration `yaml:"scheduleInterval"` // 调度间隔
-	RenewInterval    time.Duration `yaml:"renewInterval"`    // 续约间隔
+	BatchTimeout     time.Duration `mapstructure:"batch_timeout" yaml:"batch_timeout"`         // 批量查询超时时间
+	BatchSize        int           `mapstructure:"batch_size" yaml:"batch_size"`               // 批量获取任务数量
+	PreemptedTimeout time.Duration `mapstructure:"preempted_timeout" yaml:"preempted_timeout"` // PREEMPTED 状态任务的超时时间
+	ScheduleInterval time.Duration `mapstructure:"schedule_interval" yaml:"schedule_interval"` // 调度间隔
+	RenewInterval    time.Duration `mapstructure:"renew_interval" yaml:"renew_interval"`       // 续约间隔
 }
 
 // NewScheduler 创建调度器实例

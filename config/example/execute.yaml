@@ -43,7 +43,7 @@ artifact_cache:
   max_cache_size: "10GB"
 
 executor:
-  # 节点实例 ID（优先级：环境变量 EXECUTOR_NODE_ID > 此配置）
+  # 节点实例 ID，优先级：EXECUTOR_NODE_ID > executor.id > grpc.server.executor.id。
   id: "node-01"
   # 任务执行模式：PUSH (主动推送模式) 或 PULL (边缘拉取模式)
   mode: "PULL"

@@ -1,14 +1,11 @@
-FROM golang:1.25.0-alpine as build
-MAINTAINER luankz
+FROM golang:1.25.0-alpine AS build
 WORKDIR /app
 COPY . .
-# ENV GOPROXY="https://goproxy.cn,direct"
-# ENV GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 RUN go mod download
 
 ARG SERVICE_PATH=.
 ARG SERVICE_NAME=etask
-RUN go build -mod=readonly -a -o dist/${SERVICE_NAME} -ldflags="-w -s" ${SERVICE_PATH}
+RUN CGO_ENABLED=0 go build -mod=readonly -trimpath -o dist/${SERVICE_NAME} -ldflags="-w -s" ${SERVICE_PATH}
 
 FROM python:3.12.4-slim as deploy
 WORKDIR /app
@@ -21,4 +18,7 @@ RUN pip install --upgrade pip -i https://pypi.tuna.tsinghua.edu.cn/simple --no-c
     && apt-get update \
     && apt-get install --no-install-recommends vim jq curl -y \
     && rm -rf /var/lib/apt/lists/*
-EXPOSE 8000
+EXPOSE 8765 9002 9004
+
+ENTRYPOINT ["./etask"]
+CMD ["server", "--mode", "all", "--config", "/app/config/prod.yaml"]

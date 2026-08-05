@@ -1,9 +1,114 @@
-worker:
-  name: "测试环境"
-  desc: "服务启动，自动注册"
-  topic: "runner_server_test"
+log:
+  debug: false
+
+agent:
+  name: "Kafka-Agent"
+  topic: "agent_execute"
+  worker_count: 4
+  desc: "ETask Kafka execution agent"
+  isolation_level: "SHARED"
+
+artifact_cache:
+  dir: "/var/lib/etask/artifact-cache"
+  max_download_size: "512MB"
+  max_unpacked_size: "2GB"
+  max_file_count: 10000
+  max_cache_size: "10GB"
+
+runtime:
+  workspace_dir: "/tmp/etask/runs"
+  workspace_max_age: 24h
+  sandbox:
+    mode: required
+    uid: 65534
+    gid: 65534
+  max_code_size: "4MB"
+  max_args_size: "1MB"
+  max_variables_size: "1MB"
+  max_log_line_size: "1MB"
+  max_result_size: "4MB"
+  archive:
+    enabled: true
+    failed_only: true
+    dir: "/var/lib/etask/script-archive"
+    max_age: 168h
+    max_size: "10GB"
+
+executor:
+  # EXECUTOR_NODE_ID 可覆盖该值，用于多副本部署。
+  id: ""
+  mode: "PULL"
+  desc: "ETask execution node"
+  isolation_level: "SHARED"
+
+artifact:
+  temp_dir: "/tmp/etask/artifacts"
+  storage:
+    driver: "local"
+    local:
+      root: "/var/lib/etask/artifact-store"
+
+mysql:
+  dsn: ""
+
+encryption:
+  version: "V1"
+  key: ""
 
 kafka:
   network: tcp
   addresses:
-    - 127.0.0.1:9092
+    - kafka:9092
+
+etcd:
+  endpoints:
+    - etcd:2379
+
+web:
+  host: "0.0.0.0"
+  port: 8765
+
+policy:
+  auth_url: http://eiam:8000
+
+grpc:
+  server:
+    scheduler:
+      name: scheduler
+      listen_addr: "0.0.0.0:9002"
+      advertise_addr: ""
+      auth_token: ""
+    executor:
+      name: execute
+      listen_addr: "0.0.0.0:9004"
+      advertise_addr: ""
+      auth_token: ""
+  client:
+    scheduler:
+      name: scheduler
+      auth_token: ""
+    executor:
+      auth_token: ""
+
+scheduler:
+  batch_timeout: 3s
+  batch_size: 100
+  preempted_timeout: 10m
+  schedule_interval: 10s
+  renew_interval: 5s
+  max_concurrent_tasks: 1000
+  token_acquire_timeout: 3s
+
+compensator:
+  retry:
+    batch_size: 100
+    min_duration: 1s
+  reschedule:
+    batch_size: 100
+    min_duration: 1s
+  interrupt:
+    batch_size: 100
+    min_duration: 1s
+  termination:
+    batch_size: 100
+    min_duration: 1s

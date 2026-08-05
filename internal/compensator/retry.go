@@ -12,10 +12,8 @@ import (
 
 // RetryConfig 重试补偿器配置
 type RetryConfig struct {
-	MaxRetryCount          int64         `yaml:"maxRetryCount"`          // 最大重试次数
-	PrepareTimeoutWindowMs int64         `yaml:"prepareTimeoutWindowMs"` // PREPARE状态超时窗口
-	BatchSize              int           `yaml:"batchSize"`              // 批量处理大小
-	MinDuration            time.Duration `yaml:"minDuration"`            // 最小等待时间，防止空转
+	BatchSize   int           `mapstructure:"batch_size" yaml:"batch_size"`     // 批量处理大小
+	MinDuration time.Duration `mapstructure:"min_duration" yaml:"min_duration"` // 最小等待时间，防止空转
 }
 
 // RetryCompensator 重试补偿器

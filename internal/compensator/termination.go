@@ -9,8 +9,8 @@ import (
 )
 
 type TerminationConfig struct {
-	BatchSize   int
-	MinDuration time.Duration
+	BatchSize   int           `mapstructure:"batch_size" yaml:"batch_size"`
+	MinDuration time.Duration `mapstructure:"min_duration" yaml:"min_duration"`
 }
 
 type TerminationCompensator struct {

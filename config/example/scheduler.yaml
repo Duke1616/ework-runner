@@ -71,38 +71,35 @@ grpc:
       auth_token: ""
 
 scheduler:
-  # 批量获取任务的超时时间（纳秒）
-  batchTimeout: 3000000000
+  # 批量获取任务的超时时间
+  batch_timeout: 3s
   # 每次调度循环扫描的最大任务数
-  batchSize: 100
-  # 任务抢占超时时间（纳秒）
-  preemptedTimeout: 600000000000
-  # 核心调度循环间隔（纳秒）
-  scheduleInterval: 10000000000
-  # 任务续约间隔（纳秒）
-  renewInterval: 5000000000
+  batch_size: 100
+  # 任务抢占超时时间
+  preempted_timeout: 10m
+  # 核心调度循环间隔
+  schedule_interval: 10s
+  # 任务续约间隔
+  renew_interval: 5s
   # 单个 Scheduler 节点允许同时发起的最大执行调用数
-  maxConcurrentTasks: 1000
-  # 任务执行令牌获取超时时间（纳秒）
-  tokenAcquireTimeout: 3000000000
+  max_concurrent_tasks: 1000
+  # 任务执行令牌获取超时时间
+  token_acquire_timeout: 3s
 
 compensator:
   retry:
-    maxRetryCount: 3
-    # 任务准备阶段的超时窗口（纳秒）
-    prepareTimeoutWindowMs: 10000000000
-    batchSize: 100
-    # 重试补偿执行的最小间隔（纳秒）
-    minDuration: 1000000000
+    batch_size: 100
+    # 重试补偿执行的最小间隔
+    min_duration: 1s
   reschedule:
-    batchSize: 100
-    # 重新调度补偿执行的最小间隔（纳秒）
-    minDuration: 1000000000
+    batch_size: 100
+    # 重新调度补偿执行的最小间隔
+    min_duration: 1s
   interrupt:
-    batchSize: 100
-    # 中断补偿执行的最小间隔（纳秒）
-    minDuration: 1000000000
+    batch_size: 100
+    # 中断补偿执行的最小间隔
+    min_duration: 1s
   termination:
-    batchSize: 100
-    # 终止信号持久化投递的最小间隔（纳秒）
-    minDuration: 1000000000
+    batch_size: 100
+    # 终止信号持久化投递的最小间隔
+    min_duration: 1s

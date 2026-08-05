@@ -31,17 +31,17 @@ type TaskDispatcher struct {
 
 // Config 控制当前 Scheduler 节点发起执行调用的并发量。
 type Config struct {
-	MaxConcurrentTasks  int           `yaml:"maxConcurrentTasks"`
-	TokenAcquireTimeout time.Duration `yaml:"tokenAcquireTimeout"`
+	MaxConcurrentTasks  int           `mapstructure:"max_concurrent_tasks" yaml:"max_concurrent_tasks"`
+	TokenAcquireTimeout time.Duration `mapstructure:"token_acquire_timeout" yaml:"token_acquire_timeout"`
 }
 
 // Validate 校验并发控制配置。
 func (c Config) Validate() error {
 	if c.MaxConcurrentTasks <= 0 {
-		return fmt.Errorf("maxConcurrentTasks 必须大于 0")
+		return fmt.Errorf("max_concurrent_tasks 必须大于 0")
 	}
 	if c.TokenAcquireTimeout <= 0 {
-		return fmt.Errorf("tokenAcquireTimeout 必须大于 0")
+		return fmt.Errorf("token_acquire_timeout 必须大于 0")
 	}
 	return nil
 }

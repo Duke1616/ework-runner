@@ -22,10 +22,10 @@ const (
 // Task 任务表DAO对象
 type Task struct {
 	ID                  int64                               `gorm:"type:bigint;primaryKey;autoIncrement;"`
-	TenantID            int64                               `gorm:"type:bigint unsigned;not null;default:0;index;comment:'租户ID'"`
+	TenantID            int64                               `gorm:"type:bigint unsigned;not null;default:0;index;uniqueIndex:uniq_idx_name_tenant,priority:1;comment:'租户ID'"`
 	BizID               int64                               `gorm:"type:bigint unsigned;not null;default:0;comment:biz_id"`
 	BizKey              string                              `gorm:"type:varchar(255);not null;default:'';index:idx_biz;comment:'业务方唯一标识，如工单号'"`
-	Name                string                              `gorm:"type:varchar(255);not null;uniqueIndex:uniq_idx_name_tenant;comment:'任务名称'"`
+	Name                string                              `gorm:"type:varchar(255);not null;uniqueIndex:uniq_idx_name_tenant,priority:2;comment:'任务名称'"`
 	Type                string                              `gorm:"type:ENUM('RECURRING', 'ONE_TIME');not null;default:'RECURRING';comment:'任务类型: RECURRING-定时任务(循环执行), ONE_TIME-一次性任务(执行一次后停止)'"`
 	CronExpr            string                              `gorm:"type:varchar(100);not null;comment:'cron表达式'"`
 	GrpcConfig          sqlx.JSONColumn[domain.GrpcConfig]  `gorm:"type:json;comment:'gRPC配置：{\"serviceName\": \"user-service\"}'"`

@@ -107,18 +107,15 @@ func InitExecutorServiceGRPCClients(reg registrysdk.Registry) *pool.Clients[exec
 }
 
 // resolveServer 确定最终的 NodeID
-// 优先级：环境变量 EXECUTOR_NODE_ID > 配置文件中的原始 ID
+// 优先级：EXECUTOR_NODE_ID > executor.id > grpc.server.executor.id。
 // 最终格式：serviceName:nodeID
 func resolveServer(sc grpcpkg.ServerConfig) grpcpkg.ServerConfig {
-	// 优先级 1: 环境变量
 	nodeID := os.Getenv("EXECUTOR_NODE_ID")
 
-	// 优先级 2: 配置文件中的 executor.id
 	if nodeID == "" {
 		nodeID = viper.GetString("executor.id")
 	}
 
-	// 优先级 3: 配置文件中的 grpc.server.executor.id (即传入的 ServiceId)
 	if nodeID == "" {
 		nodeID = sc.ServiceId
 	}

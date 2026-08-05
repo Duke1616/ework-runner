@@ -1,16 +1,22 @@
 version: '3'
 services:
-  ework-runner:
+  etask:
     restart: always
-    container_name: ework-execute
-    image: duke1616/ework-runner:latest
-    command: ./ework-execute
+    container_name: etask
+    image: duke1616/etask:latest
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    command: ["server", "--mode", "all", "--config", "/app/config/prod.yaml"]
     ports:
-      - 8668:8001
+      - "8668:8765"
+      - "9002:9002"
+      - "9004:9004"
     environment:
-      - TZ=Asia/Shanghai
+      TZ: Asia/Shanghai
+      EXECUTOR_NODE_ID: ${EXECUTOR_NODE_ID:-}
     volumes:
-      - ./prod.yaml:/app/config/prod.yaml
+      - ./prod.yaml:/app/config/prod.yaml:ro
       # 启用 Local 制品仓库或 Executor 制品缓存时需要持久化该目录。
       - etask-artifacts:/var/lib/etask
 

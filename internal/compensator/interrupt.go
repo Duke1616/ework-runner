@@ -17,8 +17,8 @@ import (
 
 // InterruptConfig 中断补偿器配置
 type InterruptConfig struct {
-	BatchSize   int           // 批次大小
-	MinDuration time.Duration // 最小等待时间，防止空转
+	BatchSize   int           `mapstructure:"batch_size" yaml:"batch_size"`     // 批次大小
+	MinDuration time.Duration `mapstructure:"min_duration" yaml:"min_duration"` // 最小等待时间，防止空转
 }
 
 // InterruptCompensator 中断补偿器
