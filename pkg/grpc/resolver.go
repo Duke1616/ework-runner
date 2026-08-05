@@ -126,7 +126,6 @@ func (g *executorResolver) reconcile() {
 
 	if len(instances) == 0 {
 		g.logger.Warn("服务发现结果为空", elog.String("service", serviceName))
-		return
 	}
 
 	address := make([]resolver.Address, 0, len(instances))

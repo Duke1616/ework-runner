@@ -76,40 +76,54 @@ func (b *InterceptorBuilder) Encode(customClaims jwt.MapClaims) (string, error) 
 
 func (b *InterceptorBuilder) JwtAuthInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		// 提取metadata
-		md, ok := metadata.FromIncomingContext(ctx)
-		if !ok {
-			return nil, status.Error(codes.Unauthenticated, "请求缺少元数据 metadata")
-		}
-
-		// 获取Authorization头
-		authHeaders := md.Get(AuthorizationKey)
-		if len(authHeaders) == 0 {
-			return nil, status.Error(codes.Unauthenticated, "请求缺少授权令牌 Authorization")
-		}
-
-		// 处理Bearer Token格式
-		tokenStr := authHeaders[0]
-
-		// 使用现有JwtAuth解码验证
-		claims, err := b.Decode(tokenStr)
+		ctx, err := b.authenticate(ctx)
 		if err != nil {
-			if errors.Is(err, jwt.ErrTokenExpired) {
-				return nil, status.Error(codes.Unauthenticated, "授权令牌已过期")
-			}
-			if errors.Is(err, jwt.ErrTokenSignatureInvalid) {
-				return nil, status.Error(codes.Unauthenticated, "授权令牌签名无效")
-			}
-			return nil, status.Error(codes.Unauthenticated, "无效的授权令牌: "+err.Error())
+			return nil, err
 		}
-
-		// 将解密出的受信 Claims 提取并注入 Context
-		ctx = Set(ctx, claims)
-
-		// 认证通过，继续处理
 		return handler(ctx, req)
 	}
 }
+
+// JwtAuthStreamInterceptor 验证流式请求，并将受信 claims 注入 ServerStream context。
+func (b *InterceptorBuilder) JwtAuthStreamInterceptor() grpc.StreamServerInterceptor {
+	return func(srv interface{}, stream grpc.ServerStream, _ *grpc.StreamServerInfo,
+		handler grpc.StreamHandler) error {
+		ctx, err := b.authenticate(stream.Context())
+		if err != nil {
+			return err
+		}
+		return handler(srv, &authenticatedServerStream{ServerStream: stream, ctx: ctx})
+	}
+}
+
+func (b *InterceptorBuilder) authenticate(ctx context.Context) (context.Context, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "请求缺少元数据 metadata")
+	}
+	authHeaders := md.Get(AuthorizationKey)
+	if len(authHeaders) == 0 {
+		return nil, status.Error(codes.Unauthenticated, "请求缺少授权令牌 Authorization")
+	}
+	claims, err := b.Decode(authHeaders[0])
+	if err != nil {
+		if errors.Is(err, jwt.ErrTokenExpired) {
+			return nil, status.Error(codes.Unauthenticated, "授权令牌已过期")
+		}
+		if errors.Is(err, jwt.ErrTokenSignatureInvalid) {
+			return nil, status.Error(codes.Unauthenticated, "授权令牌签名无效")
+		}
+		return nil, status.Error(codes.Unauthenticated, "无效的授权令牌: "+err.Error())
+	}
+	return Set(ctx, claims), nil
+}
+
+type authenticatedServerStream struct {
+	grpc.ServerStream
+	ctx context.Context
+}
+
+func (s *authenticatedServerStream) Context() context.Context { return s.ctx }
 
 // Option 配置选项
 type Option func(*InterceptorBuilder)

@@ -109,9 +109,15 @@ func (s *Scheduler) scheduleLoop() {
 		// 没有可以调度的任务就睡一会
 		if len(tasks) == 0 {
 			s.logger.Debug("没有可调度的任务")
-			// 睡眠一下
-			time.Sleep(s.config.ScheduleInterval)
-			continue
+			timer := time.NewTimer(s.config.ScheduleInterval)
+			select {
+			case <-s.ctx.Done():
+				timer.Stop()
+				s.logger.Info("调度循环结束")
+				return
+			case <-timer.C:
+				continue
+			}
 		}
 
 		s.logger.Info("发现可调度任务", elog.Int("count", len(tasks)))

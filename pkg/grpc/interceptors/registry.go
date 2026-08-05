@@ -30,6 +30,7 @@ func (p *ServerPipeline) Build() ([]grpc.UnaryServerInterceptor, []grpc.StreamSe
 	if p.authToken != "" {
 		jwtAuth := jwtinterceptor.NewJwtAuth(p.authToken)
 		unaryInterceptors = append(unaryInterceptors, jwtAuth.JwtAuthInterceptor())
+		streamInterceptors = append(streamInterceptors, jwtAuth.JwtAuthStreamInterceptor())
 	} else {
 		unaryInterceptors = append(unaryInterceptors, tenant.UnaryServerInterceptor())
 		streamInterceptors = append(streamInterceptors, tenant.StreamServerInterceptor())
@@ -61,6 +62,7 @@ func (p *ClientPipeline) Build() ([]grpc.UnaryClientInterceptor, []grpc.StreamCl
 	if p.authToken != "" {
 		jwtInterceptor := jwtinterceptor.NewClientInterceptorBuilder(p.authToken)
 		unaryInterceptors = append(unaryInterceptors, jwtInterceptor.UnaryClientInterceptor())
+		streamInterceptors = append(streamInterceptors, jwtInterceptor.StreamClientInterceptor())
 	} else {
 		unaryInterceptors = append(unaryInterceptors, tenant.UnaryClientInterceptor())
 		streamInterceptors = append(streamInterceptors, tenant.StreamClientInterceptor())

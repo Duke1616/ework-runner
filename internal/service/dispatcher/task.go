@@ -184,6 +184,14 @@ func (s *TaskDispatcher) Retry(ctx context.Context, execution domain.TaskExecuti
 	if execution.Route.DispatchMode.IsPull() {
 		return s.execSvc.RequeuePull(ctx, execution.ID)
 	}
+	claimed, err := s.claimForDispatch(ctx, execution, domain.TaskExecutionStatusFailedRetryable)
+	if err != nil {
+		return fmt.Errorf("抢占重试执行记录失败: %w", err)
+	}
+	if !claimed {
+		// 其他 Scheduler 已经抢到，或记录已被推进；这是正常的并发结果。
+		return nil
+	}
 	s.invokeAsync(s.WithExcludedNodeIDContext(ctx, execution.ExecutorNodeID), execution, retryInvocation)
 	return nil
 }
@@ -201,6 +209,25 @@ func (s *TaskDispatcher) Reschedule(ctx context.Context, execution domain.TaskEx
 	if execution.Route.DispatchMode.IsPull() {
 		return s.execSvc.RequeuePull(ctx, execution.ID)
 	}
+	claimed, err := s.claimForDispatch(ctx, execution, domain.TaskExecutionStatusFailedRescheduled)
+	if err != nil {
+		return fmt.Errorf("抢占重调度执行记录失败: %w", err)
+	}
+	if !claimed {
+		return nil
+	}
 	s.invokeAsync(s.WithSpecificNodeIDContext(ctx, execution.ExecutorNodeID), execution, rescheduleInvocation)
 	return nil
+}
+
+// claimForDispatch 将失败态原子迁移到 PREPARE，避免多个 Scheduler 同时再次调用同一 execution。
+// Executor 回调随后会把 PREPARE 推进到 RUNNING 或终态。
+func (s *TaskDispatcher) claimForDispatch(ctx context.Context, execution domain.TaskExecution,
+	expected domain.TaskExecutionStatus) (bool, error) {
+	if s.execSvc == nil {
+		return false, fmt.Errorf("执行服务未配置")
+	}
+	return s.execSvc.UpdateScheduleResult(ctx, execution.ID, []domain.TaskExecutionStatus{expected},
+		domain.TaskExecutionStatusPrepare, execution.RunningProgress, 0,
+		execution.Task.ScheduleParams, "", "")
 }

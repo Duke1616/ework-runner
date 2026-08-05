@@ -2,7 +2,7 @@
 
 # ⚙️ ETask - 分布式任务调度与异步执行引擎
 
-![Version](https://img.shields.io/badge/version-v0.0.4-blue.svg)
+![Version](https://img.shields.io/badge/version-v1.12.0-blue.svg)
 ![Go Version](https://img.shields.io/badge/go-1.25+-green.svg)
 ![License](https://img.shields.io/badge/license-MIT-orange.svg)
 ![Status](https://img.shields.io/badge/status-GA-brightgreen.svg)

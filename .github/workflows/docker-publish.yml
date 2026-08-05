@@ -45,7 +45,7 @@ jobs:
         id: octokit
         uses: oprypin/find-latest-tag@v1
         with:
-          repository: Duke1616/ecmdb
+          repository: Duke1616/etask
           releases-only: false
 
       - name: Set up Docker build

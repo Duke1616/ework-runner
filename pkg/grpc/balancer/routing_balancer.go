@@ -50,12 +50,12 @@ func (b *routingBalancer) UpdateClientConnState(state balancer.ClientConnState) 
 	// 移除不再存在的连接
 	for addrStr, sc := range b.subConnMap {
 		if _, ok := newAddrs[addrStr]; !ok {
-			// 地址被移除，关闭对应的子连接并清理所有相关映射
-			sc.Shutdown()
+			// 先从 Picker 数据源移除，再关闭连接；Shutdown 回调可能在映射清理后到达。
 			delete(b.subConnMap, addrStr)
-			delete(b.scToAddrMap, sc) // 清理反向映射
+			delete(b.scToAddrMap, sc)
 			delete(b.nodeIDMap, addrStr)
-			// readySCs 会在 UpdateSubConnState 中被处理
+			delete(b.readySCs, sc)
+			sc.Shutdown()
 		}
 	}
 
@@ -82,8 +82,8 @@ func (b *routingBalancer) UpdateClientConnState(state balancer.ClientConnState) 
 		sc.Connect()
 	}
 
-	// 注意：此处不调用 updatePicker，因为连接状态尚未确定。
-	// Picker 的更新完全由 UpdateSubConnState 根据连接的实际状态驱动。
+	// 地址删除必须立即刷新 Picker；新连接仍由后续状态回调加入 readySCs。
+	b.updatePicker()
 	return nil
 }
 

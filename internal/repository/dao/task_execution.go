@@ -142,7 +142,7 @@ func (g *GORMTaskExecutionDAO) ListByTaskID(ctx context.Context, taskID int64, o
 	var executions []TaskExecution
 	err := g.db.WithContext(ctx).
 		Where("task_id = ?", taskID).
-		Order("ctime DESC").
+		Order("ctime DESC, id DESC").
 		Offset(offset).
 		Limit(limit).
 		Find(&executions).Error

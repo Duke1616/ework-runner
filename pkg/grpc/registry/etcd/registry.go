@@ -186,7 +186,8 @@ func (r *Registry) ListServices(ctx context.Context, name string) ([]registry.Se
 }
 
 func (r *Registry) serviceKey(name string) string {
-	return fmt.Sprintf("%s/%s", r.prefix, name)
+	// WithPrefix 必须以目录分隔符结尾，避免 foo 匹配到 foobar 服务。
+	return fmt.Sprintf("%s/%s/", r.prefix, name)
 }
 
 func (r *Registry) Subscribe(name string) <-chan registry.Event {

@@ -14,7 +14,10 @@ import (
 	"github.com/Duke1616/etask/sdk/executor/internal/execution"
 	"github.com/Duke1616/etask/sdk/executor/internal/task"
 	"github.com/gotomicro/ego/core/elog"
+	"google.golang.org/grpc"
 )
+
+const finalReportTimeout = 10 * time.Second
 
 func (e *Executor) startExecution(ctx context.Context, req *executorv1.ExecuteRequest) (*executorv1.ExecuteResponse, error) {
 	eid := req.GetEid()
@@ -113,10 +116,11 @@ func (e *Executor) reportFinalResult(ctx context.Context, eid int64, status exec
 	if !exists || e.reporterClient == nil {
 		return
 	}
-	// 最终上报不能继承任务取消信号，否则 Interrupt 后的终态将无法送达。
-	reportCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	// 最终上报不能继承任务取消信号；短暂断连时等待连接恢复。
+	reportCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), finalReportTimeout)
 	defer cancel()
-	if _, err := e.reporterClient.Report(reportCtx, &reporterv1.ReportRequest{ExecutionState: state}); err != nil {
+	if _, err := e.reporterClient.Report(reportCtx,
+		&reporterv1.ReportRequest{ExecutionState: state}, grpc.WaitForReady(true)); err != nil {
 		e.logger.Error("上报最终状态失败", elog.FieldErr(err))
 	}
 }

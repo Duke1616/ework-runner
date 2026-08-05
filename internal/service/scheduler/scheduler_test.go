@@ -3,10 +3,13 @@ package scheduler
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/Duke1616/eiam/pkg/ctxutil"
 	"github.com/Duke1616/etask/internal/domain"
+	"github.com/Duke1616/etask/internal/service/task"
 	"github.com/gotomicro/ego/core/elog"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSchedulerScheduleOnce(t *testing.T) {
@@ -59,3 +62,50 @@ func (d *dispatcherStub) Run(ctx context.Context, _ domain.Task) error {
 }
 func (d *dispatcherStub) Retry(context.Context, domain.TaskExecution) error      { return nil }
 func (d *dispatcherStub) Reschedule(context.Context, domain.TaskExecution) error { return nil }
+
+func TestSchedulerScheduleLoopStopsDuringIdleWait(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	queried := make(chan struct{}, 1)
+	done := make(chan struct{})
+	scheduler := &Scheduler{
+		taskSvc: &schedulerTaskServiceStub{queried: queried},
+		config: Config{
+			BatchTimeout:     time.Second,
+			ScheduleInterval: time.Hour,
+		},
+		ctx:    ctx,
+		cancel: cancel,
+		logger: elog.DefaultLogger.With(elog.FieldComponentName("scheduler.test")),
+	}
+	go func() {
+		defer close(done)
+		scheduler.scheduleLoop()
+	}()
+
+	select {
+	case <-queried:
+	case <-time.After(time.Second):
+		t.Fatal("调度循环未查询可调度任务")
+	}
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("调度循环未在取消后及时退出")
+	}
+	require.ErrorIs(t, scheduler.ctx.Err(), context.Canceled)
+}
+
+type schedulerTaskServiceStub struct {
+	task.Service
+	queried chan<- struct{}
+}
+
+func (s *schedulerTaskServiceStub) SchedulableTasks(context.Context, int64, int) ([]domain.Task, error) {
+	select {
+	case s.queried <- struct{}{}:
+	default:
+	}
+	return nil, nil
+}

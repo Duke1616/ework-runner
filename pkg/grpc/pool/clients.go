@@ -45,11 +45,13 @@ func NewClients[T any](
 // ListServices 返回客户端池当前服务发现中的实例，用于需要逐节点广播的控制面调用。
 func (c *Clients[T]) ListServices(ctx context.Context, serviceName string) ([]registry.ServiceInstance, error) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	if c.closed {
+		c.mu.Unlock()
 		return nil, fmt.Errorf("grpc client pool is closed")
 	}
-	return c.registry.ListServices(ctx, serviceName)
+	reg := c.registry
+	c.mu.Unlock()
+	return reg.ListServices(ctx, serviceName)
 }
 
 // Get 获取带有自定义负载均衡器的客户端

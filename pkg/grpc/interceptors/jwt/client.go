@@ -24,16 +24,23 @@ func NewClientInterceptorBuilder(jwtKey string) *ClientInterceptorBuilder {
 // UnaryClientInterceptor 创建一元客户端拦截器
 func (b *ClientInterceptorBuilder) UnaryClientInterceptor() grpc.UnaryClientInterceptor {
 	return func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-		// 检查 context 中是否已经有 JWT 信息
-		if b.hasJWTInContext(ctx) {
-			// 如果已经有 JWT 信息，直接调用
-			return invoker(ctx, method, req, reply, cc, opts...)
-		}
-
-		// 自动注入 JWT context
-		jwtCtx := b.injectJWTContext(ctx)
-		return invoker(jwtCtx, method, req, reply, cc, opts...)
+		return invoker(b.withJWTContext(ctx), method, req, reply, cc, opts...)
 	}
+}
+
+// StreamClientInterceptor 为流式请求注入与一元请求相同的 JWT metadata。
+func (b *ClientInterceptorBuilder) StreamClientInterceptor() grpc.StreamClientInterceptor {
+	return func(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn,
+		method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
+		return streamer(b.withJWTContext(ctx), desc, cc, method, opts...)
+	}
+}
+
+func (b *ClientInterceptorBuilder) withJWTContext(ctx context.Context) context.Context {
+	if b.hasJWTInContext(ctx) {
+		return ctx
+	}
+	return b.injectJWTContext(ctx)
 }
 
 // hasJWTInContext 检查 context 中是否已经有 JWT 信息
