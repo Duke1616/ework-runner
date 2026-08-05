@@ -23,7 +23,7 @@ const executionRetention = 30 * time.Minute
 
 var ErrExecutionTerminated = errors.New("execution 已被强制终止")
 
-//go:generate mockgen -package=servicemocks -destination=./mocks/task_logger.mock.go -typed github.com/Duke1616/etask/sdk/executor TaskLogger
+//go:generate go tool mockgen -package=servicemocks -destination=./mocks/task_logger.mock.go -typed github.com/Duke1616/etask/sdk/executor TaskLogger
 
 // Service 定义独立 Kafka Agent 的执行能力。
 type Service interface {

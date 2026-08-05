@@ -1,11 +1,12 @@
 package grpc
 
 import (
+	"context"
+	"sync"
 	"time"
 
 	"github.com/Duke1616/etask/pkg/grpc/registry"
 	"github.com/gotomicro/ego/core/elog"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc/attributes"
 	"google.golang.org/grpc/resolver"
 )
@@ -31,11 +32,14 @@ func NewResolverBuilder(r registry.Registry, timeout time.Duration) resolver.Bui
 }
 
 func (r *resolverBuilder) Build(target resolver.Target, cc resolver.ClientConn, _ resolver.BuildOptions) (resolver.Resolver, error) {
+	ctx, cancel := context.WithCancel(context.Background())
 	res := &executorResolver{
 		target:       target,
 		cc:           cc,
 		registry:     r.r,
 		close:        make(chan struct{}),
+		ctx:          ctx,
+		cancel:       cancel,
 		updateNotify: make(chan struct{}, 1),
 		timeout:      r.timeout,
 		logger:       elog.DefaultLogger.With(elog.FieldComponentName("grpc.resolver")),
@@ -55,6 +59,9 @@ type executorResolver struct {
 	cc            resolver.ClientConn
 	registry      registry.Registry
 	close         chan struct{}
+	closeOnce     sync.Once
+	ctx           context.Context
+	cancel        context.CancelFunc
 	updateNotify  chan struct{}
 	timeout       time.Duration
 	lastAddresses []resolver.Address
@@ -69,14 +76,25 @@ func (g *executorResolver) ResolveNow(_ resolver.ResolveNowOptions) {
 }
 
 func (g *executorResolver) Close() {
-	close(g.close)
+	g.closeOnce.Do(func() {
+		g.cancel()
+		close(g.close)
+	})
 }
 
 func (g *executorResolver) watch() {
-	events := g.registry.Subscribe(g.target.Endpoint())
+	var events <-chan registry.Event
+	if subscriber, ok := g.registry.(registry.ContextSubscriber); ok {
+		events = subscriber.SubscribeContext(g.ctx, g.target.Endpoint())
+	} else {
+		events = g.registry.Subscribe(g.target.Endpoint())
+	}
 	for {
 		select {
-		case <-events:
+		case _, ok := <-events:
+			if !ok {
+				return
+			}
 			g.ResolveNow(resolver.ResolveNowOptions{})
 		case <-g.close:
 			return
@@ -97,7 +115,7 @@ func (g *executorResolver) reconcileLoop() {
 
 func (g *executorResolver) reconcile() {
 	serviceName := g.target.Endpoint()
-	ctx, cancel := context.WithTimeout(context.Background(), g.timeout)
+	ctx, cancel := context.WithTimeout(g.ctx, g.timeout)
 	instances, err := g.registry.ListServices(ctx, serviceName)
 	cancel()
 

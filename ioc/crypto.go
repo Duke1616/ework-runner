@@ -1,7 +1,7 @@
 package ioc
 
 import (
-	"github.com/Duke1616/ecmdb/pkg/cryptox"
+	"github.com/Duke1616/etask/pkg/cryptox"
 	"github.com/spf13/viper"
 )
 

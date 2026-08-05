@@ -6,14 +6,19 @@ import (
 
 	executorv1 "github.com/Duke1616/etask/api/proto/gen/etask/executor/v1"
 	"github.com/Duke1616/etask/internal/domain"
-	taskSvc "github.com/Duke1616/etask/internal/service/task"
+	taskmocks "github.com/Duke1616/etask/internal/service/task/mocks"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
 func TestGetTaskExecution(t *testing.T) {
-	server := &AgentServer{execSvc: &executionServiceStub{execution: domain.TaskExecution{
+	ctrl := gomock.NewController(t)
+	executions := taskmocks.NewMockExecutionService(ctrl)
+	execution := domain.TaskExecution{
 		ID: 9, Status: domain.TaskExecutionStatusSuccess, TaskResult: `{"ok":true}`,
-	}}}
+	}
+	executions.EXPECT().FindByID(gomock.Any(), int64(9)).Return(execution, nil)
+	server := &AgentServer{execSvc: executions}
 
 	response, err := server.GetTaskExecution(context.Background(),
 		&executorv1.GetTaskExecutionRequest{ExecutionId: 9})
@@ -56,13 +61,4 @@ func TestNormalizeHandlerNames(t *testing.T) {
 			require.Equal(t, tc.want, normalizeHandlerNames(tc.values))
 		})
 	}
-}
-
-type executionServiceStub struct {
-	taskSvc.ExecutionService
-	execution domain.TaskExecution
-}
-
-func (s *executionServiceStub) FindByID(context.Context, int64) (domain.TaskExecution, error) {
-	return s.execution, nil
 }

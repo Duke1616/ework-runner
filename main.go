@@ -62,7 +62,8 @@ func startServer() {
 	}
 
 	// 3. 启动已加载模块的服务和后台任务
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	app.StartBackgroundTasks(ctx)
 
 	if err := ego.New().Serve(app.GetServers()...).Run(); err != nil {

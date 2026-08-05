@@ -7,7 +7,9 @@ import (
 
 	schedulerv1 "github.com/Duke1616/etask/api/proto/gen/etask/scheduler/v1"
 	"github.com/Duke1616/etask/internal/service/submission"
+	submissionmocks "github.com/Duke1616/etask/internal/service/submission/mocks"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -27,7 +29,11 @@ func TestSchedulerServerMapsSubmissionErrors(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			server := NewSchedulerServer(&submissionServiceStub{result: testCase.result, err: testCase.err})
+			ctrl := gomock.NewController(t)
+			submissions := submissionmocks.NewMockService(ctrl)
+			submissions.EXPECT().RunRunner(gomock.Any(), gomock.Any()).
+				Return(testCase.result, testCase.err)
+			server := NewSchedulerServer(submissions)
 			_, err := server.RunRunner(context.Background(), &schedulerv1.RunRunnerRequest{})
 			require.Equal(t, testCase.wantCode, status.Code(err))
 		})
@@ -35,18 +41,3 @@ func TestSchedulerServerMapsSubmissionErrors(t *testing.T) {
 }
 
 func fmtError(target error) error { return errors.Join(target, errors.New("detail")) }
-
-type submissionServiceStub struct {
-	result submission.RunResult
-	err    error
-}
-
-func (s *submissionServiceStub) RunRunner(context.Context,
-	submission.RunRunnerCommand) (submission.RunResult, error) {
-	return s.result, s.err
-}
-
-func (s *submissionServiceStub) TerminateExecution(context.Context,
-	submission.TerminateExecutionCommand) error {
-	return s.err
-}

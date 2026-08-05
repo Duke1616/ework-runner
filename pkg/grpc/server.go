@@ -2,9 +2,12 @@ package grpc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
+	"sync/atomic"
+	"time"
 
 	"github.com/Duke1616/etask/pkg/grpc/interceptors"
 	"github.com/Duke1616/etask/pkg/grpc/registry"
@@ -52,7 +55,7 @@ type Server struct {
 	listenAddr     string // 监听地址
 	advertiseAddr  string // 广播地址(可选)
 	registeredAddr string // 注册到注册中心的地址
-	cancel         func()
+	started        atomic.Bool
 	logger         *elog.Component
 	metadata       map[string]any // 附加元数据
 }
@@ -162,10 +165,9 @@ func (s *Server) getAdvertiseIP() (string, error) {
 
 // startServer 启动服务器并注册到 etcd (内部方法)
 func (s *Server) startServer() (net.Listener, error) {
-	// 初始化控制上下文
-	_, cancel := context.WithCancel(context.Background())
-	s.cancel = cancel
-
+	if err := s.config.Validate(); err != nil {
+		return nil, err
+	}
 	listener, err := net.Listen("tcp", s.listenAddr)
 	if err != nil {
 		return nil, fmt.Errorf("监听端口失败: %w", err)
@@ -183,6 +185,7 @@ func (s *Server) startServer() (net.Listener, error) {
 		listener.Close() // 清理资源
 		return nil, fmt.Errorf("注册服务失败: %w", err)
 	}
+	s.started.Store(true)
 
 	return listener, nil
 }
@@ -198,6 +201,9 @@ func (s *Server) Serve() error {
 
 func (s *Server) register(addr string) error {
 	s.registeredAddr = addr
+	if s.registry == nil {
+		return nil
+	}
 	s.logger.Info("注册服务到 etcd",
 		elog.String("serviceID", s.serviceID),
 		elog.String("serviceName", s.ServiceName),
@@ -213,24 +219,9 @@ func (s *Server) register(addr string) error {
 }
 
 func (s *Server) Close() error {
-	// 取消续约
-	if s.cancel != nil {
-		s.cancel()
-	}
-
-	// 注销服务
-	if s.registry != nil {
-		if err := s.registry.UnRegister(context.Background(), registry.ServiceInstance{
-			ID:      s.serviceID,
-			Name:    s.ServiceName,
-			Address: s.registeredAddr,
-		}); err != nil {
-			s.logger.Error("注销服务失败", elog.FieldErr(err))
-		}
-	}
-
-	s.Server.GracefulStop()
-	return nil
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return s.stop(ctx, false)
 }
 
 // 以下方法实现 server.Server 接口，使其能被 ego 框架的 egoApp.Serve() 使用
@@ -242,7 +233,7 @@ func (s *Server) Name() string {
 
 // Init 实现 server.Server 接口
 func (s *Server) Init() error {
-	return nil
+	return s.config.Validate()
 }
 
 // Start 实现 server.Server 接口
@@ -254,8 +245,8 @@ func (s *Server) Start() error {
 
 	// 异步启动 gRPC 服务
 	go func() {
-		if err = s.Server.Serve(listener); err != nil {
-			s.logger.Error("gRPC 服务器错误", elog.FieldErr(err))
+		if serveErr := s.Server.Serve(listener); serveErr != nil && !errors.Is(serveErr, grpc.ErrServerStopped) {
+			s.logger.Error("gRPC 服务器错误", elog.FieldErr(serveErr))
 		}
 	}()
 
@@ -271,27 +262,41 @@ func (s *Server) Stop() error {
 // GracefulStop 实现 server.Server 接口
 func (s *Server) GracefulStop(ctx context.Context) error {
 	s.logger.Info("优雅停止 gRPC 服务器")
+	return s.stop(ctx, true)
+}
 
-	// 注销服务
-	if s.registry != nil {
-		if err := s.registry.UnRegister(context.Background(), registry.ServiceInstance{
-			ID:      s.serviceID,
-			Name:    s.ServiceName,
-			Address: s.registeredAddr,
-		}); err != nil {
-			s.logger.Error("注销服务失败", elog.FieldErr(err))
-		}
+func (s *Server) stop(ctx context.Context, graceful bool) error {
+	s.started.Store(false)
+	if !graceful {
+		s.Server.Stop()
+		return s.unregister(ctx)
 	}
-
-	// 取消续约
-	if s.cancel != nil {
-		s.cancel()
+	unregisterErr := s.unregister(ctx)
+	done := make(chan struct{})
+	go func() {
+		s.Server.GracefulStop()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return unregisterErr
+	case <-ctx.Done():
+		// listener 已关闭；调用方收到 ctx 错误后负责取消仍在执行的业务任务。
+		return errors.Join(unregisterErr, ctx.Err())
 	}
+}
 
-	// 优雅停止 gRPC Server
-	s.Server.GracefulStop()
-
-	return nil
+func (s *Server) unregister(ctx context.Context) error {
+	if s.registry == nil || s.registeredAddr == "" {
+		return nil
+	}
+	err := s.registry.UnRegister(ctx, registry.ServiceInstance{
+		ID: s.serviceID, Name: s.ServiceName, Address: s.registeredAddr,
+	})
+	if err != nil {
+		s.logger.Error("注销服务失败", elog.FieldErr(err))
+	}
+	return err
 }
 
 // PackageName 实现 server.Server 接口
@@ -309,6 +314,6 @@ func (s *Server) Info() *server.ServiceInfo {
 	)
 
 	// 判断服务是否健康
-	info.Healthy = s.cancel != nil
+	info.Healthy = s.started.Load()
 	return &info
 }

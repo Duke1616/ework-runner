@@ -14,7 +14,7 @@ const (
 	DefaultFlushTimeout = 10 * time.Second
 )
 
-//go:generate mockgen -source=./logger.go -package=tasklogmocks -destination=./mocks/logger.mock.go -typed Sink
+//go:generate go tool mockgen -source=./logger.go -package=tasklogmocks -destination=./mocks/logger.mock.go -typed
 
 // Sink 接收一批任务日志，Kafka 序号等传输元数据由具体 Sink 管理。
 type Sink interface {

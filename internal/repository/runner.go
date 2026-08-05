@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Duke1616/ecmdb/pkg/cryptox"
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/repository/dao"
+	"github.com/Duke1616/etask/pkg/cryptox"
 	"github.com/Duke1616/etask/pkg/sqlx"
 	"github.com/ecodeclub/ekit/slice"
 	"gorm.io/gorm"
@@ -14,6 +14,8 @@ import (
 
 // ErrRunnerNotFound 表示执行单元不存在。
 var ErrRunnerNotFound = gorm.ErrRecordNotFound
+
+//go:generate go tool mockgen -source=./runner.go -package=repositorymocks -destination=./mocks/runner.mock.go -typed
 
 // RunnerRepository 定义执行单元的领域仓储操作。
 type RunnerRepository interface {

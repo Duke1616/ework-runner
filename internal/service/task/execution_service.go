@@ -23,6 +23,8 @@ import (
 	"github.com/gotomicro/ego/core/elog"
 )
 
+//go:generate go tool mockgen -source=./execution_service.go -package=taskmocks -destination=./mocks/execution_service.mock.go -typed
+
 // ExecutionService 任务执行服务接口
 type ExecutionService interface {
 	// Create 创建任务执行实例

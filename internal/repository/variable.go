@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Duke1616/ecmdb/pkg/cryptox"
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/repository/dao"
+	"github.com/Duke1616/etask/pkg/cryptox"
 )
 
 type VariableRepository interface {

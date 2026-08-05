@@ -8,7 +8,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-//go:generate mockgen -source=./variable.go -package=variablemocks -destination=./mocks/variable.mock.go -typed Service
+//go:generate go tool mockgen -source=./variable.go -package=variablemocks -destination=./mocks/variable.mock.go -typed
 
 // Service 定义全局变量业务操作。
 type Service interface {

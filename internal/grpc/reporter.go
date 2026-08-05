@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-//go:generate mockgen -source=./reporter.go -package=grpcmocks -destination=./mocks/reporter.mock.go -typed ExecutionReportHandler
+//go:generate go tool mockgen -source=./reporter.go -package=grpcmocks -destination=./mocks/reporter.mock.go -typed
 
 // ExecutionReportHandler 定义执行节点上报所需的最小应用层能力。
 type ExecutionReportHandler interface {

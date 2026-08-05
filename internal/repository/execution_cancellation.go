@@ -12,6 +12,8 @@ import (
 // ErrCancellationRejected 表示目标 execution 不接受当前取消请求。
 var ErrCancellationRejected = errors.New("execution 取消请求被拒绝")
 
+//go:generate go tool mockgen -source=./execution_cancellation.go -package=repositorymocks -destination=./mocks/execution_cancellation.mock.go -typed
+
 // ExecutionCancellationRepository 保存取消意图，并与 execution 状态原子绑定。
 type ExecutionCancellationRepository interface {
 	// Request 持久化取消意图；execution 尚未创建时等待后续 Attach。

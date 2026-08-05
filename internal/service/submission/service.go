@@ -29,6 +29,8 @@ var (
 	ErrRejected = errors.New("工作流执行请求被拒绝")
 )
 
+//go:generate go tool mockgen -source=./service.go -package=submissionmocks -destination=./mocks/service.mock.go -typed
+
 // RunRunnerCommand 描述外部工作流提交的一次幂等 Runner 执行。
 type RunRunnerCommand struct {
 	RequestID string

@@ -34,11 +34,6 @@ tasks:
     cmds:
       - go run main.go server --mode executor --config ./config/config.yaml
 
-  endpoint:
-    desc: "批量注册/同步系统端点信息"
-    cmds:
-      - go run main.go endpoint --config ./config/config.yaml
-
   # --- 代码与生成 ---
 
   gen:
@@ -46,10 +41,15 @@ tasks:
     cmds:
       - buf generate api/proto
 
+  mocks:
+    desc: "测试 Mock 代码生成"
+    cmds:
+      - go generate ./internal/... ./pkg/tasklog
+
   wire:
     desc: "依赖注入代码生成"
     cmds:
-      - wire ./ioc
+      - go run github.com/google/wire/cmd/wire@v0.7.0 ./ioc
 
   # --- 数据库迁移 ---
 

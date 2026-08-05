@@ -51,10 +51,10 @@ func InitBase() *Base {
 
 // InitExecutionRuntime 初始化 Agent 和 Executor 共享的本地执行能力。
 func InitExecutionRuntime() *ExecutionRuntime {
-	v := InitArtifactPreparer()
+	preparer := InitArtifactPreparer()
 	runtime := InitScriptRuntime()
 	executionRuntime := &ExecutionRuntime{
-		ArtifactPreparer: v,
+		ArtifactPreparer: preparer,
 		ScriptRuntime:    runtime,
 	}
 	return executionRuntime
@@ -163,9 +163,9 @@ func InitSchedulerApplication(base *Base) *SchedulerApplication {
 // InitExecutorModule 构造原生 Executor 模块。
 func InitExecutorModule(base *Base, runtime *ExecutionRuntime) *node.Executor {
 	registry := base.Registry
-	v := runtime.ArtifactPreparer
+	preparer := runtime.ArtifactPreparer
 	scriptsRuntime := runtime.ScriptRuntime
-	executor := InitExecutor(registry, v, scriptsRuntime)
+	executor := InitExecutor(registry, preparer, scriptsRuntime)
 	return executor
 }
 
@@ -173,8 +173,8 @@ func InitExecutorModule(base *Base, runtime *ExecutionRuntime) *node.Executor {
 func InitAgentModule(base *Base, runtime *ExecutionRuntime) *agent.Module {
 	mq := InitMQ()
 	client := base.Etcd
-	v := runtime.ArtifactPreparer
+	preparer := runtime.ArtifactPreparer
 	scriptsRuntime := runtime.ScriptRuntime
-	module := agent.InitModule(mq, client, v, scriptsRuntime)
+	module := agent.InitModule(mq, client, preparer, scriptsRuntime)
 	return module
 }

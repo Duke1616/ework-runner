@@ -5,17 +5,18 @@ import (
 	"errors"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/repository"
-	"github.com/Duke1616/etask/internal/service/codebook"
+	codebookmocks "github.com/Duke1616/etask/internal/service/codebook/mocks"
 	"github.com/Duke1616/etask/internal/service/dispatcher"
-	"github.com/Duke1616/etask/internal/service/invoker"
-	"github.com/Duke1616/etask/internal/service/runner"
-	tasksvc "github.com/Duke1616/etask/internal/service/task"
-	"github.com/Duke1616/etask/internal/service/termination"
+	dispatchermocks "github.com/Duke1616/etask/internal/service/dispatcher/mocks"
+	invokermocks "github.com/Duke1616/etask/internal/service/invoker/mocks"
+	runnermocks "github.com/Duke1616/etask/internal/service/runner/mocks"
+	taskmocks "github.com/Duke1616/etask/internal/service/task/mocks"
+	terminationmocks "github.com/Duke1616/etask/internal/service/termination/mocks"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
 func TestValidateCommand(t *testing.T) {
@@ -53,6 +54,20 @@ func TestMissingExecutionPoolIsRejected(t *testing.T) {
 }
 
 func TestRunRunnerDoesNotInvokeExecutionWithEarlyCancellationIntent(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	runners := runnermocks.NewMockService(ctrl)
+	codebooks := codebookmocks.NewMockService(ctrl)
+	executions := taskmocks.NewMockExecutionService(ctrl)
+	routes := dispatchermocks.NewMockRoutePlanner(ctrl)
+	executionInvoker := invokermocks.NewMockInvoker(ctrl)
+	terminations := terminationmocks.NewMockService(ctrl)
+	runner := domain.Runner{
+		ID: 10, CodebookID: 20, Kind: domain.RunnerKindGRPC, Target: "executor",
+		Handler: "shell", Action: domain.RunnerActionRegistered,
+	}
+	codebook := domain.Codebook{
+		ID: 20, ProjectID: 30, Name: "script", Kind: domain.CodebookKindFile,
+	}
 	execution := domain.TaskExecution{
 		ID: 9, TenantID: 7, RequestID: "eflow:1:1", Source: domain.TaskExecutionSourceWorkflow,
 		Status: domain.TaskExecutionStatusPrepare,
@@ -64,12 +79,21 @@ func TestRunRunnerDoesNotInvokeExecutionWithEarlyCancellationIntent(t *testing.T
 			PoolName: "executor", TargetNodeID: "node-1",
 		},
 	}
-	runs := make(chan struct{}, 1)
-	service := NewService(
-		&submissionRunnerStub{}, &submissionCodebookStub{},
-		&submissionExecutionStub{execution: execution}, &submissionRouteStub{execution: execution},
-		&submissionInvokerStub{runs: runs}, &submissionTerminationStub{},
+	cancelled := execution
+	cancelled.Status = domain.TaskExecutionStatusCancelled
+	gomock.InOrder(
+		runners.EXPECT().FindByID(gomock.Any(), int64(10)).Return(runner, nil),
+		codebooks.EXPECT().GetByID(gomock.Any(), int64(20)).Return(codebook, nil),
+		runners.EXPECT().ListMergedVariables(gomock.Any(), int64(10)).Return(nil, nil),
+		routes.EXPECT().Plan(gomock.Any(), gomock.Any()).Return(dispatcher.Route{
+			Task: execution.Task, Execution: execution.Route,
+		}, nil),
+		executions.EXPECT().CreateWorkflow(gomock.Any(), gomock.Any(), int64(30)).
+			Return(execution, true, nil),
+		terminations.EXPECT().Attach(gomock.Any(), execution).Return(cancelled, nil),
 	)
+	executionInvoker.EXPECT().Run(gomock.Any(), gomock.Any()).Times(0)
+	service := NewService(runners, codebooks, executions, routes, executionInvoker, terminations)
 
 	result, err := service.RunRunner(context.Background(), RunRunnerCommand{
 		RequestID: "eflow:1:1", RunnerID: 10,
@@ -77,66 +101,4 @@ func TestRunRunnerDoesNotInvokeExecutionWithEarlyCancellationIntent(t *testing.T
 
 	require.NoError(t, err)
 	require.Equal(t, domain.TaskExecutionStatusCancelled, result.Execution.Status)
-	select {
-	case <-runs:
-		t.Fatal("命中取消意图后仍调用了执行节点")
-	case <-time.After(20 * time.Millisecond):
-	}
-}
-
-type submissionRunnerStub struct{ runner.Service }
-
-func (*submissionRunnerStub) FindByID(context.Context, int64) (domain.Runner, error) {
-	return domain.Runner{
-		ID: 10, CodebookID: 20, Kind: domain.RunnerKindGRPC, Target: "executor",
-		Handler: "shell", Action: domain.RunnerActionRegistered,
-	}, nil
-}
-
-func (*submissionRunnerStub) ListMergedVariables(context.Context, int64) ([]domain.RunnerVariable, error) {
-	return nil, nil
-}
-
-type submissionCodebookStub struct{ codebook.Service }
-
-func (*submissionCodebookStub) GetByID(context.Context, int64) (domain.Codebook, error) {
-	return domain.Codebook{ID: 20, ProjectID: 30, Name: "script", Kind: domain.CodebookKindFile}, nil
-}
-
-type submissionExecutionStub struct {
-	tasksvc.ExecutionService
-	execution domain.TaskExecution
-}
-
-func (s *submissionExecutionStub) CreateWorkflow(context.Context, domain.TaskExecution,
-	int64) (domain.TaskExecution, bool, error) {
-	return s.execution, true, nil
-}
-
-type submissionRouteStub struct {
-	dispatcher.RoutePlanner
-	execution domain.TaskExecution
-}
-
-func (s *submissionRouteStub) Plan(context.Context, domain.Task) (dispatcher.Route, error) {
-	return dispatcher.Route{Task: s.execution.Task, Execution: s.execution.Route}, nil
-}
-
-type submissionTerminationStub struct{ termination.Service }
-
-func (*submissionTerminationStub) Attach(_ context.Context,
-	execution domain.TaskExecution) (domain.TaskExecution, error) {
-	execution.Status = domain.TaskExecutionStatusCancelled
-	return execution, nil
-}
-
-type submissionInvokerStub struct {
-	invoker.Invoker
-	runs chan struct{}
-}
-
-func (s *submissionInvokerStub) Run(context.Context,
-	domain.TaskExecution) (domain.ExecutionState, error) {
-	s.runs <- struct{}{}
-	return domain.ExecutionState{}, nil
 }

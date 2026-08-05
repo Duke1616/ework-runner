@@ -12,6 +12,8 @@ import (
 	"gorm.io/gorm"
 )
 
+//go:generate go tool mockgen -source=./task_execution.go -package=repositorymocks -destination=./mocks/task_execution.mock.go -typed
+
 type TaskExecutionRepository interface {
 	// Create 创建任务执行实例
 	Create(ctx context.Context, execution domain.TaskExecution) (domain.TaskExecution, error)

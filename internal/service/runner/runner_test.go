@@ -1,4 +1,4 @@
-package runner
+package runner_test
 
 import (
 	"context"
@@ -7,8 +7,10 @@ import (
 
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/errs"
-	"github.com/Duke1616/etask/internal/repository"
+	repositorymocks "github.com/Duke1616/etask/internal/repository/mocks"
+	runnersvc "github.com/Duke1616/etask/internal/service/runner"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"gorm.io/gorm"
 )
 
@@ -49,19 +51,26 @@ func TestCreateNormalizesExecutionPoolTarget(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			runners := &runnerRepositoryStub{}
-			svc := NewService(runners, &executionPoolRepositoryStub{pool: testCase.pool, err: testCase.poolErr})
+			ctrl := gomock.NewController(t)
+			runners := repositorymocks.NewMockRunnerRepository(ctrl)
+			pools := repositorymocks.NewMockExecutionPoolRepository(ctrl)
+			pools.EXPECT().Find(gomock.Any(), testCase.runner.Target).
+				Return(testCase.pool, testCase.poolErr)
+			if testCase.wantErr == nil {
+				expected := testCase.runner
+				expected.Target = testCase.wantTarget
+				runners.EXPECT().Create(gomock.Any(), expected).Return(int64(1), nil)
+			}
+			svc := runnersvc.NewService(runners, pools)
 
 			_, err := svc.Create(context.Background(), testCase.runner)
 
 			if testCase.wantErr != nil {
 				require.Error(t, err)
 				require.True(t, errors.Is(err, testCase.wantErr))
-				require.Zero(t, runners.createCalls)
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, testCase.wantTarget, runners.created.Target)
 		})
 	}
 }
@@ -71,26 +80,4 @@ func validRunner(kind domain.RunnerKind, target string) domain.Runner {
 		Name: "runner", CodebookID: 8, Kind: kind, Target: target,
 		Handler: "shell", Action: domain.RunnerActionRegistered,
 	}
-}
-
-type runnerRepositoryStub struct {
-	repository.RunnerRepository
-	created     domain.Runner
-	createCalls int
-}
-
-func (s *runnerRepositoryStub) Create(_ context.Context, runner domain.Runner) (int64, error) {
-	s.createCalls++
-	s.created = runner
-	return 1, nil
-}
-
-type executionPoolRepositoryStub struct {
-	repository.ExecutionPoolRepository
-	pool domain.ExecutionPool
-	err  error
-}
-
-func (s *executionPoolRepositoryStub) Find(context.Context, string) (domain.ExecutionPool, error) {
-	return s.pool, s.err
 }

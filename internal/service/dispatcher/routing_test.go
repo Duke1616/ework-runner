@@ -1,4 +1,4 @@
-package dispatcher
+package dispatcher_test
 
 import (
 	"context"
@@ -7,6 +7,10 @@ import (
 
 	"github.com/Duke1616/eiam/pkg/ctxutil"
 	"github.com/Duke1616/etask/internal/domain"
+	"github.com/Duke1616/etask/internal/service/dispatcher"
+	dispatchermocks "github.com/Duke1616/etask/internal/service/dispatcher/mocks"
+	pickermocks "github.com/Duke1616/etask/internal/service/picker/mocks"
+	"go.uber.org/mock/gomock"
 )
 
 func TestRoutePlannerPlan(t *testing.T) {
@@ -73,9 +77,16 @@ func TestRoutePlannerPlan(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			pools := &poolReaderStub{pool: testCase.pool, err: testCase.poolErr}
-			targets := &targetPickerStub{nodeID: testCase.nodeID, err: testCase.pickErr}
-			planner := NewRoutePlanner(pools, targets)
+			ctrl := gomock.NewController(t)
+			pools := dispatchermocks.NewMockExecutionPoolReader(ctrl)
+			targets := pickermocks.NewMockExecutorNodePicker(ctrl)
+			if testCase.wantPoolCalls > 0 {
+				pools.EXPECT().Find(gomock.Any(), "shell").Return(testCase.pool, testCase.poolErr)
+			}
+			if testCase.wantPickCalls > 0 {
+				targets.EXPECT().Pick(gomock.Any(), gomock.Any()).Return(testCase.nodeID, testCase.pickErr)
+			}
+			planner := dispatcher.NewRoutePlanner(pools, targets)
 			ctx := ctxutil.WithTenantID(context.Background(), 20)
 			route, err := planner.Plan(ctx, testCase.task)
 			if (err != nil) != testCase.wantErr {
@@ -90,36 +101,10 @@ func TestRoutePlannerPlan(t *testing.T) {
 			if route.Task.ExecMode != testCase.wantMode {
 				t.Fatalf("路由任务模式 = %q, 期望 %q", route.Task.ExecMode, testCase.wantMode)
 			}
-			if pools.calls != testCase.wantPoolCalls || targets.calls != testCase.wantPickCalls {
-				t.Fatalf("资源池/节点查询次数 = %d/%d, 期望 %d/%d",
-					pools.calls, targets.calls, testCase.wantPoolCalls, testCase.wantPickCalls)
-			}
 		})
 	}
 }
 
 func grpcTask() domain.Task {
 	return domain.Task{ID: 10, TenantID: 20, GrpcConfig: &domain.GrpcConfig{ServiceName: "shell"}}
-}
-
-type poolReaderStub struct {
-	pool  domain.ExecutionPool
-	err   error
-	calls int
-}
-
-func (r *poolReaderStub) Find(context.Context, string) (domain.ExecutionPool, error) {
-	r.calls++
-	return r.pool, r.err
-}
-
-type targetPickerStub struct {
-	nodeID string
-	err    error
-	calls  int
-}
-
-func (p *targetPickerStub) Pick(context.Context, domain.Task) (string, error) {
-	p.calls++
-	return p.nodeID, p.err
 }

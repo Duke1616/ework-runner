@@ -9,6 +9,8 @@ import (
 
 var _ TaskAcquirer = &MySQLTaskAcquirer{}
 
+//go:generate go tool mockgen -source=./task_acquirer.go -package=acquirermocks -destination=./mocks/task_acquirer.mock.go -typed
+
 // TaskAcquirer 任务抢占接口
 type TaskAcquirer interface {
 	// Acquire 抢占指定任务

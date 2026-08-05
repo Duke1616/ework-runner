@@ -9,6 +9,8 @@ import (
 	"github.com/Duke1616/etask/pkg/grpc/balancer"
 )
 
+//go:generate go tool mockgen -source=./routing.go -package=dispatchermocks -destination=./mocks/routing.mock.go -typed
+
 // Route 描述一次任务派发所需的任务快照和可选目标节点。
 type Route struct {
 	Task      domain.Task           // 已写入本次派发模式的任务快照。

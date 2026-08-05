@@ -9,6 +9,8 @@ import (
 	"github.com/samber/lo"
 )
 
+//go:generate go tool mockgen -source=./artifact.go -package=repositorymocks -destination=./mocks/artifact.mock.go -typed
+
 type ArtifactRepository interface {
 	// SnapshotFiles 获取指定制品目标且受租户插件约束的代码文件快照，并恢复文件路径。
 	SnapshotFiles(ctx context.Context, target domain.ArtifactTarget) ([]domain.ArtifactFile, int64, error)

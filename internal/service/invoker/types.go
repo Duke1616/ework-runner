@@ -6,6 +6,8 @@ import (
 	"github.com/Duke1616/etask/internal/domain"
 )
 
+//go:generate go tool mockgen -source=./types.go -package=invokermocks -destination=./mocks/invoker.mock.go -typed
+
 type Invoker interface {
 	// Name 返回调用器唯一名称。
 	Name() string

@@ -11,7 +11,7 @@ import (
 	"github.com/ecodeclub/mq-api"
 )
 
-//go:generate mockgen -source=./consumer.go -package=executionmocks -destination=./mocks/consumer.mock.go -typed EventHandler
+//go:generate go tool mockgen -source=./consumer.go -package=executionmocks -destination=./mocks/consumer.mock.go -typed
 
 // EventHandler 定义 Kafka 事件接入所需的应用层能力。
 type EventHandler interface {

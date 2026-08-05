@@ -8,8 +8,8 @@ import (
 	"github.com/ecodeclub/mq-api"
 )
 
-//go:generate mockgen -source=./producer.go -package=eventmocks -destination=./mocks/publisher.mock.go -typed ExecutionEventPublisher
-//go:generate mockgen -package=eventmocks -destination=./mocks/mq.mock.go -typed github.com/ecodeclub/mq-api MQ,Producer
+//go:generate go tool mockgen -source=./producer.go -package=eventmocks -destination=./mocks/publisher.mock.go -typed
+//go:generate go tool mockgen -package=eventmocks -destination=./mocks/mq.mock.go -typed github.com/ecodeclub/mq-api MQ,Producer
 
 // ExecutionEventPublisher 按派发维度发布有序执行事件。
 type ExecutionEventPublisher interface {

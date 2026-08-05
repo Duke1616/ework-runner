@@ -20,6 +20,8 @@ var (
 	ErrRejected       = errors.New("终止请求被拒绝")
 )
 
+//go:generate go tool mockgen -source=./service.go -package=terminationmocks -destination=./mocks/service.mock.go -typed
+
 type Request struct {
 	ExecutionID int64
 	RequestID   string

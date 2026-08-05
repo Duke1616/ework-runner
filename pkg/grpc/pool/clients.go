@@ -2,20 +2,29 @@ package pool
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"sync"
 	"time"
 
 	grpcpkg "github.com/Duke1616/etask/pkg/grpc"
 	"github.com/Duke1616/etask/pkg/grpc/registry"
-	"github.com/ecodeclub/ekit/syncx"
 	"google.golang.org/grpc"
 )
 
 type Clients[T any] struct {
-	clientMap syncx.Map[string, T]
+	clients   map[string]clientEntry[T]
 	registry  registry.Registry
 	timeout   time.Duration
 	authToken string
 	creator   func(conn *grpc.ClientConn) T
+	mu        sync.Mutex
+	closed    bool
+}
+
+type clientEntry[T any] struct {
+	client T
+	conn   *grpc.ClientConn
 }
 
 func NewClients[T any](
@@ -29,19 +38,33 @@ func NewClients[T any](
 		timeout:   timeout,
 		authToken: authToken,
 		creator:   creator,
+		clients:   make(map[string]clientEntry[T]),
 	}
 }
 
 // ListServices 返回客户端池当前服务发现中的实例，用于需要逐节点广播的控制面调用。
 func (c *Clients[T]) ListServices(ctx context.Context, serviceName string) ([]registry.ServiceInstance, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return nil, fmt.Errorf("grpc client pool is closed")
+	}
 	return c.registry.ListServices(ctx, serviceName)
 }
 
 // Get 获取带有自定义负载均衡器的客户端
 func (c *Clients[T]) Get(serviceName string) T {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		panic("grpc client pool is closed")
+	}
+	if serviceName == "" {
+		panic("grpc service name is required")
+	}
 	// 尝试加载，如果存在，直接返回
-	if client, ok := c.clientMap.Load(serviceName); ok {
-		return client
+	if entry, ok := c.clients[serviceName]; ok {
+		return entry.client
 	}
 
 	opts := []grpcpkg.ClientOption{
@@ -58,11 +81,25 @@ func (c *Clients[T]) Get(serviceName string) T {
 		panic(err)
 	}
 
-	newClient := c.creator(grpcConn)
-	// 使用 LoadOrStore 原子地存储
-	// 如果在当前 goroutine 创建期间，有其他 goroutine 已经存入了值，
-	// actual 会是那个已经存在的值，ok 会是 true。
-	// 这样可以保证我们总是使用第一个被成功创建和存储的 client。
-	actual, _ := c.clientMap.LoadOrStore(serviceName, newClient)
-	return actual
+	entry := clientEntry[T]{client: c.creator(grpcConn), conn: grpcConn}
+	c.clients[serviceName] = entry
+	return entry.client
+}
+
+// Close 关闭池持有的全部底层连接。Close 可以重复调用。
+func (c *Clients[T]) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return nil
+	}
+	c.closed = true
+	var closeErrors []error
+	for serviceName, entry := range c.clients {
+		if err := entry.conn.Close(); err != nil {
+			closeErrors = append(closeErrors, fmt.Errorf("关闭 gRPC 服务 %s 的连接失败: %w", serviceName, err))
+		}
+		delete(c.clients, serviceName)
+	}
+	return errors.Join(closeErrors...)
 }

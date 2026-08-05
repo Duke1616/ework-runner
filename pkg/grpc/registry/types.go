@@ -19,6 +19,12 @@ type Registry interface {
 	io.Closer
 }
 
+// ContextSubscriber 支持由调用方控制订阅生命周期。
+// Registry 的第三方实现可以选择实现该接口；resolver 会优先使用它。
+type ContextSubscriber interface {
+	SubscribeContext(ctx context.Context, name string) <-chan Event
+}
+
 type Indexer interface {
 	// Name 返回索引器名称。
 	Name() string

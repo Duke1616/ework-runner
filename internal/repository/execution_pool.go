@@ -18,6 +18,8 @@ var ErrExecutionPoolNotFound = gorm.ErrRecordNotFound
 // ErrExecutionPoolBindingNotFound 表示执行资源池绑定不存在。
 var ErrExecutionPoolBindingNotFound = gorm.ErrRecordNotFound
 
+//go:generate go tool mockgen -source=./execution_pool.go -package=repositorymocks -destination=./mocks/execution_pool.mock.go -exclude_interfaces=ExecutionPoolBindingRepository -typed
+
 // ExecutionPoolRepository 封装执行资源池的持久化访问。
 type ExecutionPoolRepository interface {
 	// Upsert 按资源池名称创建或更新资源池。

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Duke1616/etask/pkg/grpc/registry"
@@ -31,6 +32,7 @@ type Registry struct {
 
 	mutex   sync.RWMutex
 	cancels map[string]func() // 统一管理所有异步任务的生命周期
+	watchID atomic.Uint64
 	logger  *elog.Component
 }
 
@@ -188,12 +190,20 @@ func (r *Registry) serviceKey(name string) string {
 }
 
 func (r *Registry) Subscribe(name string) <-chan registry.Event {
+	return r.SubscribeContext(context.Background(), name)
+}
+
+// SubscribeContext 订阅服务变更，并在 ctx 取消时释放 etcd watcher。
+func (r *Registry) SubscribeContext(parent context.Context, name string) <-chan registry.Event {
 	res := make(chan registry.Event, 64)
-	ctx, cancel := context.WithCancel(context.Background())
-	r.registerCancel(name+"_watch", cancel)
+	ctx, cancel := context.WithCancel(parent)
+	key := fmt.Sprintf("%s_watch_%d", name, r.watchID.Add(1))
+	r.registerCancel(key, cancel)
 
 	go func() {
 		defer close(res)
+		defer r.removeCancel(key)
+		defer cancel()
 		for {
 			// 使用 for-range 自动处理 channel 接收逻辑
 			ch := r.client.Watch(ctx, r.serviceKey(name), clientv3.WithPrefix(), clientv3.WithPrevKV())
@@ -227,6 +237,12 @@ func (r *Registry) Subscribe(name string) <-chan registry.Event {
 		}
 	}()
 	return res
+}
+
+func (r *Registry) removeCancel(key string) {
+	r.mutex.Lock()
+	delete(r.cancels, key)
+	r.mutex.Unlock()
 }
 
 // registerCancel 统一管理异步任务的取消函数
