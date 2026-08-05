@@ -3,7 +3,6 @@ package node
 import (
 	"context"
 
-	executorv1 "github.com/Duke1616/etask/api/proto/gen/etask/executor/v1"
 	"github.com/Duke1616/etask/pkg/grpc/registry"
 	"github.com/Duke1616/etask/sdk/executor"
 	"github.com/Duke1616/etask/sdk/executor/artifact"
@@ -77,25 +76,5 @@ func (e *Executor) Start() error                           { return e.inner.Star
 func (e *Executor) Stop() error                            { return e.inner.Stop() }
 func (e *Executor) GracefulStop(ctx context.Context) error { return e.inner.GracefulStop(ctx) }
 func (e *Executor) Info() *server.ServiceInfo              { return e.inner.Info() }
-
-func (e *Executor) Execute(ctx context.Context,
-	req *executorv1.ExecuteRequest) (*executorv1.ExecuteResponse, error) {
-	return e.inner.Execute(ctx, req)
-}
-
-func (e *Executor) Query(ctx context.Context,
-	req *executorv1.QueryRequest) (*executorv1.QueryResponse, error) {
-	return e.inner.Query(ctx, req)
-}
-
-func (e *Executor) Interrupt(ctx context.Context,
-	req *executorv1.InterruptRequest) (*executorv1.InterruptResponse, error) {
-	return e.inner.Interrupt(ctx, req)
-}
-
-func (e *Executor) Terminate(ctx context.Context,
-	req *executorv1.TerminateRequest) (*executorv1.TerminateResponse, error) {
-	return e.inner.Terminate(ctx, req)
-}
 
 var _ server.Server = (*Executor)(nil)

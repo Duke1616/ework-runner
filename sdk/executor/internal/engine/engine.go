@@ -6,21 +6,17 @@ import (
 	"errors"
 	"fmt"
 
-	artifactv1 "github.com/Duke1616/etask/api/proto/gen/etask/artifact/v1"
-	reporterv1 "github.com/Duke1616/etask/api/proto/gen/etask/reporter/v1"
 	"github.com/Duke1616/etask/sdk/executor/artifact"
 	"github.com/Duke1616/etask/sdk/executor/internal/task"
-	"github.com/gotomicro/ego/core/elog"
 )
 
 // Command 描述执行一次任务所需的全部进程内输入。
 type Command struct {
-	Context    context.Context
 	Task       task.TaskInfo
 	Params     map[string]string
 	Metadata   map[string]string
 	Parameters []task.Parameter
-	Artifacts  []*artifactv1.ArtifactRef
+	Artifacts  []artifact.Ref
 	TaskLogger task.Logger
 }
 
@@ -31,25 +27,19 @@ type Result struct {
 
 // Engine 统一编排制品准备、Context 创建和 Handler 调用。
 type Engine struct {
-	handlers       *task.HandlerRegistry
-	artifacts      artifact.Preparer
-	artifactClient artifactv1.ArtifactServiceClient
-	reporter       reporterv1.ReporterServiceClient
-	progress       task.ProgressReporter
-	logger         *elog.Component
+	handlers   *task.HandlerRegistry
+	artifacts  artifact.Preparer
+	downloader artifact.Downloader
+	progress   task.ProgressReporter
+	logger     task.SystemLogger
 }
 
 // Option 配置 Engine 生命周期内稳定持有的基础设施依赖。
 type Option func(*Engine)
 
-// WithArtifactClient 注入制品下载客户端。
-func WithArtifactClient(client artifactv1.ArtifactServiceClient) Option {
-	return func(engine *Engine) { engine.artifactClient = client }
-}
-
-// WithReporter 注入任务日志、进度和终态使用的上报客户端。
-func WithReporter(reporter reporterv1.ReporterServiceClient) Option {
-	return func(engine *Engine) { engine.reporter = reporter }
+// WithArtifactDownloader 注入与传输协议无关的制品下载端口。
+func WithArtifactDownloader(downloader artifact.Downloader) Option {
+	return func(engine *Engine) { engine.downloader = downloader }
 }
 
 // WithProgressReporter 注入运行环境的进度状态端口。
@@ -57,8 +47,8 @@ func WithProgressReporter(reporter task.ProgressReporter) Option {
 	return func(engine *Engine) { engine.progress = reporter }
 }
 
-// WithLogger 注入 Engine 和任务 Context 使用的系统日志器。
-func WithLogger(logger *elog.Component) Option {
+// WithLogger 注入 Engine 和任务 Context 使用的系统日志端口。
+func WithLogger(logger task.SystemLogger) Option {
 	return func(engine *Engine) { engine.logger = logger }
 }
 
@@ -75,26 +65,15 @@ func New(handlers *task.HandlerRegistry, artifacts artifact.Preparer, options ..
 
 // Execute 准备任务运行现场并同步执行 Handler。
 func (e *Engine) Execute(ctx context.Context, command Command) (result Result, err error) {
-	// 将调用方上下文规范化一次，避免 Handler 和制品准备阶段分别处理 nil。
-	if command.Context == nil {
-		command.Context = ctx
-	}
-	if command.Context == nil {
-		command.Context = context.Background()
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	taskLogger := command.TaskLogger
-	if taskLogger == nil {
-		taskLogger = newTaskLogger(command.Context, command.Task.ExecutionID, e.reporter, e.logger)
-	}
-	progress := e.progress
-	if progress == nil && e.reporter != nil {
-		progress = grpcProgressReporter{client: e.reporter}
-	}
 	// 执行引擎持有任务日志器，并保证所有返回路径都会关闭它。
 	taskCtx := task.NewContext(task.ContextOptions{
-		Context: command.Context, Task: command.Task, Params: command.Params,
+		Context: ctx, Task: command.Task, Params: command.Params,
 		Metadata: command.Metadata, Parameters: command.Parameters,
-		Logger: newSystemLogger(e.logger, command.Task), TaskLogger: taskLogger, Progress: progress,
+		Logger: scopedSystemLogger(e.logger, command.Task), TaskLogger: taskLogger, Progress: e.progress,
 	})
 	defer taskCtx.Close()
 	if e.handlers == nil {
@@ -113,7 +92,7 @@ func (e *Engine) Execute(ctx context.Context, command Command) (result Result, e
 	}()
 
 	// 准备器返回本次任务固定的制品根；Close 释放实现可能持有的任务级资源。
-	prepared, err := e.prepareArtifacts(command)
+	prepared, err := e.prepareArtifacts(ctx, command)
 	if err != nil {
 		return Result{}, err
 	}
@@ -142,14 +121,14 @@ func (e *Engine) Prune() error {
 	return e.artifacts.Prune()
 }
 
-func (e *Engine) prepareArtifacts(command Command) (artifact.PreparedArtifacts, error) {
+func (e *Engine) prepareArtifacts(ctx context.Context, command Command) (artifact.PreparedArtifacts, error) {
 	if len(command.Artifacts) == 0 {
 		return nil, nil
 	}
 	if e.artifacts == nil {
 		return nil, fmt.Errorf("任务声明了制品，但执行引擎未配置制品准备器")
 	}
-	prepared, err := e.artifacts.Prepare(command.Context, e.artifactClient, command.Artifacts)
+	prepared, err := e.artifacts.Prepare(ctx, e.downloader, command.Artifacts)
 	if err != nil {
 		return nil, fmt.Errorf("准备代码制品失败: %w", err)
 	}

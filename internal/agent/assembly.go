@@ -39,7 +39,10 @@ func InitModule(q mq.MQ, etcdClient *clientv3.Client,
 	connection := initSchedulerConnection(etcdClient)
 	artifactClient := artifactv1.NewArtifactServiceClient(connection)
 	executionClient := executorv1.NewTaskExecutionServiceClient(connection)
-	executionService := service.NewService(scriptRuntime.Handlers(), preparer, artifactClient, executionClient)
+	executionService, err := service.NewService(scriptRuntime.Handlers(), preparer, artifactClient, executionClient)
+	if err != nil {
+		panic(err)
+	}
 	publisher := initExecutionEventPublisher(q)
 	consumer := initExecuteConsumer(q, executionService, publisher, registry)
 	return &Module{

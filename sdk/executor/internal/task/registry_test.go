@@ -19,7 +19,7 @@ func TestHandlerRegistry(t *testing.T) {
 		{
 			name: "注册结果按名称稳定排序",
 			before: func(registry *HandlerRegistry) {
-				registry.Register(handlerStub{name: "python"}, handlerStub{name: "shell"})
+				_ = registry.Register(handlerStub{name: "python"}, handlerStub{name: "shell"})
 			},
 			assertions: func(t *testing.T, registry *HandlerRegistry) {
 				require.Equal(t, []string{"python", "shell"}, registry.Names())
@@ -28,7 +28,7 @@ func TestHandlerRegistry(t *testing.T) {
 		},
 		{
 			name:   "快照修改不影响注册中心",
-			before: func(registry *HandlerRegistry) { registry.Register(handlerStub{name: "shell"}) },
+			before: func(registry *HandlerRegistry) { _ = registry.Register(handlerStub{name: "shell"}) },
 			assertions: func(t *testing.T, registry *HandlerRegistry) {
 				snapshot := registry.Snapshot()
 				delete(snapshot, "shell")
@@ -42,7 +42,7 @@ func TestHandlerRegistry(t *testing.T) {
 				var wait sync.WaitGroup
 				for i := 0; i < 20; i++ {
 					wait.Add(2)
-					go func() { defer wait.Done(); registry.Register(handlerStub{name: "shell"}) }()
+					go func() { defer wait.Done(); _ = registry.Register(handlerStub{name: "shell"}) }()
 					go func() { defer wait.Done(); _ = registry.Names() }()
 				}
 				wait.Wait()
@@ -69,12 +69,12 @@ func TestHandlerRegistry(t *testing.T) {
 
 func TestHandlerRegistryRejectsDuplicateAtomically(t *testing.T) {
 	registry := NewHandlerRegistry()
-	err := registry.RegisterChecked(handlerStub{name: "shell"}, handlerStub{name: "shell"})
+	err := registry.Register(handlerStub{name: "shell"}, handlerStub{name: "shell"})
 	require.ErrorContains(t, err, "名称重复")
 	require.Empty(t, registry.Names())
 
-	require.NoError(t, registry.RegisterChecked(handlerStub{name: "python"}))
-	err = registry.RegisterChecked(handlerStub{name: "shell"}, handlerStub{name: "python"})
+	require.NoError(t, registry.Register(handlerStub{name: "python"}))
+	err = registry.Register(handlerStub{name: "shell"}, handlerStub{name: "python"})
 	require.ErrorContains(t, err, "名称重复")
 	require.Equal(t, []string{"python"}, registry.Names())
 }

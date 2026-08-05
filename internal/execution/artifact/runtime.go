@@ -4,7 +4,6 @@ package artifact
 import (
 	"context"
 
-	artifactv1 "github.com/Duke1616/etask/api/proto/gen/etask/artifact/v1"
 	"github.com/Duke1616/etask/sdk/executor"
 	executorartifact "github.com/Duke1616/etask/sdk/executor/artifact"
 )
@@ -40,15 +39,15 @@ func (r *Runtime) Prune() error {
 }
 
 // Prepare 下载任务声明的默认制品层和具名依赖层。
-func (r *Runtime) Prepare(ctx context.Context, client artifactv1.ArtifactServiceClient,
-	refs []*artifactv1.ArtifactRef) (executorartifact.PreparedArtifacts, error) {
+func (r *Runtime) Prepare(ctx context.Context, downloader executorartifact.Downloader,
+	refs []executorartifact.Ref) (executorartifact.PreparedArtifacts, error) {
 	layers, err := parseLayerSet(refs)
 	if err != nil {
 		return nil, err
 	}
 	prepared := Prepared{roots: executor.ArtifactRoots{}}
 	if layers.hasDefault {
-		prepared.roots.Default, err = r.cache.Ensure(ctx, client, layers.defaultLayer)
+		prepared.roots.Default, err = r.cache.Ensure(ctx, downloader, layers.defaultLayer)
 		if err != nil {
 			return nil, err
 		}
@@ -58,7 +57,7 @@ func (r *Runtime) Prepare(ctx context.Context, client artifactv1.ArtifactService
 		prepared.roots.Named = make(map[string]string, len(layers.namedLayers))
 	}
 	for _, ref := range layers.namedLayers {
-		root, ensureErr := r.cache.Ensure(ctx, client, ref)
+		root, ensureErr := r.cache.Ensure(ctx, downloader, ref)
 		if ensureErr != nil {
 			return nil, ensureErr
 		}

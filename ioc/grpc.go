@@ -14,19 +14,18 @@ import (
 	taskv1 "github.com/Duke1616/etask/api/proto/gen/etask/task/v1"
 	grpcapi "github.com/Duke1616/etask/internal/grpc"
 	"github.com/Duke1616/etask/internal/grpc/scripts"
-	config "github.com/Duke1616/etask/pkg/config"
+	"github.com/Duke1616/etask/pkg/config"
 	grpcpkg "github.com/Duke1616/etask/pkg/grpc"
 	"github.com/Duke1616/etask/pkg/grpc/pool"
 	registrysdk "github.com/Duke1616/etask/pkg/grpc/registry"
 	"github.com/Duke1616/etask/sdk/executor/artifact"
 	"github.com/Duke1616/etask/sdk/executor/node"
 	"github.com/spf13/viper"
-	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
 )
 
 // InitExecutor 初始化原生 gRPC 执行器节点
-func InitExecutor(etcdClient *clientv3.Client,
+func InitExecutor(reg registrysdk.Registry,
 	artifactPreparer artifact.Preparer, scriptRuntime *scripts.Runtime) *node.Executor {
 	var serverCfg grpcpkg.ServerConfig
 	if err := config.UnmarshalKey("grpc.server.executor", &serverCfg); err != nil {
@@ -49,7 +48,6 @@ func InitExecutor(etcdClient *clientv3.Client,
 		Client:         clientCfg,
 	}
 
-	reg := InitExecutorRegistry(etcdClient)
 	exec, err := node.NewExecutor(cfg, reg,
 		node.WithArtifactPreparer(artifactPreparer),
 	)

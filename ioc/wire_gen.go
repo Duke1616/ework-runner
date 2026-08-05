@@ -162,10 +162,10 @@ func InitSchedulerApplication(base *Base) *SchedulerApplication {
 
 // InitExecutorModule 构造原生 Executor 模块。
 func InitExecutorModule(base *Base, runtime *ExecutionRuntime) *node.Executor {
-	client := base.Etcd
+	registry := base.Registry
 	v := runtime.ArtifactPreparer
 	scriptsRuntime := runtime.ScriptRuntime
-	executor := InitExecutor(client, v, scriptsRuntime)
+	executor := InitExecutor(registry, v, scriptsRuntime)
 	return executor
 }
 

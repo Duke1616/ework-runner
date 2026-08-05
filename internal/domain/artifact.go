@@ -7,6 +7,7 @@ import (
 
 	artifactv1 "github.com/Duke1616/etask/api/proto/gen/etask/artifact/v1"
 	"github.com/Duke1616/etask/internal/errs"
+	executorartifact "github.com/Duke1616/etask/sdk/executor/artifact"
 )
 
 // ArtifactRef 是一次任务执行所固定的不可变制品引用。
@@ -103,6 +104,22 @@ func ArtifactRefsToProto(refs []ArtifactRef) ([]*artifactv1.ArtifactRef, error) 
 			return nil, err
 		}
 		result = append(result, value)
+	}
+	return result, nil
+}
+
+// ArtifactRefsToExecutor 将领域制品层转换为传输无关的 Executor SDK 引用。
+func ArtifactRefsToExecutor(refs []ArtifactRef) ([]executorartifact.Ref, error) {
+	if err := ValidateArtifactRefs(refs); err != nil {
+		return nil, err
+	}
+	result := make([]executorartifact.Ref, 0, len(refs))
+	for _, ref := range refs {
+		result = append(result, executorartifact.Ref{
+			ReleaseID: ref.ReleaseID, Digest: ref.Digest, BlobChecksum: ref.BlobChecksum,
+			Size: ref.Size, Format: ref.Format, FormatVersion: ref.FormatVersion,
+			MountName: ref.Namespace,
+		})
 	}
 	return result, nil
 }

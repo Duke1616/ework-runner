@@ -7,7 +7,6 @@ import (
 	"sync/atomic"
 	"testing"
 
-	artifactv1 "github.com/Duke1616/etask/api/proto/gen/etask/artifact/v1"
 	"github.com/Duke1616/etask/sdk/executor/artifact"
 	"github.com/Duke1616/etask/sdk/executor/internal/task"
 )
@@ -16,7 +15,7 @@ func TestEngineExecute(t *testing.T) {
 	handlerErr := errors.New("执行失败")
 	testCases := []struct {
 		name       string
-		artifacts  []*artifactv1.ArtifactRef
+		artifacts  []artifact.Ref
 		preparer   artifact.Preparer
 		handler    task.TaskHandler
 		wantValue  string
@@ -33,7 +32,7 @@ func TestEngineExecute(t *testing.T) {
 		},
 		{
 			name:      "制品目录会注入并在执行后清理",
-			artifacts: []*artifactv1.ArtifactRef{{ReleaseId: 1}},
+			artifacts: []artifact.Ref{{ReleaseID: 1}},
 			preparer: &preparerStub{prepared: &preparedStub{
 				roots: task.ArtifactRoots{Default: "/system", Named: map[string]string{"ops_common": "/ops"}},
 			}},
@@ -47,7 +46,7 @@ func TestEngineExecute(t *testing.T) {
 		},
 		{
 			name:      "声明制品但未配置准备器",
-			artifacts: []*artifactv1.ArtifactRef{{ReleaseId: 1}},
+			artifacts: []artifact.Ref{{ReleaseID: 1}},
 			handler:   handlerStub{},
 			wantErr:   "未配置制品准备器",
 		},
@@ -87,7 +86,9 @@ func TestEngineExecute(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			registry := task.NewHandlerRegistry()
 			if testCase.handler != nil {
-				registry.Register(testCase.handler)
+				if err := registry.Register(testCase.handler); err != nil {
+					t.Fatalf("注册测试 Handler 失败: %v", err)
+				}
 			}
 			result, err := New(registry, testCase.preparer).Execute(context.Background(), Command{
 				Task:      task.TaskInfo{ExecutionID: 1, TaskID: 2, Name: "测试任务", Handler: "test"},
@@ -128,8 +129,8 @@ type preparerStub struct {
 }
 
 func (p *preparerStub) Prune() error { return nil }
-func (p *preparerStub) Prepare(context.Context, artifactv1.ArtifactServiceClient,
-	[]*artifactv1.ArtifactRef) (artifact.PreparedArtifacts, error) {
+func (p *preparerStub) Prepare(context.Context, artifact.Downloader,
+	[]artifact.Ref) (artifact.PreparedArtifacts, error) {
 	return p.prepared, nil
 }
 

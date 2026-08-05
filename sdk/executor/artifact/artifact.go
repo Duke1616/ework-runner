@@ -3,10 +3,26 @@ package artifact
 
 import (
 	"context"
+	"io"
 
-	artifactv1 "github.com/Duke1616/etask/api/proto/gen/etask/artifact/v1"
 	"github.com/Duke1616/etask/sdk/executor"
 )
+
+// Ref 描述一次执行固定使用的不可变制品。
+type Ref struct {
+	ReleaseID     int64
+	Digest        string
+	BlobChecksum  string
+	Size          int64
+	Format        string
+	FormatVersion int32
+	MountName     string
+}
+
+// Downloader 将制品内容流式写入目标，具体传输协议由运行环境适配。
+type Downloader interface {
+	Download(ctx context.Context, ref Ref, target io.Writer) error
+}
 
 // PreparedArtifacts 表示一次任务执行使用的不可变制品视图。
 type PreparedArtifacts interface {
@@ -21,6 +37,5 @@ type Preparer interface {
 	// Prune 清理无效或超出容量限制的本地制品缓存。
 	Prune() error
 	// Prepare 下载并准备任务使用的制品运行现场。
-	Prepare(ctx context.Context, client artifactv1.ArtifactServiceClient,
-		refs []*artifactv1.ArtifactRef) (PreparedArtifacts, error)
+	Prepare(ctx context.Context, downloader Downloader, refs []Ref) (PreparedArtifacts, error)
 }

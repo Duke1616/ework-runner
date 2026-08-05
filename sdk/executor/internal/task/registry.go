@@ -21,13 +21,8 @@ func NewHandlerRegistry() *HandlerRegistry {
 	}
 }
 
-// Register 注册一个或多个处理器
-func (r *HandlerRegistry) Register(handlers ...TaskHandler) {
-	_ = r.RegisterChecked(handlers...)
-}
-
-// RegisterChecked 注册处理器并在输入非法或名称冲突时返回错误。
-func (r *HandlerRegistry) RegisterChecked(handlers ...TaskHandler) error {
+// Register 注册处理器并在输入非法或名称冲突时返回错误。
+func (r *HandlerRegistry) Register(handlers ...TaskHandler) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	type registration struct {

@@ -18,21 +18,22 @@ import (
 
 	artifactv1 "github.com/Duke1616/etask/api/proto/gen/etask/artifact/v1"
 	artifactarchive "github.com/Duke1616/etask/internal/artifact/archive"
+	executorartifact "github.com/Duke1616/etask/sdk/executor/artifact"
+	artifactgrpc "github.com/Duke1616/etask/sdk/executor/artifact/grpc"
 	"github.com/klauspost/compress/zstd"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestArtifactCacheEnsure(t *testing.T) {
 	type state struct {
 		cache       *artifactCache
 		archive     []byte
-		ref         *artifactv1.ArtifactRef
+		ref         executorartifact.Ref
 		layer       layerRef
-		client      artifactv1.ArtifactServiceClient
+		downloader  executorartifact.Downloader
 		closeServer func()
 	}
 	testCases := []struct {
@@ -58,7 +59,7 @@ func TestArtifactCacheEnsure(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, "VALUE = 1\n", string(content))
 				current.closeServer()
-				cached, err := current.cache.Ensure(t.Context(), current.client, current.layer)
+				cached, err := current.cache.Ensure(t.Context(), current.downloader, current.layer)
 				require.NoError(t, err)
 				require.Equal(t, root, cached)
 				current.closeServer = nil
@@ -81,7 +82,8 @@ func TestArtifactCacheEnsure(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			current := &state{cache: newArtifactCache(Config{Dir: t.TempDir()})}
 			current.archive, current.ref = buildTestRef(t, tc.path, tc.content)
-			current.client, current.closeServer = newArtifactClient(t, current.archive)
+			client, closeServer := newArtifactClient(t, current.archive)
+			current.downloader, current.closeServer = artifactgrpc.NewDownloader(client), closeServer
 			defer func() {
 				if current.closeServer != nil {
 					current.closeServer()
@@ -96,7 +98,7 @@ func TestArtifactCacheEnsure(t *testing.T) {
 			layer, err := parseLayerRef(current.ref)
 			require.NoError(t, err)
 			current.layer = layer
-			root, err := current.cache.Ensure(t.Context(), current.client, current.layer)
+			root, err := current.cache.Ensure(t.Context(), current.downloader, current.layer)
 			if tc.wantError != "" {
 				require.ErrorContains(t, err, tc.wantError)
 				return
@@ -140,21 +142,21 @@ func TestArtifactCachePrunesOldLayers(t *testing.T) {
 }
 
 func TestParseLayerRef(t *testing.T) {
-	valid := &artifactv1.ArtifactRef{
-		ReleaseId: 1,
+	valid := executorartifact.Ref{
+		ReleaseID: 1,
 		Digest:    strings.Repeat("a", 64), BlobChecksum: strings.Repeat("b", 64), Size: 1,
 		Format: artifactarchive.Format, FormatVersion: artifactarchive.FormatVersion,
 	}
-	invalidChecksum := proto.Clone(valid).(*artifactv1.ArtifactRef)
+	invalidChecksum := valid
 	invalidChecksum.BlobChecksum = "invalid"
-	invalidFormat := proto.Clone(valid).(*artifactv1.ArtifactRef)
+	invalidFormat := valid
 	invalidFormat.FormatVersion++
 	testCases := []struct {
 		name      string
-		ref       *artifactv1.ArtifactRef
+		ref       executorartifact.Ref
 		wantError string
 	}{
-		{name: "空引用", wantError: "引用不能为空"},
+		{name: "空引用", wantError: "发布 ID 非法"},
 		{name: "合法引用", ref: valid},
 		{name: "非法校验和", ref: invalidChecksum, wantError: "校验和非法"},
 		{name: "不支持格式", ref: invalidFormat, wantError: "不支持的制品格式"},
@@ -173,7 +175,7 @@ func TestParseLayerRef(t *testing.T) {
 
 func TestArtifactLayerKeySeparatesDifferentBlobs(t *testing.T) {
 	first := validRef("")
-	second := proto.Clone(first).(*artifactv1.ArtifactRef)
+	second := first
 	second.BlobChecksum = strings.Repeat("c", 64)
 	firstRef, err := parseLayerRef(first)
 	require.NoError(t, err)
@@ -248,11 +250,11 @@ func buildTestArtifact(t *testing.T, name, content string) ([]byte, string) {
 	return buffer.Bytes(), manifest.Digest
 }
 
-func buildTestRef(t *testing.T, name, content string) ([]byte, *artifactv1.ArtifactRef) {
+func buildTestRef(t *testing.T, name, content string) ([]byte, executorartifact.Ref) {
 	archive, digest := buildTestArtifact(t, name, content)
 	checksum := sha256.Sum256(archive)
-	return archive, &artifactv1.ArtifactRef{
-		ReleaseId: 1, Digest: digest,
+	return archive, executorartifact.Ref{
+		ReleaseID: 1, Digest: digest,
 		BlobChecksum: hex.EncodeToString(checksum[:]), Size: int64(len(archive)),
 		Format: artifactarchive.Format, FormatVersion: artifactarchive.FormatVersion,
 	}

@@ -57,7 +57,7 @@ func InitSchedulerApplication(base *Base) *SchedulerApplication {
 func InitExecutorModule(base *Base, runtime *ExecutionRuntime) *node.Executor {
 	wire.Build(
 		InitExecutor,
-		wire.FieldsOf(new(*Base), "Etcd"),
+		wire.FieldsOf(new(*Base), "Registry"),
 		wire.FieldsOf(new(*ExecutionRuntime), "ArtifactPreparer", "ScriptRuntime"),
 	)
 	return nil

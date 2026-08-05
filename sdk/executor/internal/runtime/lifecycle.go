@@ -34,7 +34,11 @@ func (e *Executor) Start() error {
 	if e.server == nil {
 		return fmt.Errorf("executor 组件尚未初始化")
 	}
-	return e.server.Start()
+	if err := e.server.Start(); err != nil {
+		return err
+	}
+	e.startPullLoop()
+	return nil
 }
 
 // Stop 停止 PULL 循环和 Executor gRPC Server。
@@ -83,6 +87,20 @@ func (e *Executor) stopPullLoop() {
 		e.pullCancel()
 		e.pullCancel = nil
 	}
+}
+
+func (e *Executor) startPullLoop() {
+	if e.config.Mode != ModePull {
+		return
+	}
+	e.initMu.Lock()
+	defer e.initMu.Unlock()
+	if e.pullCancel != nil {
+		return
+	}
+	pullCtx, cancel := context.WithCancel(context.Background())
+	e.pullCancel = cancel
+	go e.pullTasks(pullCtx)
 }
 
 func (e *Executor) stopAcceptingExecutions() {

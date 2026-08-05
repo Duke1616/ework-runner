@@ -90,17 +90,18 @@ Kafka、本地队列或其他非 gRPC 传输使用 `engine` 子包：
 
 ```go
 handlers := engine.NewHandlerRegistry()
-if err := handlers.RegisterChecked(myHandlers...); err != nil {
+if err := handlers.Register(myHandlers...); err != nil {
     return err
 }
 pipeline := engine.New(handlers, artifacts,
-    engine.WithArtifactClient(artifactClient),
-    engine.WithLogger(logger),
+    engine.WithArtifactDownloader(downloader),
+    engine.WithProgressReporter(progressReporter),
+    engine.WithLogger(systemLogger),
 )
 result, err := pipeline.Execute(ctx, engine.Command{/* task input */})
 ```
 
-Engine 的 artifact、reporter 和 logger 是生命周期依赖，通过构造选项注入，不放入单次 `Command`。调度端 Codebook、Runner 等参数绑定解析属于 etask 内部业务，不是 Executor SDK 扩展点。
+Engine 的 artifact downloader、progress reporter 和 system logger 是生命周期依赖，通过构造选项注入；单次任务的 `TaskLogger` 放在 `Command` 中。这些契约都不依赖 gRPC 或 EGO，具体传输和日志实现由 adapter 提供。调度端 Codebook、Runner 等参数绑定解析属于 etask 内部业务，不是 Executor SDK 扩展点。
 
 ## 包结构
 
@@ -109,7 +110,9 @@ executor
 ├── context.go              # Handler 上下文和端口
 ├── handler.go              # Handler、Parameter 等稳定契约
 ├── artifact                # 可选制品契约
+│   └── grpc               # gRPC 制品下载 adapter
 ├── engine                  # 自定义传输执行管线
+├── logging/egolog          # EGO 日志 adapter
 ├── node                    # 标准 gRPC Executor 运行时
 └── internal
     ├── task                # Context 和 Handler 注册实现

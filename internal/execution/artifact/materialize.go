@@ -7,12 +7,12 @@ import (
 	"os"
 	"path/filepath"
 
-	artifactv1 "github.com/Duke1616/etask/api/proto/gen/etask/artifact/v1"
 	artifactarchive "github.com/Duke1616/etask/internal/artifact/archive"
+	executorartifact "github.com/Duke1616/etask/sdk/executor/artifact"
 )
 
 // materialize 在临时目录完成下载、解压和校验，最后原子提交缓存层。
-func (c *artifactCache) materialize(ctx context.Context, client artifactv1.ArtifactServiceClient,
+func (c *artifactCache) materialize(ctx context.Context, downloader executorartifact.Downloader,
 	ref layerRef, targetDir string) (string, error) {
 	part, err := os.CreateTemp(c.layout.tempDir(), ref.digest+"-*.part")
 	if err != nil {
@@ -23,7 +23,7 @@ func (c *artifactCache) materialize(ctx context.Context, client artifactv1.Artif
 		_ = part.Close()
 		_ = os.Remove(partPath)
 	}()
-	if err = c.download(ctx, client, ref, part); err != nil {
+	if err = c.download(ctx, downloader, ref, part); err != nil {
 		return "", err
 	}
 	if err = part.Close(); err != nil {

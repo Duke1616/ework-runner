@@ -78,15 +78,7 @@ func NewExecutor(cfg Config, reg registry.Registry, options ...Option) (*Executo
 			option(executor)
 		}
 	}
-	// Engine 最后装配，以便可选的制品准备器能够参与每次任务执行。
-	executor.engine = enginepkg.New(executor.hr, executor.artifacts)
 	return executor, nil
-}
-
-// RegisterHandler 注册任务处理函数
-func (e *Executor) RegisterHandler(handlers ...task.TaskHandler) *Executor {
-	_ = e.RegisterHandlers(handlers...)
-	return e
 }
 
 // RegisterHandlers 注册处理器并返回输入冲突；组件初始化后不再允许修改能力集。
@@ -96,7 +88,7 @@ func (e *Executor) RegisterHandlers(handlers ...task.TaskHandler) error {
 	if e.initialized {
 		return fmt.Errorf("Executor 已初始化，不能再注册任务处理器")
 	}
-	err := e.hr.RegisterChecked(handlers...)
+	err := e.hr.Register(handlers...)
 	if err != nil {
 		e.registrationErr = errors.Join(e.registrationErr, err)
 	}

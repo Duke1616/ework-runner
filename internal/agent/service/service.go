@@ -13,7 +13,9 @@ import (
 	internaldomain "github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/sdk/executor"
 	"github.com/Duke1616/etask/sdk/executor/artifact"
+	artifactgrpc "github.com/Duke1616/etask/sdk/executor/artifact/grpc"
 	executionengine "github.com/Duke1616/etask/sdk/executor/engine"
+	"github.com/Duke1616/etask/sdk/executor/logging/egolog"
 	"github.com/gotomicro/ego/core/elog"
 )
 
@@ -65,22 +67,24 @@ type executionEntry struct {
 // NewService 创建独立 Agent 执行服务。
 func NewService(handlers []executor.TaskHandler, preparer artifact.Preparer,
 	artifactClient artifactv1.ArtifactServiceClient,
-	executions executorv1.TaskExecutionServiceClient) Service {
+	executions executorv1.TaskExecutionServiceClient) (Service, error) {
 	registry := executionengine.NewHandlerRegistry()
-	registry.Register(handlers...)
+	if err := registry.Register(handlers...); err != nil {
+		return nil, fmt.Errorf("注册 Agent 任务处理器失败: %w", err)
+	}
 	logger := elog.DefaultLogger.With(elog.FieldComponentName("agent.execution"))
 	return &service{
 		registry: registry,
 		engine: executionengine.New(registry, preparer,
-			executionengine.WithArtifactClient(artifactClient),
-			executionengine.WithLogger(logger),
+			executionengine.WithArtifactDownloader(artifactgrpc.NewDownloader(artifactClient)),
+			executionengine.WithLogger(egolog.New(logger)),
 		),
 		executionClient: executions,
 		logger:          logger,
 		executions:      make(map[string]*executionEntry),
 		active:          make(map[int64]*executionEntry),
 		terminated:      make(map[int64]time.Time),
-	}
+	}, nil
 }
 
 // ListHandlers 列出支持的任务处理器详情。
@@ -113,7 +117,7 @@ func (s *service) Receive(ctx context.Context, request ExecutionRequest) (domain
 		err = s.finish(entry, domain.ExecutionOutput{}, err)
 		return domain.ExecutionOutput{}, err
 	}
-	refs, err := internaldomain.ArtifactRefsToProto(execution.Artifacts)
+	refs, err := internaldomain.ArtifactRefsToExecutor(execution.Artifacts)
 	if err != nil {
 		request.TaskLogger.Close()
 		s.finish(entry, domain.ExecutionOutput{}, err)
@@ -121,7 +125,6 @@ func (s *service) Receive(ctx context.Context, request ExecutionRequest) (domain
 	}
 	// 与独立 Executor 复用同一个 Engine，制品和 Handler 行为保持一致。
 	result, err := s.engine.Execute(runCtx, executionengine.Command{
-		Context: runCtx,
 		Task: executor.TaskInfo{
 			ExecutionID: execution.ID, TaskID: execution.Task.ID,
 			Name: execution.Task.Name, Handler: execution.Task.GrpcConfig.HandlerName,

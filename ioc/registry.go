@@ -16,11 +16,3 @@ func InitRegistry(etcdClient *clientv3.Client) registry.Registry {
 	}
 	return r
 }
-
-func InitExecutorRegistry(etcdClient *clientv3.Client) registry.Registry {
-	r, err := etcd.NewRegistry(etcdClient)
-	if err != nil {
-		panic(err)
-	}
-	return r
-}

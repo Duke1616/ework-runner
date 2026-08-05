@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	artifactv1 "github.com/Duke1616/etask/api/proto/gen/etask/artifact/v1"
 	artifactarchive "github.com/Duke1616/etask/internal/artifact/archive"
+	executorartifact "github.com/Duke1616/etask/sdk/executor/artifact"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -90,9 +90,9 @@ func (c *artifactCache) Prune() error {
 	return pruneCache(c.layout.root, c.cfg.MaxCacheSize)
 }
 
-func (c *artifactCache) Ensure(ctx context.Context, client artifactv1.ArtifactServiceClient,
+func (c *artifactCache) Ensure(ctx context.Context, downloader executorartifact.Downloader,
 	ref layerRef) (string, error) {
-	if client == nil {
+	if downloader == nil {
 		return "", fmt.Errorf("制品下载客户端尚未初始化")
 	}
 	if ref.size > c.cfg.MaxDownloadSize {
@@ -103,7 +103,7 @@ func (c *artifactCache) Ensure(ctx context.Context, client artifactv1.ArtifactSe
 	result := c.group.DoChan(ref.cacheKey(), func() (any, error) {
 		workCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), artifactDownloadTimeout)
 		defer cancel()
-		return c.ensureOnce(workCtx, client, ref)
+		return c.ensureOnce(workCtx, downloader, ref)
 	})
 	select {
 	case <-ctx.Done():
@@ -116,7 +116,7 @@ func (c *artifactCache) Ensure(ctx context.Context, client artifactv1.ArtifactSe
 	}
 }
 
-func (c *artifactCache) ensureOnce(ctx context.Context, client artifactv1.ArtifactServiceClient,
+func (c *artifactCache) ensureOnce(ctx context.Context, downloader executorartifact.Downloader,
 	ref layerRef) (string, error) {
 	if err := c.layout.ensure(); err != nil {
 		return "", err
@@ -126,5 +126,5 @@ func (c *artifactCache) ensureOnce(ctx context.Context, client artifactv1.Artifa
 		touchArtifact(targetDir)
 		return targetDir, nil
 	}
-	return c.materialize(ctx, client, ref, targetDir)
+	return c.materialize(ctx, downloader, ref, targetDir)
 }

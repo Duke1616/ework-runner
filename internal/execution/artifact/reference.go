@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	artifactv1 "github.com/Duke1616/etask/api/proto/gen/etask/artifact/v1"
 	artifactarchive "github.com/Duke1616/etask/internal/artifact/archive"
+	executorartifact "github.com/Duke1616/etask/sdk/executor/artifact"
 )
 
 // layerRef 是执行侧校验并规范化后的不可变制品引用。
@@ -37,13 +37,10 @@ type cacheMarker struct {
 	FormatVersion int32  `json:"format_version"`
 }
 
-func parseLayerSet(refs []*artifactv1.ArtifactRef) (layerSet, error) {
+func parseLayerSet(refs []executorartifact.Ref) (layerSet, error) {
 	result := layerSet{namedLayers: make([]layerRef, 0, len(refs))}
 	namespaces := make(map[string]struct{}, len(refs))
 	for _, value := range refs {
-		if value == nil {
-			return layerSet{}, fmt.Errorf("任务包含空制品引用")
-		}
 		ref, err := parseLayerRef(value)
 		if err != nil {
 			return layerSet{}, err
@@ -68,31 +65,28 @@ func parseLayerSet(refs []*artifactv1.ArtifactRef) (layerSet, error) {
 	return result, nil
 }
 
-func parseLayerRef(value *artifactv1.ArtifactRef) (layerRef, error) {
-	if value == nil {
-		return layerRef{}, fmt.Errorf("制品引用不能为空")
-	}
-	if value.GetReleaseId() <= 0 {
+func parseLayerRef(value executorartifact.Ref) (layerRef, error) {
+	if value.ReleaseID <= 0 {
 		return layerRef{}, fmt.Errorf("制品发布 ID 非法")
 	}
-	if value.GetSize() <= 0 {
-		return layerRef{}, fmt.Errorf("制品大小非法: %d", value.GetSize())
+	if value.Size <= 0 {
+		return layerRef{}, fmt.Errorf("制品大小非法: %d", value.Size)
 	}
-	digest, err := normalizeDigest(value.GetDigest())
+	digest, err := normalizeDigest(value.Digest)
 	if err != nil {
 		return layerRef{}, err
 	}
-	checksum, err := normalizeDigest(value.GetBlobChecksum())
+	checksum, err := normalizeDigest(value.BlobChecksum)
 	if err != nil {
 		return layerRef{}, fmt.Errorf("制品压缩包校验和非法: %w", err)
 	}
-	if !artifactarchive.Supports(value.GetFormat(), value.GetFormatVersion()) {
-		return layerRef{}, fmt.Errorf("不支持的制品格式: %s/%d", value.GetFormat(), value.GetFormatVersion())
+	if !artifactarchive.Supports(value.Format, value.FormatVersion) {
+		return layerRef{}, fmt.Errorf("不支持的制品格式: %s/%d", value.Format, value.FormatVersion)
 	}
 	return layerRef{
-		releaseID: value.GetReleaseId(), digest: digest, blobChecksum: checksum,
-		size: value.GetSize(), format: value.GetFormat(), formatVersion: value.GetFormatVersion(),
-		mountName: value.GetMountName(),
+		releaseID: value.ReleaseID, digest: digest, blobChecksum: checksum,
+		size: value.Size, format: value.Format, formatVersion: value.FormatVersion,
+		mountName: value.MountName,
 	}, nil
 }
 
@@ -115,6 +109,13 @@ func validateMountName(name string) error {
 
 func (r layerRef) cacheKey() string {
 	return r.digest + "-" + r.blobChecksum
+}
+
+func (r layerRef) ref() executorartifact.Ref {
+	return executorartifact.Ref{
+		ReleaseID: r.releaseID, Digest: r.digest, BlobChecksum: r.blobChecksum,
+		Size: r.size, Format: r.format, FormatVersion: r.formatVersion, MountName: r.mountName,
+	}
 }
 
 func (r layerRef) metadata() artifactarchive.Metadata {

@@ -78,14 +78,13 @@ func (e *Executor) runTask(ctx context.Context, req *executorv1.ExecuteRequest) 
 	}()
 	// Engine 统一完成制品准备、任务 Context 创建、Handler 调用和现场回收。
 	result, err := e.engine.Execute(ctx, enginepkg.Command{
-		Context: ctx,
 		Task: task.TaskInfo{
 			ExecutionID: executionID, TaskID: req.GetTaskId(),
 			Name: req.GetTaskName(), Handler: req.GetTaskHandlerName(),
 			ExecutorNodeID: e.config.Server.ServiceId,
 		},
 		Params: req.GetParams(), Parameters: e.handlerMetadata(req.GetTaskHandlerName()),
-		Artifacts: req.GetArtifacts(),
+		Artifacts: artifactRefs(req.GetArtifacts()), TaskLogger: e.newTaskLogger(ctx, executionID),
 	})
 	e.finishTask(ctx, executionID, result.Value, logger, err)
 }

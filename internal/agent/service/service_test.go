@@ -8,11 +8,11 @@ import (
 	"sync/atomic"
 	"testing"
 
-	artifactv1 "github.com/Duke1616/etask/api/proto/gen/etask/artifact/v1"
 	servicemocks "github.com/Duke1616/etask/internal/agent/service/mocks"
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/sdk/executor"
 	"github.com/Duke1616/etask/sdk/executor/artifact"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -199,8 +199,10 @@ func newServiceFixture(t *testing.T) *serviceFixture {
 	preparer := &servicePreparerFake{prepared: &servicePreparedFake{
 		roots: executor.ArtifactRoots{Default: "/system", Named: map[string]string{"ops_common": "/ops"}},
 	}}
+	service, err := NewService([]executor.TaskHandler{handler}, preparer, nil, nil)
+	require.NoError(t, err)
 	return &serviceFixture{
-		service:  NewService([]executor.TaskHandler{handler}, preparer, nil, nil),
+		service:  service,
 		handler:  handler,
 		preparer: preparer,
 		execution: domain.TaskExecution{
@@ -245,8 +247,8 @@ type servicePreparerFake struct {
 }
 
 func (p *servicePreparerFake) Prune() error { return nil }
-func (p *servicePreparerFake) Prepare(context.Context, artifactv1.ArtifactServiceClient,
-	[]*artifactv1.ArtifactRef) (artifact.PreparedArtifacts, error) {
+func (p *servicePreparerFake) Prepare(context.Context, artifact.Downloader,
+	[]artifact.Ref) (artifact.PreparedArtifacts, error) {
 	p.prepares.Add(1)
 	return p.prepared, nil
 }
