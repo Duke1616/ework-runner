@@ -45,6 +45,7 @@ func InitSchedulerApplication(base *Base) *SchedulerApplication {
 		EventSet,
 		InitMQ,
 		InitRoutePlanner,
+		InitDispatcherConfig,
 		InitDispatcher,
 		InitInvoker,
 		wire.FieldsOf(new(*Base), "Registry", "Etcd"),

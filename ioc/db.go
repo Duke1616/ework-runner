@@ -54,10 +54,12 @@ func InitDB() *gorm.DB {
 		},
 		Logger: myLogger,
 	})
+	if err != nil {
+		panic(err)
+	}
 
 	// AutoMigrate 创建/更新表结构（新增列、新建表）
-	err = dao.InitTables(db)
-	if err != nil {
+	if err = dao.InitTables(db); err != nil {
 		panic(err)
 	}
 
@@ -79,6 +81,7 @@ func WaitForDBSetup(dsn string) {
 	if err != nil {
 		panic(err)
 	}
+	defer sqlDB.Close()
 	const maxInterval = 10 * time.Second
 	const maxRetries = 10
 	strategy, err := retry.NewExponentialBackoffRetryStrategy(time.Second, maxInterval, maxRetries)

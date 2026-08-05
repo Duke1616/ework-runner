@@ -81,13 +81,10 @@ scheduler:
   scheduleInterval: 10000000000
   # 任务续约间隔（纳秒）
   renewInterval: 5000000000
+  # 单个 Scheduler 节点允许同时发起的最大执行调用数
   maxConcurrentTasks: 1000
   # 任务执行令牌获取超时时间（纳秒）
   tokenAcquireTimeout: 3000000000
-  # 轮询扫描未处理任务的最小间隔时间（纳秒）
-  pollInterval: 1000000000
-  # 节点状态和结果上报超时时间（纳秒）
-  reportTimeout: 10000000000
 
 compensator:
   retry:

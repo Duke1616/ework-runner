@@ -11,6 +11,7 @@ import (
 	"github.com/Duke1616/etask/internal/service/task"
 	"github.com/Duke1616/etask/pkg/grpc/balancer"
 	"github.com/gotomicro/ego/core/elog"
+	"golang.org/x/sync/semaphore"
 )
 
 var _ Dispatcher = &TaskDispatcher{}
@@ -22,8 +23,27 @@ type TaskDispatcher struct {
 	taskAcquirer acquirer.TaskAcquirer
 	invoker      invoker.Invoker
 	routes       RoutePlanner
+	invocations  *semaphore.Weighted
+	tokenTimeout time.Duration
 
 	logger *elog.Component
+}
+
+// Config 控制当前 Scheduler 节点发起执行调用的并发量。
+type Config struct {
+	MaxConcurrentTasks  int           `yaml:"maxConcurrentTasks"`
+	TokenAcquireTimeout time.Duration `yaml:"tokenAcquireTimeout"`
+}
+
+// Validate 校验并发控制配置。
+func (c Config) Validate() error {
+	if c.MaxConcurrentTasks <= 0 {
+		return fmt.Errorf("maxConcurrentTasks 必须大于 0")
+	}
+	if c.TokenAcquireTimeout <= 0 {
+		return fmt.Errorf("tokenAcquireTimeout 必须大于 0")
+	}
+	return nil
 }
 
 type invocationPolicy struct {
@@ -44,13 +64,20 @@ func NewTaskDispatcher(
 	taskAcquirer acquirer.TaskAcquirer,
 	invoker invoker.Invoker,
 	routes RoutePlanner,
+	config Config,
 ) *TaskDispatcher {
+	var invocations *semaphore.Weighted
+	if config.MaxConcurrentTasks > 0 {
+		invocations = semaphore.NewWeighted(int64(config.MaxConcurrentTasks))
+	}
 	return &TaskDispatcher{
 		nodeID:       nodeID,
 		execSvc:      execSvc,
 		taskAcquirer: taskAcquirer,
 		invoker:      invoker,
 		routes:       routes,
+		invocations:  invocations,
+		tokenTimeout: config.TokenAcquireTimeout,
 		logger:       elog.DefaultLogger.With(elog.FieldComponentName("dispatcher.TaskDispatcher")),
 	}
 }
@@ -124,12 +151,20 @@ func (s *TaskDispatcher) handleNormalTask(ctx context.Context, task domain.Task,
 		return nil
 	}
 
-	s.invokeAsync(ctx, execution, initialInvocation)
-	return nil
+	return s.invokeAsync(ctx, execution, initialInvocation)
 }
 
-func (s *TaskDispatcher) invokeAsync(ctx context.Context, execution domain.TaskExecution, policy invocationPolicy) {
+func (s *TaskDispatcher) invokeAsync(ctx context.Context, execution domain.TaskExecution,
+	policy invocationPolicy) error {
+	if err := s.acquireInvocationSlot(ctx); err != nil {
+		s.markInvocationFailed(ctx, execution, policy.failurePrefix, err)
+		if policy.releaseTask {
+			s.releaseTask(ctx, execution.Task)
+		}
+		return err
+	}
 	go func() {
+		defer s.releaseInvocationSlot()
 		state, err := s.invoker.Run(ctx, execution)
 		if err != nil {
 			s.logger.Error("执行器调用失败",
@@ -148,6 +183,25 @@ func (s *TaskDispatcher) invokeAsync(ctx context.Context, execution domain.TaskE
 				elog.Int64("execution_id", execution.ID), elog.FieldErr(err))
 		}
 	}()
+	return nil
+}
+
+func (s *TaskDispatcher) acquireInvocationSlot(ctx context.Context) error {
+	if s.invocations == nil {
+		return nil
+	}
+	acquireCtx, cancel := context.WithTimeout(ctx, s.tokenTimeout)
+	defer cancel()
+	if err := s.invocations.Acquire(acquireCtx, 1); err != nil {
+		return fmt.Errorf("等待任务执行令牌失败: %w", err)
+	}
+	return nil
+}
+
+func (s *TaskDispatcher) releaseInvocationSlot() {
+	if s.invocations != nil {
+		s.invocations.Release(1)
+	}
 }
 
 func (s *TaskDispatcher) markInvocationFailed(ctx context.Context, execution domain.TaskExecution,
@@ -192,8 +246,7 @@ func (s *TaskDispatcher) Retry(ctx context.Context, execution domain.TaskExecuti
 		// 其他 Scheduler 已经抢到，或记录已被推进；这是正常的并发结果。
 		return nil
 	}
-	s.invokeAsync(s.WithExcludedNodeIDContext(ctx, execution.ExecutorNodeID), execution, retryInvocation)
-	return nil
+	return s.invokeAsync(s.WithExcludedNodeIDContext(ctx, execution.ExecutorNodeID), execution, retryInvocation)
 }
 
 // WithExcludedNodeIDContext 将需要排除的执行节点写入 gRPC 负载均衡上下文。
@@ -216,8 +269,8 @@ func (s *TaskDispatcher) Reschedule(ctx context.Context, execution domain.TaskEx
 	if !claimed {
 		return nil
 	}
-	s.invokeAsync(s.WithSpecificNodeIDContext(ctx, execution.ExecutorNodeID), execution, rescheduleInvocation)
-	return nil
+	return s.invokeAsync(s.WithSpecificNodeIDContext(ctx, execution.ExecutorNodeID), execution,
+		rescheduleInvocation)
 }
 
 // claimForDispatch 将失败态原子迁移到 PREPARE，避免多个 Scheduler 同时再次调用同一 execution。
