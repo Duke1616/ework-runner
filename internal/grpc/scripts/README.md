@@ -1,6 +1,6 @@
 # 脚本运行契约
 
-每次 Shell 或 Python 执行都在独立工作区中运行。脚本源码、参数文件、变量文件和制品挂载均属于本次执行，完成后统一清理；运行时不继承 Executor 进程的工作目录。
+每次 Shell 或 Python 执行都在独立工作区中运行。两种语言均支持 INLINE 和 PROJECT 来源，用户通过任务顶层的 `program` 字段选择。INLINE 可以直接提供代码或引用单文件 Codebook；PROJECT 指定项目入口 Codebook，运行时拉取项目源码并从项目根目录启动。程序来源、参数文件、变量文件和制品挂载均属于本次执行，完成后统一清理。
 
 ## 运行时变量
 
@@ -9,6 +9,7 @@
 | 变量 | 提供条件 | 含义 |
 | --- | --- | --- |
 | `ETASK_WORKSPACE_ROOT` | 始终提供 | 本次执行的独立工作区绝对路径。 |
+| `ETASK_PROJECT_ROOT` | PROJECT 来源 | 当前项目的只读挂载根目录，也是默认工作目录。 |
 | `ETASK_ARGS_FILE` | 始终提供 | 权限为 `0600` 的 JSON 参数文件；没有参数时内容为 `{}`。 |
 | `ETASK_VARIABLES_FILE` | 始终提供 | 权限为 `0600` 的 Runner 变量 JSON 文件；没有变量时内容为 `[]`。 |
 | `ETASK_SHELL_ENV_FILE` | 仅 Shell | 权限为 `0600`、可被 Shell 安全 `source` 的变量文件。 |

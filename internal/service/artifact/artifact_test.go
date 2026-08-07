@@ -2,7 +2,6 @@ package artifact_test
 
 import (
 	"context"
-	"io"
 	"strings"
 	"testing"
 
@@ -12,6 +11,7 @@ import (
 	repositorymocks "github.com/Duke1616/etask/internal/repository/mocks"
 	artifactsvc "github.com/Duke1616/etask/internal/service/artifact"
 	"github.com/Duke1616/etask/pkg/blobstore"
+	blobstoremocks "github.com/Duke1616/etask/pkg/blobstore/mocks"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"gorm.io/gorm"
@@ -21,7 +21,7 @@ func TestServiceOpenTranslatesMissingRelease(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	repo := repositorymocks.NewMockArtifactRepository(ctrl)
 	repo.EXPECT().FindByID(gomock.Any(), int64(1)).Return(domain.ArtifactRelease{}, gorm.ErrRecordNotFound)
-	svc := artifactsvc.NewService(repo, artifactStoreStub{}, artifactarchive.New(""))
+	svc := artifactsvc.NewService(repo, blobstoremocks.NewMockStore(ctrl), artifactarchive.New(""))
 
 	_, err := svc.Open(context.Background(), 1, strings.Repeat("a", 64))
 	require.ErrorIs(t, err, blobstore.ErrNotFound)
@@ -30,7 +30,7 @@ func TestServiceOpenTranslatesMissingRelease(t *testing.T) {
 func TestServiceStatusRequiresArtifactProject(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	repo := repositorymocks.NewMockArtifactRepository(ctrl)
-	svc := artifactsvc.NewService(repo, artifactStoreStub{}, artifactarchive.New(""))
+	svc := artifactsvc.NewService(repo, blobstoremocks.NewMockStore(ctrl), artifactarchive.New(""))
 
 	repo.EXPECT().FindActive(gomock.Any(), domain.ArtifactTarget{Scope: domain.CodebookScopeSystem}).
 		Return(domain.ArtifactRelease{}, gorm.ErrRecordNotFound)
@@ -72,7 +72,7 @@ func TestServiceResolveExecutionLayers(t *testing.T) {
 	}
 	repo.EXPECT().FindActive(gomock.Any(), systemTarget).Return(systemRelease, nil)
 	repo.EXPECT().ListActiveLibraries(gomock.Any()).Return(libraries, nil)
-	svc := artifactsvc.NewService(repo, artifactStoreStub{}, artifactarchive.New(""))
+	svc := artifactsvc.NewService(repo, blobstoremocks.NewMockStore(ctrl), artifactarchive.New(""))
 
 	refs, err := svc.ResolveExecution(context.Background(), 7)
 	require.NoError(t, err)
@@ -84,7 +84,7 @@ func TestServiceResolveExecutionLayers(t *testing.T) {
 func TestServiceRejectsUnauthorizedArtifactWrite(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	repo := repositorymocks.NewMockArtifactRepository(ctrl)
-	svc := artifactsvc.NewService(repo, artifactStoreStub{}, artifactarchive.New(""))
+	svc := artifactsvc.NewService(repo, blobstoremocks.NewMockStore(ctrl), artifactarchive.New(""))
 	systemTarget := domain.ArtifactTarget{Scope: domain.CodebookScopeSystem}
 	projectTarget := domain.ArtifactTarget{Scope: domain.CodebookScopeTenant, ProjectID: 7}
 
@@ -98,14 +98,4 @@ func TestServiceRejectsUnauthorizedArtifactWrite(t *testing.T) {
 	repo.EXPECT().Activate(gomock.Any(), projectTarget, int64(1)).Return(nil)
 	err = svc.Activate(ctxutil.WithTenantID(context.Background(), 10), projectTarget, 1)
 	require.NoError(t, err)
-}
-
-type artifactStoreStub struct{}
-
-func (artifactStoreStub) Put(context.Context, string, io.Reader, int64, string) error {
-	return nil
-}
-
-func (artifactStoreStub) Open(context.Context, string) (io.ReadCloser, error) {
-	return nil, blobstore.ErrNotFound
 }

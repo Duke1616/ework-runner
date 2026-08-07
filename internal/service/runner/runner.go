@@ -21,6 +21,8 @@ type Service interface {
 	Update(ctx context.Context, req domain.Runner) (int64, error)
 	// FindByID 根据主键 ID 获取执行单元。
 	FindByID(ctx context.Context, id int64) (domain.Runner, error)
+	// FindForExecution 获取执行单元及其全局和私有有效变量。
+	FindForExecution(ctx context.Context, id int64) (domain.Runner, error)
 	// Delete 根据主键 ID 删除执行单元。
 	Delete(ctx context.Context, id int64) (int64, error)
 	// List 分页获取执行单元列表和总数。
@@ -99,6 +101,13 @@ func (s *service) FindByID(ctx context.Context, id int64) (domain.Runner, error)
 		return domain.Runner{}, fmt.Errorf("%w: id = %d", errs.ErrInvalidParameter, id)
 	}
 	return s.repo.FindByID(ctx, id)
+}
+
+func (s *service) FindForExecution(ctx context.Context, id int64) (domain.Runner, error) {
+	if id <= 0 {
+		return domain.Runner{}, fmt.Errorf("%w: id = %d", errs.ErrInvalidParameter, id)
+	}
+	return s.repo.FindForExecution(ctx, id)
 }
 
 // Delete 根据主键 ID 删除执行单元。

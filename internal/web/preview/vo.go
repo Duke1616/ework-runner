@@ -1,5 +1,7 @@
 package preview
 
+import "github.com/Duke1616/etask/internal/domain"
+
 type Variable struct {
 	Key    string `json:"key"`
 	Value  string `json:"value"`
@@ -7,12 +9,39 @@ type Variable struct {
 }
 
 type RunReq struct {
-	CodebookID          int64      `json:"codebook_id"`
-	RunnerID            int64      `json:"runner_id"`
-	Code                string     `json:"code"`
+	RunnerID int64        `json:"runner_id"`
+	Program  *ProgramSpec `json:"program"`
+	// CodebookID 和 Code 仅用于兼容旧版前端请求，核心服务不再使用这两个字段。
+	CodebookID          int64      `json:"codebook_id,omitempty"`
+	Code                string     `json:"code,omitempty"`
 	Args                string     `json:"args"`
 	Variables           []Variable `json:"variables"`
 	MaxExecutionSeconds int64      `json:"max_execution_seconds"`
+}
+
+func (r RunReq) resolvedProgram() *ProgramSpec {
+	if r.Program != nil {
+		return r.Program
+	}
+	if r.CodebookID <= 0 || r.Code == "" {
+		return nil
+	}
+	return &ProgramSpec{Kind: string(domain.ProgramInline), Inline: &InlineProgramSpec{Code: r.Code}}
+}
+
+type ProgramSpec struct {
+	Kind    string              `json:"kind"`
+	Inline  *InlineProgramSpec  `json:"inline,omitempty"`
+	Project *ProjectProgramSpec `json:"project,omitempty"`
+}
+
+type InlineProgramSpec struct {
+	Code       string `json:"code,omitempty"`
+	CodebookID int64  `json:"codebook_id,omitempty"`
+}
+
+type ProjectProgramSpec struct {
+	EntryCodebookID int64 `json:"entry_codebook_id"`
 }
 
 type StatusReq struct {

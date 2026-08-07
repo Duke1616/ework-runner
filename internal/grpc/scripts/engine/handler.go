@@ -40,6 +40,11 @@ func (h *Handler) Desc() string {
 	return h.adapter.Description()
 }
 
+// ProgramKinds 返回脚本 Handler 支持的程序来源类型。
+func (h *Handler) ProgramKinds() []executor.ProgramKind {
+	return []executor.ProgramKind{executor.ProgramKindInline, executor.ProgramKindProject}
+}
+
 // Metadata 返回语言 handler 支持的参数元数据。
 func (h *Handler) Metadata() []executor.Parameter {
 	return h.adapter.Metadata()
@@ -55,8 +60,8 @@ func (h *Handler) Run(task *executor.Context) (runErr error) {
 	workspace, err := h.workspaces.Create(WorkspaceOptions{
 		ExecutionID: task.ExecutionID(),
 		Extension:   h.adapter.Extension(),
-		Code:        []byte(request.code),
-		Artifacts:   artifactRoots(task),
+		Program:     request.program,
+		Artifacts:   task.ArtifactRoots(),
 	})
 	if err != nil {
 		return fmt.Errorf("创建脚本工作区失败: %w", err)
@@ -65,7 +70,7 @@ func (h *Handler) Run(task *executor.Context) (runErr error) {
 	defer func() {
 		if archiveErr := h.archiver.Archive(ArchiveRecord{
 			ExecutionID: task.ExecutionID(),
-			CodeFile:    workspace.CodeFile(),
+			CodeFile:    workspace.EntryPoint(),
 			Args:        request.args, Variables: request.variables,
 			Failed: runErr != nil,
 		}); archiveErr != nil {
@@ -89,15 +94,6 @@ func (h *Handler) Run(task *executor.Context) (runErr error) {
 		launcher:       h.launcher,
 	}
 	return runner.Run(task, workspace, prepared)
-}
-
-func artifactRoots(task *executor.Context) ArtifactRoots {
-	roots := task.ArtifactRoots()
-	named := make(map[string]string, len(roots.Named))
-	for name, root := range roots.Named {
-		named[name] = root
-	}
-	return ArtifactRoots{System: roots.Default, Named: named}
 }
 
 var _ executor.TaskHandler = (*Handler)(nil)

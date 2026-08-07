@@ -21,6 +21,56 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// ProgramKind 描述 Runner 绑定的 Codebook 按单文件还是完整项目执行。
+type ProgramKind int32
+
+const (
+	ProgramKind_PROGRAM_KIND_UNSPECIFIED ProgramKind = 0
+	ProgramKind_PROGRAM_KIND_INLINE      ProgramKind = 1
+	ProgramKind_PROGRAM_KIND_PROJECT     ProgramKind = 2
+)
+
+// Enum value maps for ProgramKind.
+var (
+	ProgramKind_name = map[int32]string{
+		0: "PROGRAM_KIND_UNSPECIFIED",
+		1: "PROGRAM_KIND_INLINE",
+		2: "PROGRAM_KIND_PROJECT",
+	}
+	ProgramKind_value = map[string]int32{
+		"PROGRAM_KIND_UNSPECIFIED": 0,
+		"PROGRAM_KIND_INLINE":      1,
+		"PROGRAM_KIND_PROJECT":     2,
+	}
+)
+
+func (x ProgramKind) Enum() *ProgramKind {
+	p := new(ProgramKind)
+	*p = x
+	return p
+}
+
+func (x ProgramKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ProgramKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_etask_scheduler_v1_scheduler_proto_enumTypes[0].Descriptor()
+}
+
+func (ProgramKind) Type() protoreflect.EnumType {
+	return &file_etask_scheduler_v1_scheduler_proto_enumTypes[0]
+}
+
+func (x ProgramKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ProgramKind.Descriptor instead.
+func (ProgramKind) EnumDescriptor() ([]byte, []int) {
+	return file_etask_scheduler_v1_scheduler_proto_rawDescGZIP(), []int{0}
+}
+
 // RunRunnerRequest 描述外部系统提交的一次 Runner 正式执行。
 type RunRunnerRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -28,6 +78,7 @@ type RunRunnerRequest struct {
 	RunnerId      int64                  `protobuf:"varint,2,opt,name=runner_id,json=runnerId,proto3" json:"runner_id,omitempty"`                                                            // 需要执行的 Runner ID
 	Params        map[string]string      `protobuf:"bytes,3,rep,name=params,proto3" json:"params,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`       // 本次执行动态参数
 	Variables     map[string]string      `protobuf:"bytes,4,rep,name=variables,proto3" json:"variables,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // 本次执行临时变量覆盖
+	ProgramKind   ProgramKind            `protobuf:"varint,5,opt,name=program_kind,json=programKind,proto3,enum=etask.scheduler.v1.ProgramKind" json:"program_kind,omitempty"`               // 未指定时按 INLINE 执行，兼容存量调用方
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -88,6 +139,13 @@ func (x *RunRunnerRequest) GetVariables() map[string]string {
 		return x.Variables
 	}
 	return nil
+}
+
+func (x *RunRunnerRequest) GetProgramKind() ProgramKind {
+	if x != nil {
+		return x.ProgramKind
+	}
+	return ProgramKind_PROGRAM_KIND_UNSPECIFIED
 }
 
 type RunRunnerResponse struct {
@@ -250,13 +308,14 @@ var File_etask_scheduler_v1_scheduler_proto protoreflect.FileDescriptor
 
 const file_etask_scheduler_v1_scheduler_proto_rawDesc = "" +
 	"\n" +
-	"\"etask/scheduler/v1/scheduler.proto\x12\x12etask.scheduler.v1\"\xe4\x02\n" +
+	"\"etask/scheduler/v1/scheduler.proto\x12\x12etask.scheduler.v1\"\xa8\x03\n" +
 	"\x10RunRunnerRequest\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1b\n" +
 	"\trunner_id\x18\x02 \x01(\x03R\brunnerId\x12H\n" +
 	"\x06params\x18\x03 \x03(\v20.etask.scheduler.v1.RunRunnerRequest.ParamsEntryR\x06params\x12Q\n" +
-	"\tvariables\x18\x04 \x03(\v23.etask.scheduler.v1.RunRunnerRequest.VariablesEntryR\tvariables\x1a9\n" +
+	"\tvariables\x18\x04 \x03(\v23.etask.scheduler.v1.RunRunnerRequest.VariablesEntryR\tvariables\x12B\n" +
+	"\fprogram_kind\x18\x05 \x01(\x0e2\x1f.etask.scheduler.v1.ProgramKindR\vprogramKind\x1a9\n" +
 	"\vParamsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a<\n" +
@@ -274,7 +333,11 @@ const file_etask_scheduler_v1_scheduler_proto_rawDesc = "" +
 	"\x1aTerminateExecutionResponse\x12\x1e\n" +
 	"\n" +
 	"terminated\x18\x01 \x01(\bR\n" +
-	"terminated2\xe1\x01\n" +
+	"terminated*^\n" +
+	"\vProgramKind\x12\x1c\n" +
+	"\x18PROGRAM_KIND_UNSPECIFIED\x10\x00\x12\x17\n" +
+	"\x13PROGRAM_KIND_INLINE\x10\x01\x12\x18\n" +
+	"\x14PROGRAM_KIND_PROJECT\x10\x022\xe1\x01\n" +
 	"\x10SchedulerService\x12X\n" +
 	"\tRunRunner\x12$.etask.scheduler.v1.RunRunnerRequest\x1a%.etask.scheduler.v1.RunRunnerResponse\x12s\n" +
 	"\x12TerminateExecution\x12-.etask.scheduler.v1.TerminateExecutionRequest\x1a..etask.scheduler.v1.TerminateExecutionResponseB\xda\x01\n" +
@@ -292,27 +355,30 @@ func file_etask_scheduler_v1_scheduler_proto_rawDescGZIP() []byte {
 	return file_etask_scheduler_v1_scheduler_proto_rawDescData
 }
 
+var file_etask_scheduler_v1_scheduler_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_etask_scheduler_v1_scheduler_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_etask_scheduler_v1_scheduler_proto_goTypes = []any{
-	(*RunRunnerRequest)(nil),           // 0: etask.scheduler.v1.RunRunnerRequest
-	(*RunRunnerResponse)(nil),          // 1: etask.scheduler.v1.RunRunnerResponse
-	(*TerminateExecutionRequest)(nil),  // 2: etask.scheduler.v1.TerminateExecutionRequest
-	(*TerminateExecutionResponse)(nil), // 3: etask.scheduler.v1.TerminateExecutionResponse
-	nil,                                // 4: etask.scheduler.v1.RunRunnerRequest.ParamsEntry
-	nil,                                // 5: etask.scheduler.v1.RunRunnerRequest.VariablesEntry
+	(ProgramKind)(0),                   // 0: etask.scheduler.v1.ProgramKind
+	(*RunRunnerRequest)(nil),           // 1: etask.scheduler.v1.RunRunnerRequest
+	(*RunRunnerResponse)(nil),          // 2: etask.scheduler.v1.RunRunnerResponse
+	(*TerminateExecutionRequest)(nil),  // 3: etask.scheduler.v1.TerminateExecutionRequest
+	(*TerminateExecutionResponse)(nil), // 4: etask.scheduler.v1.TerminateExecutionResponse
+	nil,                                // 5: etask.scheduler.v1.RunRunnerRequest.ParamsEntry
+	nil,                                // 6: etask.scheduler.v1.RunRunnerRequest.VariablesEntry
 }
 var file_etask_scheduler_v1_scheduler_proto_depIdxs = []int32{
-	4, // 0: etask.scheduler.v1.RunRunnerRequest.params:type_name -> etask.scheduler.v1.RunRunnerRequest.ParamsEntry
-	5, // 1: etask.scheduler.v1.RunRunnerRequest.variables:type_name -> etask.scheduler.v1.RunRunnerRequest.VariablesEntry
-	0, // 2: etask.scheduler.v1.SchedulerService.RunRunner:input_type -> etask.scheduler.v1.RunRunnerRequest
-	2, // 3: etask.scheduler.v1.SchedulerService.TerminateExecution:input_type -> etask.scheduler.v1.TerminateExecutionRequest
-	1, // 4: etask.scheduler.v1.SchedulerService.RunRunner:output_type -> etask.scheduler.v1.RunRunnerResponse
-	3, // 5: etask.scheduler.v1.SchedulerService.TerminateExecution:output_type -> etask.scheduler.v1.TerminateExecutionResponse
-	4, // [4:6] is the sub-list for method output_type
-	2, // [2:4] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	5, // 0: etask.scheduler.v1.RunRunnerRequest.params:type_name -> etask.scheduler.v1.RunRunnerRequest.ParamsEntry
+	6, // 1: etask.scheduler.v1.RunRunnerRequest.variables:type_name -> etask.scheduler.v1.RunRunnerRequest.VariablesEntry
+	0, // 2: etask.scheduler.v1.RunRunnerRequest.program_kind:type_name -> etask.scheduler.v1.ProgramKind
+	1, // 3: etask.scheduler.v1.SchedulerService.RunRunner:input_type -> etask.scheduler.v1.RunRunnerRequest
+	3, // 4: etask.scheduler.v1.SchedulerService.TerminateExecution:input_type -> etask.scheduler.v1.TerminateExecutionRequest
+	2, // 5: etask.scheduler.v1.SchedulerService.RunRunner:output_type -> etask.scheduler.v1.RunRunnerResponse
+	4, // 6: etask.scheduler.v1.SchedulerService.TerminateExecution:output_type -> etask.scheduler.v1.TerminateExecutionResponse
+	5, // [5:7] is the sub-list for method output_type
+	3, // [3:5] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_etask_scheduler_v1_scheduler_proto_init() }
@@ -325,13 +391,14 @@ func file_etask_scheduler_v1_scheduler_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_etask_scheduler_v1_scheduler_proto_rawDesc), len(file_etask_scheduler_v1_scheduler_proto_rawDesc)),
-			NumEnums:      0,
+			NumEnums:      1,
 			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_etask_scheduler_v1_scheduler_proto_goTypes,
 		DependencyIndexes: file_etask_scheduler_v1_scheduler_proto_depIdxs,
+		EnumInfos:         file_etask_scheduler_v1_scheduler_proto_enumTypes,
 		MessageInfos:      file_etask_scheduler_v1_scheduler_proto_msgTypes,
 	}.Build()
 	File_etask_scheduler_v1_scheduler_proto = out.File

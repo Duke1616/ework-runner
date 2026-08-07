@@ -10,6 +10,8 @@ import (
 	"github.com/Duke1616/etask/pkg/blobstore"
 )
 
+//go:generate go tool mockgen -source=./artifact.go -package=artifactmocks -destination=./mocks/artifact.mock.go -typed
+
 type Config struct {
 	TempDir string           `mapstructure:"temp_dir" yaml:"temp_dir"`
 	Storage blobstore.Config `mapstructure:"storage" yaml:"storage"`

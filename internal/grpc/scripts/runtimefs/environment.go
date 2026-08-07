@@ -9,8 +9,9 @@ import (
 )
 
 type mountedArtifactRoots struct {
-	system string
-	named  string
+	project string
+	system  string
+	named   string
 }
 
 func buildEnvironment(roots mountedArtifactRoots, workspace string, access WorkspaceAccess) []string {
@@ -23,6 +24,9 @@ func buildEnvironment(roots mountedArtifactRoots, workspace string, access Works
 		"ETASK_WORKSPACE_ROOT=" + workspace,
 	}
 	overrides = append(overrides, access.Environment(workspace)...)
+	if roots.project != "" {
+		overrides = append(overrides, "ETASK_PROJECT_ROOT="+roots.project)
+	}
 	if roots.system != "" {
 		overrides = append(overrides, "ETASK_SYSTEM_ROOT="+roots.system)
 	}
@@ -38,7 +42,10 @@ func buildEnvironment(roots mountedArtifactRoots, workspace string, access Works
 }
 
 func pythonPaths(roots mountedArtifactRoots, workspace string) []string {
-	paths := make([]string, 0, 3)
+	paths := make([]string, 0, 4)
+	if roots.project != "" {
+		paths = append(paths, roots.project)
+	}
 	if roots.named != "" {
 		paths = append(paths, filepath.Join(roots.named, "python"), roots.named)
 	}

@@ -233,6 +233,214 @@ func (ExecMode) EnumDescriptor() ([]byte, []int) {
 	return file_etask_task_v1_task_proto_rawDescGZIP(), []int{3}
 }
 
+type ProgramSpec struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Source:
+	//
+	//	*ProgramSpec_Inline
+	//	*ProgramSpec_Project
+	Source        isProgramSpec_Source `protobuf_oneof:"source"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProgramSpec) Reset() {
+	*x = ProgramSpec{}
+	mi := &file_etask_task_v1_task_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProgramSpec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProgramSpec) ProtoMessage() {}
+
+func (x *ProgramSpec) ProtoReflect() protoreflect.Message {
+	mi := &file_etask_task_v1_task_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProgramSpec.ProtoReflect.Descriptor instead.
+func (*ProgramSpec) Descriptor() ([]byte, []int) {
+	return file_etask_task_v1_task_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *ProgramSpec) GetSource() isProgramSpec_Source {
+	if x != nil {
+		return x.Source
+	}
+	return nil
+}
+
+func (x *ProgramSpec) GetInline() *InlineProgramSpec {
+	if x != nil {
+		if x, ok := x.Source.(*ProgramSpec_Inline); ok {
+			return x.Inline
+		}
+	}
+	return nil
+}
+
+func (x *ProgramSpec) GetProject() *ProjectProgramSpec {
+	if x != nil {
+		if x, ok := x.Source.(*ProgramSpec_Project); ok {
+			return x.Project
+		}
+	}
+	return nil
+}
+
+type isProgramSpec_Source interface {
+	isProgramSpec_Source()
+}
+
+type ProgramSpec_Inline struct {
+	Inline *InlineProgramSpec `protobuf:"bytes,1,opt,name=inline,proto3,oneof"`
+}
+
+type ProgramSpec_Project struct {
+	Project *ProjectProgramSpec `protobuf:"bytes,2,opt,name=project,proto3,oneof"`
+}
+
+func (*ProgramSpec_Inline) isProgramSpec_Source() {}
+
+func (*ProgramSpec_Project) isProgramSpec_Source() {}
+
+type InlineProgramSpec struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Source:
+	//
+	//	*InlineProgramSpec_Code
+	//	*InlineProgramSpec_CodebookId
+	Source        isInlineProgramSpec_Source `protobuf_oneof:"source"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InlineProgramSpec) Reset() {
+	*x = InlineProgramSpec{}
+	mi := &file_etask_task_v1_task_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InlineProgramSpec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InlineProgramSpec) ProtoMessage() {}
+
+func (x *InlineProgramSpec) ProtoReflect() protoreflect.Message {
+	mi := &file_etask_task_v1_task_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InlineProgramSpec.ProtoReflect.Descriptor instead.
+func (*InlineProgramSpec) Descriptor() ([]byte, []int) {
+	return file_etask_task_v1_task_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *InlineProgramSpec) GetSource() isInlineProgramSpec_Source {
+	if x != nil {
+		return x.Source
+	}
+	return nil
+}
+
+func (x *InlineProgramSpec) GetCode() string {
+	if x != nil {
+		if x, ok := x.Source.(*InlineProgramSpec_Code); ok {
+			return x.Code
+		}
+	}
+	return ""
+}
+
+func (x *InlineProgramSpec) GetCodebookId() int64 {
+	if x != nil {
+		if x, ok := x.Source.(*InlineProgramSpec_CodebookId); ok {
+			return x.CodebookId
+		}
+	}
+	return 0
+}
+
+type isInlineProgramSpec_Source interface {
+	isInlineProgramSpec_Source()
+}
+
+type InlineProgramSpec_Code struct {
+	Code string `protobuf:"bytes,1,opt,name=code,proto3,oneof"`
+}
+
+type InlineProgramSpec_CodebookId struct {
+	CodebookId int64 `protobuf:"varint,2,opt,name=codebook_id,json=codebookId,proto3,oneof"`
+}
+
+func (*InlineProgramSpec_Code) isInlineProgramSpec_Source() {}
+
+func (*InlineProgramSpec_CodebookId) isInlineProgramSpec_Source() {}
+
+type ProjectProgramSpec struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	EntryCodebookId int64                  `protobuf:"varint,1,opt,name=entry_codebook_id,json=entryCodebookId,proto3" json:"entry_codebook_id,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ProjectProgramSpec) Reset() {
+	*x = ProjectProgramSpec{}
+	mi := &file_etask_task_v1_task_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProjectProgramSpec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProjectProgramSpec) ProtoMessage() {}
+
+func (x *ProjectProgramSpec) ProtoReflect() protoreflect.Message {
+	mi := &file_etask_task_v1_task_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProjectProgramSpec.ProtoReflect.Descriptor instead.
+func (*ProjectProgramSpec) Descriptor() ([]byte, []int) {
+	return file_etask_task_v1_task_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ProjectProgramSpec) GetEntryCodebookId() int64 {
+	if x != nil {
+		return x.EntryCodebookId
+	}
+	return 0
+}
+
 // GrpcConfig gRPC配置
 type GrpcConfig struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -246,7 +454,7 @@ type GrpcConfig struct {
 
 func (x *GrpcConfig) Reset() {
 	*x = GrpcConfig{}
-	mi := &file_etask_task_v1_task_proto_msgTypes[0]
+	mi := &file_etask_task_v1_task_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -258,7 +466,7 @@ func (x *GrpcConfig) String() string {
 func (*GrpcConfig) ProtoMessage() {}
 
 func (x *GrpcConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_task_v1_task_proto_msgTypes[0]
+	mi := &file_etask_task_v1_task_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -271,7 +479,7 @@ func (x *GrpcConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GrpcConfig.ProtoReflect.Descriptor instead.
 func (*GrpcConfig) Descriptor() ([]byte, []int) {
-	return file_etask_task_v1_task_proto_rawDescGZIP(), []int{0}
+	return file_etask_task_v1_task_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *GrpcConfig) GetServiceName() string {
@@ -314,7 +522,7 @@ type HTTPConfig struct {
 
 func (x *HTTPConfig) Reset() {
 	*x = HTTPConfig{}
-	mi := &file_etask_task_v1_task_proto_msgTypes[1]
+	mi := &file_etask_task_v1_task_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -326,7 +534,7 @@ func (x *HTTPConfig) String() string {
 func (*HTTPConfig) ProtoMessage() {}
 
 func (x *HTTPConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_task_v1_task_proto_msgTypes[1]
+	mi := &file_etask_task_v1_task_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -339,7 +547,7 @@ func (x *HTTPConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HTTPConfig.ProtoReflect.Descriptor instead.
 func (*HTTPConfig) Descriptor() ([]byte, []int) {
-	return file_etask_task_v1_task_proto_rawDescGZIP(), []int{1}
+	return file_etask_task_v1_task_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *HTTPConfig) GetEndpoint() string {
@@ -375,7 +583,7 @@ type RetryConfig struct {
 
 func (x *RetryConfig) Reset() {
 	*x = RetryConfig{}
-	mi := &file_etask_task_v1_task_proto_msgTypes[2]
+	mi := &file_etask_task_v1_task_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -387,7 +595,7 @@ func (x *RetryConfig) String() string {
 func (*RetryConfig) ProtoMessage() {}
 
 func (x *RetryConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_task_v1_task_proto_msgTypes[2]
+	mi := &file_etask_task_v1_task_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -400,7 +608,7 @@ func (x *RetryConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RetryConfig.ProtoReflect.Descriptor instead.
 func (*RetryConfig) Descriptor() ([]byte, []int) {
-	return file_etask_task_v1_task_proto_rawDescGZIP(), []int{2}
+	return file_etask_task_v1_task_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *RetryConfig) GetMaxRetries() int32 {
@@ -444,13 +652,14 @@ type Task struct {
 	Utime               int64                  `protobuf:"varint,15,opt,name=utime,proto3" json:"utime,omitempty"`                                                                                                                  // 更新时间戳
 	ExecMode            ExecMode               `protobuf:"varint,16,opt,name=exec_mode,json=execMode,proto3,enum=etask.task.v1.ExecMode" json:"exec_mode,omitempty"`                                                                // 执行模式 (PUSH 或 PULL)
 	Metadata            map[string]string      `protobuf:"bytes,17,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`                                   // 任务参数元数据(存储绑定关系等)
+	Program             *ProgramSpec           `protobuf:"bytes,18,opt,name=program,proto3" json:"program,omitempty"`                                                                                                               // 用户声明的程序来源
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
 
 func (x *Task) Reset() {
 	*x = Task{}
-	mi := &file_etask_task_v1_task_proto_msgTypes[3]
+	mi := &file_etask_task_v1_task_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -462,7 +671,7 @@ func (x *Task) String() string {
 func (*Task) ProtoMessage() {}
 
 func (x *Task) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_task_v1_task_proto_msgTypes[3]
+	mi := &file_etask_task_v1_task_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -475,7 +684,7 @@ func (x *Task) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Task.ProtoReflect.Descriptor instead.
 func (*Task) Descriptor() ([]byte, []int) {
-	return file_etask_task_v1_task_proto_rawDescGZIP(), []int{3}
+	return file_etask_task_v1_task_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *Task) GetId() int64 {
@@ -597,6 +806,13 @@ func (x *Task) GetMetadata() map[string]string {
 	return nil
 }
 
+func (x *Task) GetProgram() *ProgramSpec {
+	if x != nil {
+		return x.Program
+	}
+	return nil
+}
+
 // CreateTaskRequest 创建任务请求
 type CreateTaskRequest struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
@@ -610,13 +826,14 @@ type CreateTaskRequest struct {
 	ScheduleParams      map[string]string      `protobuf:"bytes,8,rep,name=schedule_params,json=scheduleParams,proto3" json:"schedule_params,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // 调度参数(如分页偏移量、处理进度等)
 	ExecMode            ExecMode               `protobuf:"varint,9,opt,name=exec_mode,json=execMode,proto3,enum=etask.task.v1.ExecMode" json:"exec_mode,omitempty"`                                                                // 执行模式
 	Metadata            map[string]string      `protobuf:"bytes,10,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`                                  // 任务参数元数据
+	Program             *ProgramSpec           `protobuf:"bytes,11,opt,name=program,proto3" json:"program,omitempty"`                                                                                                              // 用户声明的程序来源
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
 
 func (x *CreateTaskRequest) Reset() {
 	*x = CreateTaskRequest{}
-	mi := &file_etask_task_v1_task_proto_msgTypes[4]
+	mi := &file_etask_task_v1_task_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -628,7 +845,7 @@ func (x *CreateTaskRequest) String() string {
 func (*CreateTaskRequest) ProtoMessage() {}
 
 func (x *CreateTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_task_v1_task_proto_msgTypes[4]
+	mi := &file_etask_task_v1_task_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -641,7 +858,7 @@ func (x *CreateTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateTaskRequest.ProtoReflect.Descriptor instead.
 func (*CreateTaskRequest) Descriptor() ([]byte, []int) {
-	return file_etask_task_v1_task_proto_rawDescGZIP(), []int{4}
+	return file_etask_task_v1_task_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *CreateTaskRequest) GetName() string {
@@ -714,6 +931,13 @@ func (x *CreateTaskRequest) GetMetadata() map[string]string {
 	return nil
 }
 
+func (x *CreateTaskRequest) GetProgram() *ProgramSpec {
+	if x != nil {
+		return x.Program
+	}
+	return nil
+}
+
 type CreateTaskResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`                                      // 创建的任务ID
@@ -725,7 +949,7 @@ type CreateTaskResponse struct {
 
 func (x *CreateTaskResponse) Reset() {
 	*x = CreateTaskResponse{}
-	mi := &file_etask_task_v1_task_proto_msgTypes[5]
+	mi := &file_etask_task_v1_task_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -737,7 +961,7 @@ func (x *CreateTaskResponse) String() string {
 func (*CreateTaskResponse) ProtoMessage() {}
 
 func (x *CreateTaskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_task_v1_task_proto_msgTypes[5]
+	mi := &file_etask_task_v1_task_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -750,7 +974,7 @@ func (x *CreateTaskResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateTaskResponse.ProtoReflect.Descriptor instead.
 func (*CreateTaskResponse) Descriptor() ([]byte, []int) {
-	return file_etask_task_v1_task_proto_rawDescGZIP(), []int{5}
+	return file_etask_task_v1_task_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *CreateTaskResponse) GetId() int64 {
@@ -784,7 +1008,7 @@ type GetTaskRequest struct {
 
 func (x *GetTaskRequest) Reset() {
 	*x = GetTaskRequest{}
-	mi := &file_etask_task_v1_task_proto_msgTypes[6]
+	mi := &file_etask_task_v1_task_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -796,7 +1020,7 @@ func (x *GetTaskRequest) String() string {
 func (*GetTaskRequest) ProtoMessage() {}
 
 func (x *GetTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_task_v1_task_proto_msgTypes[6]
+	mi := &file_etask_task_v1_task_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -809,7 +1033,7 @@ func (x *GetTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTaskRequest.ProtoReflect.Descriptor instead.
 func (*GetTaskRequest) Descriptor() ([]byte, []int) {
-	return file_etask_task_v1_task_proto_rawDescGZIP(), []int{6}
+	return file_etask_task_v1_task_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GetTaskRequest) GetId() int64 {
@@ -829,7 +1053,7 @@ type GetTaskResponse struct {
 
 func (x *GetTaskResponse) Reset() {
 	*x = GetTaskResponse{}
-	mi := &file_etask_task_v1_task_proto_msgTypes[7]
+	mi := &file_etask_task_v1_task_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -841,7 +1065,7 @@ func (x *GetTaskResponse) String() string {
 func (*GetTaskResponse) ProtoMessage() {}
 
 func (x *GetTaskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_task_v1_task_proto_msgTypes[7]
+	mi := &file_etask_task_v1_task_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -854,7 +1078,7 @@ func (x *GetTaskResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTaskResponse.ProtoReflect.Descriptor instead.
 func (*GetTaskResponse) Descriptor() ([]byte, []int) {
-	return file_etask_task_v1_task_proto_rawDescGZIP(), []int{7}
+	return file_etask_task_v1_task_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *GetTaskResponse) GetTask() *Task {
@@ -874,7 +1098,7 @@ type RetryTaskByIDRequest struct {
 
 func (x *RetryTaskByIDRequest) Reset() {
 	*x = RetryTaskByIDRequest{}
-	mi := &file_etask_task_v1_task_proto_msgTypes[8]
+	mi := &file_etask_task_v1_task_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -886,7 +1110,7 @@ func (x *RetryTaskByIDRequest) String() string {
 func (*RetryTaskByIDRequest) ProtoMessage() {}
 
 func (x *RetryTaskByIDRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_task_v1_task_proto_msgTypes[8]
+	mi := &file_etask_task_v1_task_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -899,7 +1123,7 @@ func (x *RetryTaskByIDRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RetryTaskByIDRequest.ProtoReflect.Descriptor instead.
 func (*RetryTaskByIDRequest) Descriptor() ([]byte, []int) {
-	return file_etask_task_v1_task_proto_rawDescGZIP(), []int{8}
+	return file_etask_task_v1_task_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *RetryTaskByIDRequest) GetId() int64 {
@@ -919,7 +1143,7 @@ type RetryTaskByNameRequest struct {
 
 func (x *RetryTaskByNameRequest) Reset() {
 	*x = RetryTaskByNameRequest{}
-	mi := &file_etask_task_v1_task_proto_msgTypes[9]
+	mi := &file_etask_task_v1_task_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -931,7 +1155,7 @@ func (x *RetryTaskByNameRequest) String() string {
 func (*RetryTaskByNameRequest) ProtoMessage() {}
 
 func (x *RetryTaskByNameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_task_v1_task_proto_msgTypes[9]
+	mi := &file_etask_task_v1_task_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -944,7 +1168,7 @@ func (x *RetryTaskByNameRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RetryTaskByNameRequest.ProtoReflect.Descriptor instead.
 func (*RetryTaskByNameRequest) Descriptor() ([]byte, []int) {
-	return file_etask_task_v1_task_proto_rawDescGZIP(), []int{9}
+	return file_etask_task_v1_task_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *RetryTaskByNameRequest) GetName() string {
@@ -966,7 +1190,7 @@ type RetryTaskResponse struct {
 
 func (x *RetryTaskResponse) Reset() {
 	*x = RetryTaskResponse{}
-	mi := &file_etask_task_v1_task_proto_msgTypes[10]
+	mi := &file_etask_task_v1_task_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -978,7 +1202,7 @@ func (x *RetryTaskResponse) String() string {
 func (*RetryTaskResponse) ProtoMessage() {}
 
 func (x *RetryTaskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_task_v1_task_proto_msgTypes[10]
+	mi := &file_etask_task_v1_task_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -991,7 +1215,7 @@ func (x *RetryTaskResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RetryTaskResponse.ProtoReflect.Descriptor instead.
 func (*RetryTaskResponse) Descriptor() ([]byte, []int) {
-	return file_etask_task_v1_task_proto_rawDescGZIP(), []int{10}
+	return file_etask_task_v1_task_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *RetryTaskResponse) GetId() int64 {
@@ -1019,7 +1243,18 @@ var File_etask_task_v1_task_proto protoreflect.FileDescriptor
 
 const file_etask_task_v1_task_proto_rawDesc = "" +
 	"\n" +
-	"\x18etask/task/v1/task.proto\x12\retask.task.v1\"\xeb\x01\n" +
+	"\x18etask/task/v1/task.proto\x12\retask.task.v1\"\x92\x01\n" +
+	"\vProgramSpec\x12:\n" +
+	"\x06inline\x18\x01 \x01(\v2 .etask.task.v1.InlineProgramSpecH\x00R\x06inline\x12=\n" +
+	"\aproject\x18\x02 \x01(\v2!.etask.task.v1.ProjectProgramSpecH\x00R\aprojectB\b\n" +
+	"\x06source\"V\n" +
+	"\x11InlineProgramSpec\x12\x14\n" +
+	"\x04code\x18\x01 \x01(\tH\x00R\x04code\x12!\n" +
+	"\vcodebook_id\x18\x02 \x01(\x03H\x00R\n" +
+	"codebookIdB\b\n" +
+	"\x06source\"@\n" +
+	"\x12ProjectProgramSpec\x12*\n" +
+	"\x11entry_codebook_id\x18\x01 \x01(\x03R\x0fentryCodebookId\"\xeb\x01\n" +
 	"\n" +
 	"GrpcConfig\x12!\n" +
 	"\fservice_name\x18\x01 \x01(\tR\vserviceName\x12\x1d\n" +
@@ -1045,7 +1280,7 @@ const file_etask_task_v1_task_proto_rawDesc = "" +
 	"\vmax_retries\x18\x01 \x01(\x05R\n" +
 	"maxRetries\x12)\n" +
 	"\x10initial_interval\x18\x02 \x01(\x03R\x0finitialInterval\x12!\n" +
-	"\fmax_interval\x18\x03 \x01(\x03R\vmaxInterval\"\xe6\x06\n" +
+	"\fmax_interval\x18\x03 \x01(\x03R\vmaxInterval\"\x9c\a\n" +
 	"\x04Task\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12+\n" +
@@ -1066,13 +1301,14 @@ const file_etask_task_v1_task_proto_rawDesc = "" +
 	"\x05ctime\x18\x0e \x01(\x03R\x05ctime\x12\x14\n" +
 	"\x05utime\x18\x0f \x01(\x03R\x05utime\x124\n" +
 	"\texec_mode\x18\x10 \x01(\x0e2\x17.etask.task.v1.ExecModeR\bexecMode\x12=\n" +
-	"\bmetadata\x18\x11 \x03(\v2!.etask.task.v1.Task.MetadataEntryR\bmetadata\x1aA\n" +
+	"\bmetadata\x18\x11 \x03(\v2!.etask.task.v1.Task.MetadataEntryR\bmetadata\x124\n" +
+	"\aprogram\x18\x12 \x01(\v2\x1a.etask.task.v1.ProgramSpecR\aprogram\x1aA\n" +
 	"\x13ScheduleParamsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xbd\x05\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xf3\x05\n" +
 	"\x11CreateTaskRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12+\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x17.etask.task.v1.TaskTypeR\x04type\x12\x1b\n" +
@@ -1086,7 +1322,8 @@ const file_etask_task_v1_task_proto_rawDesc = "" +
 	"\x0fschedule_params\x18\b \x03(\v24.etask.task.v1.CreateTaskRequest.ScheduleParamsEntryR\x0escheduleParams\x124\n" +
 	"\texec_mode\x18\t \x01(\x0e2\x17.etask.task.v1.ExecModeR\bexecMode\x12J\n" +
 	"\bmetadata\x18\n" +
-	" \x03(\v2..etask.task.v1.CreateTaskRequest.MetadataEntryR\bmetadata\x1aA\n" +
+	" \x03(\v2..etask.task.v1.CreateTaskRequest.MetadataEntryR\bmetadata\x124\n" +
+	"\aprogram\x18\v \x01(\v2\x1a.etask.task.v1.ProgramSpecR\aprogram\x1aA\n" +
 	"\x13ScheduleParamsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a;\n" +
@@ -1152,66 +1389,73 @@ func file_etask_task_v1_task_proto_rawDescGZIP() []byte {
 }
 
 var file_etask_task_v1_task_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_etask_task_v1_task_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_etask_task_v1_task_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_etask_task_v1_task_proto_goTypes = []any{
 	(TaskType)(0),                  // 0: etask.task.v1.TaskType
 	(TaskStatus)(0),                // 1: etask.task.v1.TaskStatus
 	(TaskErrorCode)(0),             // 2: etask.task.v1.TaskErrorCode
 	(ExecMode)(0),                  // 3: etask.task.v1.ExecMode
-	(*GrpcConfig)(nil),             // 4: etask.task.v1.GrpcConfig
-	(*HTTPConfig)(nil),             // 5: etask.task.v1.HTTPConfig
-	(*RetryConfig)(nil),            // 6: etask.task.v1.RetryConfig
-	(*Task)(nil),                   // 7: etask.task.v1.Task
-	(*CreateTaskRequest)(nil),      // 8: etask.task.v1.CreateTaskRequest
-	(*CreateTaskResponse)(nil),     // 9: etask.task.v1.CreateTaskResponse
-	(*GetTaskRequest)(nil),         // 10: etask.task.v1.GetTaskRequest
-	(*GetTaskResponse)(nil),        // 11: etask.task.v1.GetTaskResponse
-	(*RetryTaskByIDRequest)(nil),   // 12: etask.task.v1.RetryTaskByIDRequest
-	(*RetryTaskByNameRequest)(nil), // 13: etask.task.v1.RetryTaskByNameRequest
-	(*RetryTaskResponse)(nil),      // 14: etask.task.v1.RetryTaskResponse
-	nil,                            // 15: etask.task.v1.GrpcConfig.ParamsEntry
-	nil,                            // 16: etask.task.v1.HTTPConfig.HeadersEntry
-	nil,                            // 17: etask.task.v1.HTTPConfig.ParamsEntry
-	nil,                            // 18: etask.task.v1.Task.ScheduleParamsEntry
-	nil,                            // 19: etask.task.v1.Task.MetadataEntry
-	nil,                            // 20: etask.task.v1.CreateTaskRequest.ScheduleParamsEntry
-	nil,                            // 21: etask.task.v1.CreateTaskRequest.MetadataEntry
+	(*ProgramSpec)(nil),            // 4: etask.task.v1.ProgramSpec
+	(*InlineProgramSpec)(nil),      // 5: etask.task.v1.InlineProgramSpec
+	(*ProjectProgramSpec)(nil),     // 6: etask.task.v1.ProjectProgramSpec
+	(*GrpcConfig)(nil),             // 7: etask.task.v1.GrpcConfig
+	(*HTTPConfig)(nil),             // 8: etask.task.v1.HTTPConfig
+	(*RetryConfig)(nil),            // 9: etask.task.v1.RetryConfig
+	(*Task)(nil),                   // 10: etask.task.v1.Task
+	(*CreateTaskRequest)(nil),      // 11: etask.task.v1.CreateTaskRequest
+	(*CreateTaskResponse)(nil),     // 12: etask.task.v1.CreateTaskResponse
+	(*GetTaskRequest)(nil),         // 13: etask.task.v1.GetTaskRequest
+	(*GetTaskResponse)(nil),        // 14: etask.task.v1.GetTaskResponse
+	(*RetryTaskByIDRequest)(nil),   // 15: etask.task.v1.RetryTaskByIDRequest
+	(*RetryTaskByNameRequest)(nil), // 16: etask.task.v1.RetryTaskByNameRequest
+	(*RetryTaskResponse)(nil),      // 17: etask.task.v1.RetryTaskResponse
+	nil,                            // 18: etask.task.v1.GrpcConfig.ParamsEntry
+	nil,                            // 19: etask.task.v1.HTTPConfig.HeadersEntry
+	nil,                            // 20: etask.task.v1.HTTPConfig.ParamsEntry
+	nil,                            // 21: etask.task.v1.Task.ScheduleParamsEntry
+	nil,                            // 22: etask.task.v1.Task.MetadataEntry
+	nil,                            // 23: etask.task.v1.CreateTaskRequest.ScheduleParamsEntry
+	nil,                            // 24: etask.task.v1.CreateTaskRequest.MetadataEntry
 }
 var file_etask_task_v1_task_proto_depIdxs = []int32{
-	15, // 0: etask.task.v1.GrpcConfig.params:type_name -> etask.task.v1.GrpcConfig.ParamsEntry
-	16, // 1: etask.task.v1.HTTPConfig.headers:type_name -> etask.task.v1.HTTPConfig.HeadersEntry
-	17, // 2: etask.task.v1.HTTPConfig.params:type_name -> etask.task.v1.HTTPConfig.ParamsEntry
-	0,  // 3: etask.task.v1.Task.type:type_name -> etask.task.v1.TaskType
-	4,  // 4: etask.task.v1.Task.grpc_config:type_name -> etask.task.v1.GrpcConfig
-	5,  // 5: etask.task.v1.Task.http_config:type_name -> etask.task.v1.HTTPConfig
-	6,  // 6: etask.task.v1.Task.retry_config:type_name -> etask.task.v1.RetryConfig
-	18, // 7: etask.task.v1.Task.schedule_params:type_name -> etask.task.v1.Task.ScheduleParamsEntry
-	1,  // 8: etask.task.v1.Task.status:type_name -> etask.task.v1.TaskStatus
-	3,  // 9: etask.task.v1.Task.exec_mode:type_name -> etask.task.v1.ExecMode
-	19, // 10: etask.task.v1.Task.metadata:type_name -> etask.task.v1.Task.MetadataEntry
-	0,  // 11: etask.task.v1.CreateTaskRequest.type:type_name -> etask.task.v1.TaskType
-	4,  // 12: etask.task.v1.CreateTaskRequest.grpc_config:type_name -> etask.task.v1.GrpcConfig
-	5,  // 13: etask.task.v1.CreateTaskRequest.http_config:type_name -> etask.task.v1.HTTPConfig
-	6,  // 14: etask.task.v1.CreateTaskRequest.retry_config:type_name -> etask.task.v1.RetryConfig
-	20, // 15: etask.task.v1.CreateTaskRequest.schedule_params:type_name -> etask.task.v1.CreateTaskRequest.ScheduleParamsEntry
-	3,  // 16: etask.task.v1.CreateTaskRequest.exec_mode:type_name -> etask.task.v1.ExecMode
-	21, // 17: etask.task.v1.CreateTaskRequest.metadata:type_name -> etask.task.v1.CreateTaskRequest.MetadataEntry
-	2,  // 18: etask.task.v1.CreateTaskResponse.code:type_name -> etask.task.v1.TaskErrorCode
-	7,  // 19: etask.task.v1.GetTaskResponse.task:type_name -> etask.task.v1.Task
-	2,  // 20: etask.task.v1.RetryTaskResponse.code:type_name -> etask.task.v1.TaskErrorCode
-	8,  // 21: etask.task.v1.TaskService.CreateTask:input_type -> etask.task.v1.CreateTaskRequest
-	10, // 22: etask.task.v1.TaskService.GetTask:input_type -> etask.task.v1.GetTaskRequest
-	12, // 23: etask.task.v1.TaskService.RetryTaskByID:input_type -> etask.task.v1.RetryTaskByIDRequest
-	13, // 24: etask.task.v1.TaskService.RetryTaskByName:input_type -> etask.task.v1.RetryTaskByNameRequest
-	9,  // 25: etask.task.v1.TaskService.CreateTask:output_type -> etask.task.v1.CreateTaskResponse
-	11, // 26: etask.task.v1.TaskService.GetTask:output_type -> etask.task.v1.GetTaskResponse
-	14, // 27: etask.task.v1.TaskService.RetryTaskByID:output_type -> etask.task.v1.RetryTaskResponse
-	14, // 28: etask.task.v1.TaskService.RetryTaskByName:output_type -> etask.task.v1.RetryTaskResponse
-	25, // [25:29] is the sub-list for method output_type
-	21, // [21:25] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	5,  // 0: etask.task.v1.ProgramSpec.inline:type_name -> etask.task.v1.InlineProgramSpec
+	6,  // 1: etask.task.v1.ProgramSpec.project:type_name -> etask.task.v1.ProjectProgramSpec
+	18, // 2: etask.task.v1.GrpcConfig.params:type_name -> etask.task.v1.GrpcConfig.ParamsEntry
+	19, // 3: etask.task.v1.HTTPConfig.headers:type_name -> etask.task.v1.HTTPConfig.HeadersEntry
+	20, // 4: etask.task.v1.HTTPConfig.params:type_name -> etask.task.v1.HTTPConfig.ParamsEntry
+	0,  // 5: etask.task.v1.Task.type:type_name -> etask.task.v1.TaskType
+	7,  // 6: etask.task.v1.Task.grpc_config:type_name -> etask.task.v1.GrpcConfig
+	8,  // 7: etask.task.v1.Task.http_config:type_name -> etask.task.v1.HTTPConfig
+	9,  // 8: etask.task.v1.Task.retry_config:type_name -> etask.task.v1.RetryConfig
+	21, // 9: etask.task.v1.Task.schedule_params:type_name -> etask.task.v1.Task.ScheduleParamsEntry
+	1,  // 10: etask.task.v1.Task.status:type_name -> etask.task.v1.TaskStatus
+	3,  // 11: etask.task.v1.Task.exec_mode:type_name -> etask.task.v1.ExecMode
+	22, // 12: etask.task.v1.Task.metadata:type_name -> etask.task.v1.Task.MetadataEntry
+	4,  // 13: etask.task.v1.Task.program:type_name -> etask.task.v1.ProgramSpec
+	0,  // 14: etask.task.v1.CreateTaskRequest.type:type_name -> etask.task.v1.TaskType
+	7,  // 15: etask.task.v1.CreateTaskRequest.grpc_config:type_name -> etask.task.v1.GrpcConfig
+	8,  // 16: etask.task.v1.CreateTaskRequest.http_config:type_name -> etask.task.v1.HTTPConfig
+	9,  // 17: etask.task.v1.CreateTaskRequest.retry_config:type_name -> etask.task.v1.RetryConfig
+	23, // 18: etask.task.v1.CreateTaskRequest.schedule_params:type_name -> etask.task.v1.CreateTaskRequest.ScheduleParamsEntry
+	3,  // 19: etask.task.v1.CreateTaskRequest.exec_mode:type_name -> etask.task.v1.ExecMode
+	24, // 20: etask.task.v1.CreateTaskRequest.metadata:type_name -> etask.task.v1.CreateTaskRequest.MetadataEntry
+	4,  // 21: etask.task.v1.CreateTaskRequest.program:type_name -> etask.task.v1.ProgramSpec
+	2,  // 22: etask.task.v1.CreateTaskResponse.code:type_name -> etask.task.v1.TaskErrorCode
+	10, // 23: etask.task.v1.GetTaskResponse.task:type_name -> etask.task.v1.Task
+	2,  // 24: etask.task.v1.RetryTaskResponse.code:type_name -> etask.task.v1.TaskErrorCode
+	11, // 25: etask.task.v1.TaskService.CreateTask:input_type -> etask.task.v1.CreateTaskRequest
+	13, // 26: etask.task.v1.TaskService.GetTask:input_type -> etask.task.v1.GetTaskRequest
+	15, // 27: etask.task.v1.TaskService.RetryTaskByID:input_type -> etask.task.v1.RetryTaskByIDRequest
+	16, // 28: etask.task.v1.TaskService.RetryTaskByName:input_type -> etask.task.v1.RetryTaskByNameRequest
+	12, // 29: etask.task.v1.TaskService.CreateTask:output_type -> etask.task.v1.CreateTaskResponse
+	14, // 30: etask.task.v1.TaskService.GetTask:output_type -> etask.task.v1.GetTaskResponse
+	17, // 31: etask.task.v1.TaskService.RetryTaskByID:output_type -> etask.task.v1.RetryTaskResponse
+	17, // 32: etask.task.v1.TaskService.RetryTaskByName:output_type -> etask.task.v1.RetryTaskResponse
+	29, // [29:33] is the sub-list for method output_type
+	25, // [25:29] is the sub-list for method input_type
+	25, // [25:25] is the sub-list for extension type_name
+	25, // [25:25] is the sub-list for extension extendee
+	0,  // [0:25] is the sub-list for field type_name
 }
 
 func init() { file_etask_task_v1_task_proto_init() }
@@ -1219,13 +1463,21 @@ func file_etask_task_v1_task_proto_init() {
 	if File_etask_task_v1_task_proto != nil {
 		return
 	}
+	file_etask_task_v1_task_proto_msgTypes[0].OneofWrappers = []any{
+		(*ProgramSpec_Inline)(nil),
+		(*ProgramSpec_Project)(nil),
+	}
+	file_etask_task_v1_task_proto_msgTypes[1].OneofWrappers = []any{
+		(*InlineProgramSpec_Code)(nil),
+		(*InlineProgramSpec_CodebookId)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_etask_task_v1_task_proto_rawDesc), len(file_etask_task_v1_task_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   18,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

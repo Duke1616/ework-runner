@@ -29,6 +29,7 @@ type Task struct {
 	Type                string                              `gorm:"type:ENUM('RECURRING', 'ONE_TIME');not null;default:'RECURRING';comment:'任务类型: RECURRING-定时任务(循环执行), ONE_TIME-一次性任务(执行一次后停止)'"`
 	CronExpr            string                              `gorm:"type:varchar(100);not null;comment:'cron表达式'"`
 	GrpcConfig          sqlx.JSONColumn[domain.GrpcConfig]  `gorm:"type:json;comment:'gRPC配置：{\"serviceName\": \"user-service\"}'"`
+	Program             sqlx.JSONColumn[domain.ProgramSpec] `gorm:"type:json;comment:'用户声明的程序来源'"`
 	HTTPConfig          sqlx.JSONColumn[domain.HTTPConfig]  `gorm:"type:json;comment:'HTTP配置：{\"endpoint\": \"https://host:port/api\"}'"`
 	RetryConfig         sqlx.JSONColumn[domain.RetryConfig] `gorm:"type:json;comment:'重试配置'"`
 	ScheduleParams      sqlx.JSONColumn[map[string]string]  `gorm:"type:json;comment:'每次执行要用到的基础调度参数'"`

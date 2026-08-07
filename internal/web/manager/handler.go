@@ -331,6 +331,7 @@ func toVO(src domain.Task) TaskVO {
 		MaxExecutionSeconds: src.MaxExecutionSeconds,
 		ScheduleParams:      src.ScheduleParams,
 		Metadata:            src.Metadata,
+		Program:             toProgramVO(src.Program),
 		CTime:               src.CTime,
 		UTime:               src.UTime,
 	}
@@ -372,6 +373,7 @@ func toDomain(req CreateTaskReq) domain.Task {
 		Status:              domain.TaskStatusActive,
 		BizID:               bizid.Task,
 		Metadata:            req.Metadata,
+		Program:             toDomainProgram(req.Program),
 	}
 
 	if req.GrpcConfig != nil {
@@ -411,6 +413,7 @@ func toUpdateDomain(req UpdateTaskReq) domain.Task {
 		ScheduleParams:      req.ScheduleParams,
 		BizID:               bizid.Task,
 		Metadata:            req.Metadata,
+		Program:             toDomainProgram(req.Program),
 	}
 
 	if req.GrpcConfig != nil {
@@ -438,4 +441,36 @@ func toUpdateDomain(req UpdateTaskReq) domain.Task {
 	}
 
 	return t
+}
+
+func toDomainProgram(src *ProgramSpec) *domain.ProgramSpec {
+	if src == nil {
+		return nil
+	}
+	result := &domain.ProgramSpec{Kind: domain.ProgramKind(src.Kind)}
+	if src.Inline != nil {
+		result.Inline = &domain.InlineProgramSpec{
+			Code: src.Inline.Code, CodebookID: src.Inline.CodebookID,
+		}
+	}
+	if src.Project != nil {
+		result.Project = &domain.ProjectProgramSpec{EntryCodebookID: src.Project.EntryCodebookID}
+	}
+	return result
+}
+
+func toProgramVO(src *domain.ProgramSpec) *ProgramSpec {
+	if src == nil {
+		return nil
+	}
+	result := &ProgramSpec{Kind: string(src.Kind)}
+	if src.Inline != nil {
+		result.Inline = &InlineProgramSpec{
+			Code: src.Inline.Code, CodebookID: src.Inline.CodebookID,
+		}
+	}
+	if src.Project != nil {
+		result.Project = &ProjectProgramSpec{EntryCodebookID: src.Project.EntryCodebookID}
+	}
+	return result
 }

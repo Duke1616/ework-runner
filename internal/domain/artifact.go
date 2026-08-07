@@ -26,16 +26,7 @@ type ArtifactRef struct {
 
 // Validate 校验不可变制品引用的领域规则和基础元数据。
 func (r ArtifactRef) Validate() error {
-	if r.ReleaseID <= 0 {
-		return fmt.Errorf("%w: 制品发布 ID 非法", errs.ErrInvalidParameter)
-	}
-	if !validArtifactDigest(r.Digest) || !validArtifactDigest(r.BlobChecksum) {
-		return fmt.Errorf("%w: 制品摘要或压缩包校验和非法", errs.ErrInvalidParameter)
-	}
-	if r.Size <= 0 || strings.TrimSpace(r.Format) == "" || r.FormatVersion <= 0 {
-		return fmt.Errorf("%w: 制品格式或大小非法", errs.ErrInvalidParameter)
-	}
-	if err := (ArtifactTarget{Scope: r.Scope, ProjectID: r.ProjectID}).Validate(); err != nil {
+	if err := r.validateImmutable(); err != nil {
 		return err
 	}
 	switch r.Scope {
@@ -47,6 +38,22 @@ func (r ArtifactRef) Validate() error {
 		if !artifactNamespacePattern.MatchString(r.Namespace) || r.Namespace == "etask" {
 			return fmt.Errorf("%w: 租户制品导入命名空间非法: %s", errs.ErrInvalidParameter, r.Namespace)
 		}
+	}
+	return nil
+}
+
+func (r ArtifactRef) validateImmutable() error {
+	if r.ReleaseID <= 0 {
+		return fmt.Errorf("%w: 制品发布 ID 非法", errs.ErrInvalidParameter)
+	}
+	if !validArtifactDigest(r.Digest) || !validArtifactDigest(r.BlobChecksum) {
+		return fmt.Errorf("%w: 制品摘要或压缩包校验和非法", errs.ErrInvalidParameter)
+	}
+	if r.Size <= 0 || strings.TrimSpace(r.Format) == "" || r.FormatVersion <= 0 {
+		return fmt.Errorf("%w: 制品格式或大小非法", errs.ErrInvalidParameter)
+	}
+	if err := (ArtifactTarget{Scope: r.Scope, ProjectID: r.ProjectID}).Validate(); err != nil {
+		return err
 	}
 	return nil
 }

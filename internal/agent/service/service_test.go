@@ -115,7 +115,7 @@ func TestServiceReceive(t *testing.T) {
 			},
 		},
 		{
-			name: "制品引用通过共享引擎准备并清理",
+			name: "制品引用通过共享引擎准备",
 			before: func(t *testing.T) (*serviceFixture, func()) {
 				fixture := newServiceFixture(t)
 				fixture.execution.Artifacts = []domain.ArtifactRef{{
@@ -130,9 +130,8 @@ func TestServiceReceive(t *testing.T) {
 				}
 			},
 			after: func(t *testing.T, fixture *serviceFixture) {
-				if fixture.preparer.prepares.Load() != 1 || fixture.preparer.prepared.closes.Load() != 1 {
-					t.Fatalf("制品准备/清理次数 = %d/%d, 期望 1/1",
-						fixture.preparer.prepares.Load(), fixture.preparer.prepared.closes.Load())
+				if fixture.preparer.prepares.Load() != 1 {
+					t.Fatalf("制品准备次数 = %d, 期望 1", fixture.preparer.prepares.Load())
 				}
 				if roots := fixture.handler.roots.Load(); roots != "/system:/ops" {
 					t.Fatalf("Handler 收到的制品目录 = %v", roots)
@@ -248,18 +247,15 @@ type servicePreparerFake struct {
 
 func (p *servicePreparerFake) Prune() error { return nil }
 func (p *servicePreparerFake) Prepare(context.Context, artifact.Downloader,
-	[]artifact.Ref) (artifact.PreparedArtifacts, error) {
+	*artifact.SourceRef, []artifact.Ref) (artifact.PreparedArtifacts, error) {
 	p.prepares.Add(1)
 	return p.prepared, nil
 }
 
 type servicePreparedFake struct {
-	roots  executor.ArtifactRoots
-	closes atomic.Int32
+	sourceRoot string
+	roots      executor.ArtifactRoots
 }
 
+func (p *servicePreparedFake) SourceRoot() string            { return p.sourceRoot }
 func (p *servicePreparedFake) Roots() executor.ArtifactRoots { return p.roots }
-func (p *servicePreparedFake) Close() error {
-	p.closes.Add(1)
-	return nil
-}

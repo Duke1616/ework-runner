@@ -40,7 +40,13 @@ func TestRuntimeSandboxExecutesTaskAsRequestedIdentity(t *testing.T) {
 			ExecutionID: 1, TaskID: 1, Name: "sandbox", Handler: "shell",
 		},
 		Params: map[string]string{
-			"code": `test "$(id -u):$(id -g)" = "65534:65534"
+			"args": `{}`, "variables": `[]`,
+		},
+		ExecutionLogger: sandboxExecutionLogger{},
+	})
+	task.SetProgram(&executor.Program{
+		Kind: executor.ProgramKindInline,
+		Inline: &executor.InlineProgram{Code: `test "$(id -u):$(id -g)" = "65534:65534"
 test "$HOME" = "$ETASK_WORKSPACE_ROOT"
 test "$TMPDIR" = "$ETASK_WORKSPACE_ROOT/tmp"
 touch "$TMPDIR/child-created"
@@ -48,10 +54,7 @@ test "$(cat "$ETASK_SYSTEM_ROOT/common.sh")" = "original"
 if printf 'forbidden\n' > "$ETASK_SYSTEM_ROOT/common.sh"; then exit 1; fi
 rm "$ETASK_SYSTEM_ROOT/common.sh"
 printf 'workspace-only\n' > "$ETASK_SYSTEM_ROOT/common.sh"
-`,
-			"args": `{}`, "variables": `[]`,
-		},
-		ExecutionLogger: sandboxExecutionLogger{},
+		`},
 	})
 	task.SetArtifactRoots(executor.ArtifactRoots{Default: artifactRoot})
 	require.NoError(t, runtime.Handlers()[0].Run(task))

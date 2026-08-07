@@ -164,7 +164,8 @@ type TaskExecution struct {
 	CTime           int64               // 创建时间
 	UTime           int64               // 更新时间
 	Task            Task                // 创建时刻从Task冗余的信息
-	Artifacts       []ArtifactRef       // 本次执行固定的代码制品层；为空时执行单文件任务
+	Program         *Program              // 本次执行固定的程序来源；非程序型 Handler 为空
+	Artifacts       []ArtifactRef       // 本次执行固定的 SYSTEM 和具名依赖制品层
 	Route           ExecutionRoute      // 创建时固定的传输和派发路由
 }
 

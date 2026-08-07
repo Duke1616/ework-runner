@@ -11,22 +11,19 @@ import (
 )
 
 type prepareResult struct {
-	codebook  domain.Codebook
-	runner    domain.Runner
-	args      string
-	timeout   int64
-	variables []previewVariable
+	runner          domain.Runner
+	program         *domain.Program
+	sourceProjectID int64
+	args            string
+	timeout         int64
+	variables       []previewVariable
 }
 
 func (s *service) prepare(ctx context.Context, command RunCommand) (prepareResult, error) {
 	if err := validateCommand(command); err != nil {
 		return prepareResult{}, err
 	}
-	codebook, err := s.resolveCodebook(ctx, command.CodebookID)
-	if err != nil {
-		return prepareResult{}, err
-	}
-	runner, err := s.resolveRunner(ctx, command.RunnerID, codebook.ID)
+	runner, err := s.resolveRunner(ctx, command.RunnerID, referencedCodebookID(command.Program))
 	if err != nil {
 		return prepareResult{}, err
 	}
@@ -38,44 +35,62 @@ func (s *service) prepare(ctx context.Context, command RunCommand) (prepareResul
 	if err != nil {
 		return prepareResult{}, err
 	}
-	variables, err := s.mergeVariables(ctx, runner.ID, command.Variables)
+	variables, err := mergeVariables(runner.Variables, command.Variables)
 	if err != nil {
 		return prepareResult{}, err
 	}
-	return prepareResult{codebook: codebook, runner: runner, args: args, timeout: timeout, variables: variables}, nil
+	resolution, err := s.programSvc.Resolve(ctx, command.Program)
+	if err != nil {
+		return prepareResult{}, fmt.Errorf("解析试运行程序失败: %w", err)
+	}
+	if resolution.Program == nil {
+		return prepareResult{}, fmt.Errorf("试运行程序不能为空")
+	}
+	return prepareResult{
+		runner: runner, program: resolution.Program, sourceProjectID: resolution.SourceProjectID,
+		args: args, timeout: timeout, variables: variables,
+	}, nil
 }
 
 func validateCommand(command RunCommand) error {
-	if command.CodebookID <= 0 || command.RunnerID <= 0 {
-		return fmt.Errorf("Codebook ID 和执行单元 ID 必须大于 0")
+	if command.RunnerID <= 0 {
+		return fmt.Errorf("执行单元 ID 必须大于 0")
 	}
-	if strings.TrimSpace(command.Code) == "" {
-		return fmt.Errorf("试运行代码不能为空")
+	if command.Program == nil {
+		return fmt.Errorf("试运行程序不能为空")
+	}
+	if err := command.Program.Validate(); err != nil {
+		return fmt.Errorf("试运行程序配置非法: %w", err)
 	}
 	return nil
 }
 
-func (s *service) resolveCodebook(ctx context.Context, id int64) (domain.Codebook, error) {
-	codebook, err := s.codebookSvc.GetByID(ctx, id)
-	if err != nil {
-		return domain.Codebook{}, fmt.Errorf("查询 Codebook 文件失败: %w", err)
+func referencedCodebookID(spec *domain.ProgramSpec) int64 {
+	if spec == nil {
+		return 0
 	}
-	if !codebook.IsFile() {
-		return domain.Codebook{}, fmt.Errorf("只有 Codebook 文件可以试运行")
+	if spec.Inline != nil {
+		return spec.Inline.CodebookID
 	}
-	return codebook, nil
+	if spec.Project != nil {
+		return spec.Project.EntryCodebookID
+	}
+	return 0
 }
 
 func (s *service) resolveRunner(ctx context.Context, id, codebookID int64) (domain.Runner, error) {
-	runner, err := s.runnerSvc.FindByID(ctx, id)
+	runner, err := s.runnerSvc.FindForExecution(ctx, id)
 	if err != nil {
 		return domain.Runner{}, fmt.Errorf("查询执行单元失败: %w", err)
 	}
-	if runner.CodebookID != codebookID {
+	if codebookID > 0 && runner.CodebookID != codebookID {
 		return domain.Runner{}, fmt.Errorf("执行单元未绑定当前 Codebook 文件")
 	}
-	if !runner.Kind.IsValid() || (runner.Handler != "python" && runner.Handler != "shell") {
-		return domain.Runner{}, fmt.Errorf("试运行仅支持 Python 和 Shell 执行单元")
+	if !runner.Kind.IsValid() {
+		return domain.Runner{}, fmt.Errorf("执行单元类型非法: %s", runner.Kind)
+	}
+	if strings.TrimSpace(runner.Handler) == "" {
+		return domain.Runner{}, fmt.Errorf("执行单元未配置 Handler")
 	}
 	if runner.Action != domain.RunnerActionRegistered {
 		return domain.Runner{}, fmt.Errorf("当前执行单元未启用")
@@ -105,12 +120,7 @@ func normalizeTimeout(seconds int64) (int64, error) {
 }
 
 // mergeVariables 保留默认变量顺序；临时变量覆盖同名值，新变量追加到末尾。
-func (s *service) mergeVariables(ctx context.Context, runnerID int64,
-	overrides []domain.RunnerVariable) ([]previewVariable, error) {
-	defaults, err := s.runnerSvc.ListMergedVariables(ctx, runnerID)
-	if err != nil {
-		return nil, fmt.Errorf("查询执行单元变量失败: %w", err)
-	}
+func mergeVariables(defaults, overrides []domain.RunnerVariable) ([]previewVariable, error) {
 	values := make(map[string]domain.RunnerVariable, len(defaults)+len(overrides))
 	keys := make([]string, 0, len(defaults)+len(overrides))
 	for _, variable := range defaults {
@@ -135,21 +145,21 @@ func (s *service) mergeVariables(ctx context.Context, runnerID int64,
 	return result, nil
 }
 
-func (s *service) buildDraft(command RunCommand, prepared prepareResult,
-	variablesJSON []byte) domain.TaskExecution {
+func (s *service) buildDraft(prepared prepareResult, variablesJSON []byte) domain.TaskExecution {
 	return domain.TaskExecution{
 		Status: domain.TaskExecutionStatusPrepare, StartTime: time.Now().UnixMilli(),
 		Task: domain.Task{
-			Name:                "试运行: " + prepared.codebook.Name,
+			Name:                "试运行: " + prepared.runner.Name,
 			MaxExecutionSeconds: prepared.timeout,
 			RetryConfig:         &domain.RetryConfig{MaxRetries: 0},
 			GrpcConfig: &domain.GrpcConfig{
 				ServiceName: prepared.runner.Target, HandlerName: prepared.runner.Handler,
 				Params: map[string]string{
-					"code": command.Code, "args": prepared.args, "variables": string(variablesJSON),
+					"args": prepared.args, "variables": string(variablesJSON),
 				},
 			},
 		},
+		Program: prepared.program,
 	}
 }
 

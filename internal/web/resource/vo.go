@@ -30,9 +30,10 @@ type NodeDetail struct {
 }
 
 type HandlerDetail struct {
-	Name     string        `json:"name"`
-	Desc     string        `json:"desc"`
-	Metadata []ParameterVO `json:"metadata"`
+	Name         string        `json:"name"`
+	Desc         string        `json:"desc"`
+	Metadata     []ParameterVO `json:"metadata"`
+	ProgramKinds []string      `json:"program_kinds,omitempty"`
 }
 
 type ParameterVO struct {

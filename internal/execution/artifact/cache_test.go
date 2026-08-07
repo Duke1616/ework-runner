@@ -48,7 +48,7 @@ func TestArtifactCacheEnsure(t *testing.T) {
 		{
 			name: "替换无效缓存并复用完成层", path: "lib/common.py", content: "VALUE = 1\n",
 			before: func(t *testing.T, current *state) {
-				ref, err := parseLayerRef(current.ref)
+				ref, err := parseArtifactLayerRef(current.ref)
 				require.NoError(t, err)
 				target := current.cache.layout.layerDir(ref)
 				require.NoError(t, os.MkdirAll(target, 0o750))
@@ -95,7 +95,7 @@ func TestArtifactCacheEnsure(t *testing.T) {
 			if tc.after != nil {
 				defer tc.after(t, current)
 			}
-			layer, err := parseLayerRef(current.ref)
+			layer, err := parseArtifactLayerRef(current.ref)
 			require.NoError(t, err)
 			current.layer = layer
 			root, err := current.cache.Ensure(t.Context(), current.downloader, current.layer)
@@ -110,7 +110,7 @@ func TestArtifactCacheEnsure(t *testing.T) {
 }
 
 func TestArtifactCacheEnsureRejectsMissingClient(t *testing.T) {
-	ref, err := parseLayerRef(validRef("ops_common"))
+	ref, err := parseArtifactLayerRef(validRef("ops_common"))
 	require.NoError(t, err)
 	_, err = newArtifactCache(Config{Dir: t.TempDir()}).Ensure(t.Context(), nil, ref)
 	require.ErrorContains(t, err, "客户端尚未初始化")
@@ -163,7 +163,7 @@ func TestParseLayerRef(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := parseLayerRef(tc.ref)
+			_, err := parseArtifactLayerRef(tc.ref)
 			if tc.wantError != "" {
 				require.ErrorContains(t, err, tc.wantError)
 				return
@@ -177,9 +177,9 @@ func TestArtifactLayerKeySeparatesDifferentBlobs(t *testing.T) {
 	first := validRef("")
 	second := first
 	second.BlobChecksum = strings.Repeat("c", 64)
-	firstRef, err := parseLayerRef(first)
+	firstRef, err := parseArtifactLayerRef(first)
 	require.NoError(t, err)
-	secondRef, err := parseLayerRef(second)
+	secondRef, err := parseArtifactLayerRef(second)
 	require.NoError(t, err)
 
 	require.NotEqual(t, firstRef.cacheKey(), secondRef.cacheKey())
@@ -195,7 +195,12 @@ type artifactClientStub struct {
 }
 
 func (s artifactTestServer) DownloadArtifact(_ *artifactv1.DownloadArtifactRequest,
-	stream grpc.ServerStreamingServer[artifactv1.ArtifactChunk]) error {
+	stream artifactv1.ArtifactService_DownloadArtifactServer) error {
+	return stream.Send(&artifactv1.ArtifactChunk{Data: s.data})
+}
+
+func (s artifactTestServer) DownloadProjectSource(_ *artifactv1.DownloadProjectSourceRequest,
+	stream artifactv1.ArtifactService_DownloadProjectSourceServer) error {
 	return stream.Send(&artifactv1.ArtifactChunk{Data: s.data})
 }
 

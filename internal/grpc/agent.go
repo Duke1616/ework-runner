@@ -10,6 +10,7 @@ import (
 	executorv1 "github.com/Duke1616/etask/api/proto/gen/etask/executor/v1"
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/errs"
+	programmapper "github.com/Duke1616/etask/internal/execution/program"
 	"github.com/Duke1616/etask/internal/repository"
 	poolSvc "github.com/Duke1616/etask/internal/service/pool"
 	"github.com/Duke1616/etask/internal/service/task"
@@ -76,6 +77,12 @@ func (s *AgentServer) PullTask(ctx context.Context, req *executorv1.PullTaskRequ
 					domain.TaskExecutionStatusFailed, "执行制品引用非法: "+artifactErr.Error())
 				return nil, artifactErr
 			}
+			program, programErr := programmapper.ToProto(exec.Program)
+			if programErr != nil {
+				s.finishClaimedExecution(timeoutCtx, exec, nodeId,
+					domain.TaskExecutionStatusFailed, "执行程序来源非法: "+programErr.Error())
+				return nil, programErr
+			}
 			allowed, authErr := s.isExecutionAllowed(timeoutCtx, exec)
 			if authErr != nil {
 				s.finishClaimedExecution(timeoutCtx, exec, nodeId,
@@ -106,6 +113,7 @@ func (s *AgentServer) PullTask(ctx context.Context, req *executorv1.PullTaskRequ
 					// 显式塞入 proto Payload 消息体中下发，供 Agent 侧反向提取并重建租户 context 树。
 					TenantId:  exec.TenantID,
 					Artifacts: artifacts,
+					Program:   program,
 				},
 			}, nil
 		}

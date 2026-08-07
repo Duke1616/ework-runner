@@ -196,6 +196,11 @@ func (r *taskRepository) toEntity(task domain.Task) dao.Task {
 		httpConfig = sqlx.JSONColumn[domain.HTTPConfig]{Val: *task.HTTPConfig, Valid: true}
 	}
 
+	var program sqlx.JSONColumn[domain.ProgramSpec]
+	if task.Program != nil {
+		program = sqlx.JSONColumn[domain.ProgramSpec]{Val: *task.Program, Valid: true}
+	}
+
 	var retryConfig sqlx.JSONColumn[domain.RetryConfig]
 	if task.RetryConfig != nil {
 		retryConfig = sqlx.JSONColumn[domain.RetryConfig]{Val: *task.RetryConfig, Valid: true}
@@ -220,6 +225,7 @@ func (r *taskRepository) toEntity(task domain.Task) dao.Task {
 		Type:                task.Type.String(),
 		CronExpr:            task.CronExpr,
 		GrpcConfig:          grpcConfig,
+		Program:             program,
 		HTTPConfig:          httpConfig,
 		RetryConfig:         retryConfig,
 		ScheduleParams:      scheduleParams,
@@ -252,6 +258,11 @@ func (r *taskRepository) toDomain(daoTask *dao.Task) domain.Task {
 		httpConfig = &daoTask.HTTPConfig.Val
 	}
 
+	var program *domain.ProgramSpec
+	if daoTask.Program.Valid {
+		program = &daoTask.Program.Val
+	}
+
 	var retryConfig *domain.RetryConfig
 	if daoTask.RetryConfig.Valid {
 		retryConfig = &daoTask.RetryConfig.Val
@@ -276,6 +287,7 @@ func (r *taskRepository) toDomain(daoTask *dao.Task) domain.Task {
 		Type:                domain.TaskType(daoTask.Type),
 		CronExpr:            daoTask.CronExpr,
 		GrpcConfig:          grpcConfig,
+		Program:             program,
 		HTTPConfig:          httpConfig,
 		RetryConfig:         retryConfig,
 		MaxExecutionSeconds: daoTask.MaxExecutionSeconds,

@@ -16,7 +16,7 @@ type Handler struct {
 	capability.IRegistry
 }
 
-// NewHandler 创建 Codebook 试运行 Web 处理器。
+// NewHandler 创建程序试运行 Web 处理器。
 func NewHandler(svc previewSvc.Service) *Handler {
 	return &Handler{
 		svc:       svc,
@@ -49,12 +49,11 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 	)
 }
 
-// Run 创建并派发一次 Codebook 试运行。
+// Run 创建并派发一次程序试运行。
 func (h *Handler) Run(ctx *ginx.Context, req RunReq) (ginx.Result, error) {
 	execution, err := h.svc.Run(ctx, previewSvc.RunCommand{
-		CodebookID:          req.CodebookID,
 		RunnerID:            req.RunnerID,
-		Code:                req.Code,
+		Program:             toDomainProgram(req.resolvedProgram()),
 		Args:                req.Args,
 		MaxExecutionSeconds: req.MaxExecutionSeconds,
 		Variables: slice.Map(req.Variables, func(_ int, variable Variable) domain.RunnerVariable {
@@ -67,7 +66,21 @@ func (h *Handler) Run(ctx *ginx.Context, req RunReq) (ginx.Result, error) {
 	return ginx.Result{Data: toExecutionVO(execution), Msg: "试运行已开始"}, nil
 }
 
-// Status 查询一次 Codebook 试运行的最新状态。
+func toDomainProgram(src *ProgramSpec) *domain.ProgramSpec {
+	if src == nil {
+		return nil
+	}
+	result := &domain.ProgramSpec{Kind: domain.ProgramKind(src.Kind)}
+	if src.Inline != nil {
+		result.Inline = &domain.InlineProgramSpec{Code: src.Inline.Code, CodebookID: src.Inline.CodebookID}
+	}
+	if src.Project != nil {
+		result.Project = &domain.ProjectProgramSpec{EntryCodebookID: src.Project.EntryCodebookID}
+	}
+	return result
+}
+
+// Status 查询一次程序试运行的最新状态。
 func (h *Handler) Status(ctx *ginx.Context, req StatusReq) (ginx.Result, error) {
 	execution, err := h.svc.Status(ctx, req.ExecutionID)
 	if err != nil {
@@ -76,7 +89,7 @@ func (h *Handler) Status(ctx *ginx.Context, req StatusReq) (ginx.Result, error) 
 	return ginx.Result{Data: toExecutionVO(execution), Msg: "查询成功"}, nil
 }
 
-// Logs 查询一次 Codebook 试运行的日志。
+// Logs 查询一次程序试运行的日志。
 func (h *Handler) Logs(ctx *ginx.Context, req LogsReq) (ginx.Result, error) {
 	logs, total, err := h.svc.Logs(ctx, req.ExecutionID, req.MinID, req.Limit)
 	if err != nil {

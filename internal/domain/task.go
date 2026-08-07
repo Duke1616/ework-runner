@@ -53,6 +53,7 @@ type Task struct {
 	Type                TaskType // 任务类型: RECURRING-定时任务, ONE_TIME-一次性任务
 	CronExpr            string   // cron 表达式（定时任务必填，一次性任务可选用于定时触发）
 	GrpcConfig          *GrpcConfig
+	Program             *ProgramSpec
 	HTTPConfig          *HTTPConfig
 	RetryConfig         *RetryConfig
 	MaxExecutionSeconds int64             // 最大执行秒数，默认24小时

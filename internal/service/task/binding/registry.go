@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"maps"
-	"sort"
+	"slices"
 	"sync"
 )
 
-// ResolveRequest describes one scheduler-side parameter binding request.
+// ResolveRequest 描述调度中心解析一个参数绑定时使用的上下文。
 type ResolveRequest struct {
 	HandlerName string
 	ParamKey    string
@@ -18,31 +18,31 @@ type ResolveRequest struct {
 	Metadata    map[string]string
 }
 
-// Resolver resolves one binding type into the value sent to an Executor.
+// Resolver 将一种绑定类型解析成发送给执行器的参数值。
 type Resolver interface {
 	Resolve(ctx context.Context, req ResolveRequest) (string, error)
 }
 
-// ResolverFunc adapts a function to Resolver.
+// ResolverFunc 将普通函数适配为 Resolver。
 type ResolverFunc func(ctx context.Context, req ResolveRequest) (string, error)
 
-// Resolve calls the adapted function.
+// Resolve 调用被适配的解析函数。
 func (fn ResolverFunc) Resolve(ctx context.Context, req ResolveRequest) (string, error) {
 	return fn(ctx, req)
 }
 
-// Registry stores scheduler-side parameter resolvers.
+// Registry 保存调度中心使用的参数绑定解析器。
 type Registry struct {
 	mu        sync.RWMutex
 	resolvers map[string]Resolver
 }
 
-// NewRegistry creates an empty resolver registry.
+// NewRegistry 创建一个空的解析器注册表。
 func NewRegistry() *Registry {
 	return &Registry{resolvers: make(map[string]Resolver)}
 }
 
-// Register registers or replaces a resolver by binding name.
+// Register 按绑定名称注册或替换解析器。
 func (r *Registry) Register(name string, resolver Resolver) *Registry {
 	if name == "" || resolver == nil {
 		return r
@@ -53,7 +53,8 @@ func (r *Registry) Register(name string, resolver Resolver) *Registry {
 	return r
 }
 
-// Resolve resolves registered bindings in stable parameter-name order.
+// Resolve 按参数名稳定顺序解析已注册的绑定。
+// 未注册的绑定会被跳过，传入的参数和元数据不会被修改。
 func (r *Registry) Resolve(ctx context.Context, handlerName string, params map[string]string,
 	metadata map[string]string) (map[string]string, error) {
 	if r == nil || len(metadata) == 0 {
@@ -65,16 +66,11 @@ func (r *Registry) Resolve(ctx context.Context, handlerName string, params map[s
 		return nil, nil
 	}
 
-	paramsSnapshot := maps.Clone(params)
-	metadataSnapshot := maps.Clone(metadata)
-	resolved := make(map[string]string, len(metadataSnapshot))
-	keys := make([]string, 0, len(metadataSnapshot))
-	for paramKey := range metadataSnapshot {
-		keys = append(keys, paramKey)
-	}
-	sort.Strings(keys)
-	for _, paramKey := range keys {
-		bindingName := metadataSnapshot[paramKey]
+	paramsView := maps.Clone(params)
+	metadataView := maps.Clone(metadata)
+	resolved := make(map[string]string, len(metadataView))
+	for _, paramKey := range slices.Sorted(maps.Keys(metadataView)) {
+		bindingName := metadataView[paramKey]
 		resolver, ok := resolvers[bindingName]
 		if !ok {
 			continue
@@ -84,9 +80,9 @@ func (r *Registry) Resolve(ctx context.Context, handlerName string, params map[s
 			HandlerName: handlerName,
 			ParamKey:    paramKey,
 			BindingName: bindingName,
-			Value:       paramsSnapshot[paramKey],
-			Params:      paramsSnapshot,
-			Metadata:    metadataSnapshot,
+			Value:       paramsView[paramKey],
+			Params:      paramsView,
+			Metadata:    metadataView,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("解析参数 %s 的 %s 绑定失败: %w", paramKey, bindingName, err)

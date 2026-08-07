@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package etask.artifact.v1;
 
-option go_package = "etask/artifact/v1;artifact";
+option go_package = "etask/artifact/v1;artifactv1";
 
 // ArtifactRef 描述一次任务执行固定使用的不可变制品。
 message ArtifactRef {
@@ -23,6 +23,11 @@ message DownloadArtifactRequest {
   string digest = 2;
 }
 
+message DownloadProjectSourceRequest {
+  int64 source_id = 1;
+  string digest = 2;
+}
+
 message ArtifactChunk {
   bytes data = 1;
 }
@@ -31,4 +36,6 @@ message ArtifactChunk {
 service ArtifactService {
   // DownloadArtifact 根据发布记录和内容摘要流式下载不可变制品。
   rpc DownloadArtifact(DownloadArtifactRequest) returns (stream ArtifactChunk);
+  // DownloadProjectSource 下载一次 PROJECT 执行固定使用的不可变项目源码。
+  rpc DownloadProjectSource(DownloadProjectSourceRequest) returns (stream ArtifactChunk);
 }

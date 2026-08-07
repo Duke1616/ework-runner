@@ -18,7 +18,16 @@ func (c *artifactCache) download(ctx context.Context, downloader executorartifac
 	ref layerRef, file *os.File) error {
 	hash := sha256.New()
 	writer := &boundedWriter{target: io.MultiWriter(file, hash), max: ref.size}
-	if err := downloader.Download(ctx, ref.ref(), writer); err != nil {
+	var err error
+	switch ref.kind {
+	case layerProjectSource:
+		err = downloader.DownloadSource(ctx, ref.sourceRef(), writer)
+	case layerArtifact:
+		err = downloader.DownloadArtifact(ctx, ref.artifactRef(), writer)
+	default:
+		err = fmt.Errorf("未知制品层类型")
+	}
+	if err != nil {
 		return fmt.Errorf("下载制品失败: %w", err)
 	}
 	if err := file.Sync(); err != nil {

@@ -167,6 +167,58 @@ func (x *DownloadArtifactRequest) GetDigest() string {
 	return ""
 }
 
+type DownloadProjectSourceRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SourceId      int64                  `protobuf:"varint,1,opt,name=source_id,json=sourceId,proto3" json:"source_id,omitempty"`
+	Digest        string                 `protobuf:"bytes,2,opt,name=digest,proto3" json:"digest,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DownloadProjectSourceRequest) Reset() {
+	*x = DownloadProjectSourceRequest{}
+	mi := &file_etask_artifact_v1_artifact_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DownloadProjectSourceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DownloadProjectSourceRequest) ProtoMessage() {}
+
+func (x *DownloadProjectSourceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_etask_artifact_v1_artifact_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DownloadProjectSourceRequest.ProtoReflect.Descriptor instead.
+func (*DownloadProjectSourceRequest) Descriptor() ([]byte, []int) {
+	return file_etask_artifact_v1_artifact_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *DownloadProjectSourceRequest) GetSourceId() int64 {
+	if x != nil {
+		return x.SourceId
+	}
+	return 0
+}
+
+func (x *DownloadProjectSourceRequest) GetDigest() string {
+	if x != nil {
+		return x.Digest
+	}
+	return ""
+}
+
 type ArtifactChunk struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Data          []byte                 `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
@@ -176,7 +228,7 @@ type ArtifactChunk struct {
 
 func (x *ArtifactChunk) Reset() {
 	*x = ArtifactChunk{}
-	mi := &file_etask_artifact_v1_artifact_proto_msgTypes[2]
+	mi := &file_etask_artifact_v1_artifact_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -188,7 +240,7 @@ func (x *ArtifactChunk) String() string {
 func (*ArtifactChunk) ProtoMessage() {}
 
 func (x *ArtifactChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_artifact_v1_artifact_proto_msgTypes[2]
+	mi := &file_etask_artifact_v1_artifact_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -201,7 +253,7 @@ func (x *ArtifactChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ArtifactChunk.ProtoReflect.Descriptor instead.
 func (*ArtifactChunk) Descriptor() ([]byte, []int) {
-	return file_etask_artifact_v1_artifact_proto_rawDescGZIP(), []int{2}
+	return file_etask_artifact_v1_artifact_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ArtifactChunk) GetData() []byte {
@@ -230,11 +282,15 @@ const file_etask_artifact_v1_artifact_proto_rawDesc = "" +
 	"\x17DownloadArtifactRequest\x12\x1d\n" +
 	"\n" +
 	"release_id\x18\x01 \x01(\x03R\treleaseId\x12\x16\n" +
+	"\x06digest\x18\x02 \x01(\tR\x06digest\"S\n" +
+	"\x1cDownloadProjectSourceRequest\x12\x1b\n" +
+	"\tsource_id\x18\x01 \x01(\x03R\bsourceId\x12\x16\n" +
 	"\x06digest\x18\x02 \x01(\tR\x06digest\"#\n" +
 	"\rArtifactChunk\x12\x12\n" +
-	"\x04data\x18\x01 \x01(\fR\x04data2u\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data2\xe3\x01\n" +
 	"\x0fArtifactService\x12b\n" +
-	"\x10DownloadArtifact\x12*.etask.artifact.v1.DownloadArtifactRequest\x1a .etask.artifact.v1.ArtifactChunk0\x01B\xd2\x01\n" +
+	"\x10DownloadArtifact\x12*.etask.artifact.v1.DownloadArtifactRequest\x1a .etask.artifact.v1.ArtifactChunk0\x01\x12l\n" +
+	"\x15DownloadProjectSource\x12/.etask.artifact.v1.DownloadProjectSourceRequest\x1a .etask.artifact.v1.ArtifactChunk0\x01B\xd2\x01\n" +
 	"\x15com.etask.artifact.v1B\rArtifactProtoP\x01ZDgithub.com/Duke1616/etask/api/proto/gen/etask/artifact/v1;artifactv1\xa2\x02\x03EAX\xaa\x02\x11Etask.Artifact.V1\xca\x02\x11Etask\\Artifact\\V1\xe2\x02\x1dEtask\\Artifact\\V1\\GPBMetadata\xea\x02\x13Etask::Artifact::V1b\x06proto3"
 
 var (
@@ -249,17 +305,20 @@ func file_etask_artifact_v1_artifact_proto_rawDescGZIP() []byte {
 	return file_etask_artifact_v1_artifact_proto_rawDescData
 }
 
-var file_etask_artifact_v1_artifact_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_etask_artifact_v1_artifact_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_etask_artifact_v1_artifact_proto_goTypes = []any{
-	(*ArtifactRef)(nil),             // 0: etask.artifact.v1.ArtifactRef
-	(*DownloadArtifactRequest)(nil), // 1: etask.artifact.v1.DownloadArtifactRequest
-	(*ArtifactChunk)(nil),           // 2: etask.artifact.v1.ArtifactChunk
+	(*ArtifactRef)(nil),                  // 0: etask.artifact.v1.ArtifactRef
+	(*DownloadArtifactRequest)(nil),      // 1: etask.artifact.v1.DownloadArtifactRequest
+	(*DownloadProjectSourceRequest)(nil), // 2: etask.artifact.v1.DownloadProjectSourceRequest
+	(*ArtifactChunk)(nil),                // 3: etask.artifact.v1.ArtifactChunk
 }
 var file_etask_artifact_v1_artifact_proto_depIdxs = []int32{
 	1, // 0: etask.artifact.v1.ArtifactService.DownloadArtifact:input_type -> etask.artifact.v1.DownloadArtifactRequest
-	2, // 1: etask.artifact.v1.ArtifactService.DownloadArtifact:output_type -> etask.artifact.v1.ArtifactChunk
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
+	2, // 1: etask.artifact.v1.ArtifactService.DownloadProjectSource:input_type -> etask.artifact.v1.DownloadProjectSourceRequest
+	3, // 2: etask.artifact.v1.ArtifactService.DownloadArtifact:output_type -> etask.artifact.v1.ArtifactChunk
+	3, // 3: etask.artifact.v1.ArtifactService.DownloadProjectSource:output_type -> etask.artifact.v1.ArtifactChunk
+	2, // [2:4] is the sub-list for method output_type
+	0, // [0:2] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -276,7 +335,7 @@ func file_etask_artifact_v1_artifact_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_etask_artifact_v1_artifact_proto_rawDesc), len(file_etask_artifact_v1_artifact_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

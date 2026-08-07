@@ -17,6 +17,8 @@ type Command struct {
 	Params          map[string]string
 	Metadata        map[string]string
 	Parameters      []executor.Parameter
+	Program         *executor.Program
+	ProjectSource   *artifact.SourceRef
 	Artifacts       []artifact.Ref
 	ExecutionLogger executor.ExecutionLogger
 }
@@ -74,7 +76,9 @@ func WithSystemLogger(logger executor.SystemLogger) Option {
 func (e *Engine) Execute(ctx context.Context, command Command) (Result, error) {
 	result, err := e.inner.Execute(ctx, internalengine.Command{
 		Task: command.Task, Params: command.Params,
-		Metadata: command.Metadata, Parameters: command.Parameters, Artifacts: command.Artifacts,
+		Metadata: command.Metadata, Parameters: command.Parameters, Program: command.Program,
+		ProjectSource:   command.ProjectSource,
+		Artifacts:       command.Artifacts,
 		ExecutionLogger: command.ExecutionLogger,
 	})
 	return Result{Value: result.Value}, err

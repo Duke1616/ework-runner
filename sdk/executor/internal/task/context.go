@@ -53,6 +53,7 @@ type Context struct {
 	metadata      map[string]string
 	parameters    map[string]Parameter
 	artifactRoots ArtifactRoots
+	program       *Program
 
 	results map[string]any
 	resLock sync.RWMutex
@@ -60,6 +61,16 @@ type Context struct {
 	systemLogger    SystemLogger
 	executionLogger ExecutionLogger
 	progress        ProgressReporter
+}
+
+// Program 返回 Executor 已准备好的本次执行程序输入。
+func (c *Context) Program() *Program {
+	return c.program
+}
+
+// SetProgram 设置由执行引擎准备好的程序输入。
+func (c *Context) SetProgram(program *Program) {
+	c.program = program
 }
 
 // NewContext 创建拥有独立参数快照的任务上下文。

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -15,7 +14,7 @@ import (
 	"github.com/Duke1616/etask/internal/repository"
 	"github.com/Duke1616/etask/internal/service/acquirer"
 	artifactSvc "github.com/Duke1616/etask/internal/service/artifact"
-	codebookSvc "github.com/Duke1616/etask/internal/service/codebook"
+	programSvc "github.com/Duke1616/etask/internal/service/program"
 	taskbinding "github.com/Duke1616/etask/internal/service/task/binding"
 	"github.com/Duke1616/etask/internal/sse"
 	"github.com/Duke1616/etask/pkg/grpc/registry"
@@ -93,7 +92,7 @@ type executionService struct {
 	registry     registry.Registry
 	resolvers    *taskbinding.Registry
 	artifactSvc  artifactSvc.Service
-	codebookSvc  codebookSvc.Service
+	programSvc   programSvc.Service
 	events       *sse.Hubs
 	logger       *elog.Component
 }
@@ -108,7 +107,7 @@ func NewExecutionService(
 	registry registry.Registry,
 	resolvers *taskbinding.Registry,
 	artifactSvc artifactSvc.Service,
-	codebookSvc codebookSvc.Service,
+	programSvc programSvc.Service,
 	events *sse.Hubs,
 ) ExecutionService {
 	return &executionService{
@@ -120,7 +119,7 @@ func NewExecutionService(
 		registry:    registry,
 		resolvers:   resolvers,
 		artifactSvc: artifactSvc,
-		codebookSvc: codebookSvc,
+		programSvc:  programSvc,
 		events:      events,
 		logger:      elog.DefaultLogger.With(elog.FieldComponentName("service.execution")),
 	}
@@ -132,15 +131,16 @@ func (s *executionService) Create(ctx context.Context, execution domain.TaskExec
 		return domain.TaskExecution{}, fmt.Errorf("执行路由非法: %w", err)
 	}
 	// 执行记录保存完整任务快照，后续编辑任务不会改变本次运行语义。
-	snapshot, sourceProjectID, err := s.buildTaskSnapshot(ctx, execution.Task)
+	snapshot, selection, err := s.buildTaskSnapshot(ctx, execution.Task)
 	if err != nil {
 		return domain.TaskExecution{}, err
 	}
 	// 路由中的派发模式属于本次执行快照，不能被任务表里的上一次模式覆盖。
 	snapshot.ExecMode = execution.Route.DispatchMode
 	execution.Task = snapshot
-	// 脚本任务在创建执行记录时固定制品引用，运行时不会漂移到新发布版本。
-	if err = s.resolveArtifacts(ctx, &execution, sourceProjectID); err != nil {
+	execution.Program = selection.Program
+	// 执行记录同时固定项目源码和依赖制品，运行时不会漂移到新版本。
+	if err = s.resolveArtifacts(ctx, &execution, selection.SourceProjectID); err != nil {
 		return domain.TaskExecution{}, err
 	}
 	if execution.TenantID == 0 {
@@ -199,7 +199,7 @@ func (s *executionService) CreateWorkflow(ctx context.Context, execution domain.
 	return created, true, nil
 }
 
-// prepareDetachedExecution 为不绑定 etask 正式任务的执行补齐租户、路由和制品快照。
+// prepareDetachedExecution 为不绑定 etask 正式任务的执行补齐租户、路由和依赖来源。
 func (s *executionService) prepareDetachedExecution(ctx context.Context, execution *domain.TaskExecution,
 	sourceProjectID int64) error {
 	execution.Task.ID = 0
@@ -215,6 +215,11 @@ func (s *executionService) prepareDetachedExecution(ctx context.Context, executi
 	if err := s.taskSvc.AuthorizeExecutionPool(ctx, execution.Task); err != nil {
 		return err
 	}
+	if execution.Program != nil {
+		if err := execution.Program.Validate(); err != nil {
+			return fmt.Errorf("程序来源非法: %w", err)
+		}
+	}
 	if err := s.resolveArtifacts(ctx, execution, sourceProjectID); err != nil {
 		return err
 	}
@@ -224,8 +229,7 @@ func (s *executionService) prepareDetachedExecution(ctx context.Context, executi
 
 func (s *executionService) resolveArtifacts(ctx context.Context, execution *domain.TaskExecution,
 	sourceProjectID int64) error {
-	// 只有内置脚本 Handler 需要代码制品，其他业务 Handler 保持原有执行契约。
-	if execution.Task.GrpcConfig == nil || !isScriptHandler(execution.Task.GrpcConfig.HandlerName) {
+	if execution.Program == nil {
 		return nil
 	}
 	artifacts, err := s.artifactSvc.ResolveExecution(ctx, sourceProjectID)
@@ -236,69 +240,46 @@ func (s *executionService) resolveArtifacts(ctx context.Context, execution *doma
 	return nil
 }
 
-func isScriptHandler(name string) bool {
-	return name == "python" || name == "shell"
-}
-
-func (s *executionService) buildTaskSnapshot(ctx context.Context, task domain.Task) (domain.Task, int64, error) {
+func (s *executionService) buildTaskSnapshot(ctx context.Context,
+	task domain.Task) (domain.Task, programSvc.Resolution, error) {
 	// 重新读取持久化任务，调度列表中的旧对象只提供本次动态调度参数。
 	snapshot, err := s.taskSvc.GetByID(ctx, task.ID)
 	if err != nil {
-		return domain.Task{}, 0, fmt.Errorf("获取Task信息失败: %w", err)
+		return domain.Task{}, programSvc.Resolution{}, fmt.Errorf("获取Task信息失败: %w", err)
 	}
 
 	snapshot.UpdateScheduleParams(task.ScheduleParams)
 	if err = s.taskSvc.AuthorizeExecutionPool(ctx, snapshot); err != nil {
-		return domain.Task{}, 0, err
+		return domain.Task{}, programSvc.Resolution{}, err
 	}
-	sourceProjectID, err := s.sourceProjectID(ctx, snapshot)
+	selection, err := s.programSvc.Resolve(ctx, snapshot.Program)
 	if err != nil {
-		return domain.Task{}, 0, err
+		return domain.Task{}, programSvc.Resolution{}, err
 	}
 
-	if snapshot.GrpcConfig == nil || s.resolvers == nil {
-		return snapshot, sourceProjectID, nil
+	if snapshot.GrpcConfig == nil {
+		return snapshot, selection, nil
 	}
 
 	// Codebook 等绑定在执行创建阶段解析，并写入私有参数副本。
-	resolved, err := s.resolvers.Resolve(ctx, snapshot.GrpcConfig.HandlerName, snapshot.GrpcConfig.Params, snapshot.Metadata)
+	resolved, err := s.resolvers.Resolve(ctx, snapshot.GrpcConfig.HandlerName,
+		snapshot.GrpcConfig.Params, snapshot.Metadata)
 	if err != nil {
-		return domain.Task{}, 0, err
+		return domain.Task{}, programSvc.Resolution{}, err
 	}
 	if len(resolved) == 0 {
-		return snapshot, sourceProjectID, nil
+		return snapshot, selection, nil
 	}
 
-	params := make(map[string]string)
+	resolvedParams := make(map[string]string, len(snapshot.GrpcConfig.Params)+len(resolved))
 	for k, v := range snapshot.GrpcConfig.Params {
-		params[k] = v
+		resolvedParams[k] = v
 	}
 	for k, v := range resolved {
-		params[k] = v
+		resolvedParams[k] = v
 	}
-	snapshot.GrpcConfig.Params = params
-	return snapshot, sourceProjectID, nil
-}
-
-func (s *executionService) sourceProjectID(ctx context.Context, task domain.Task) (int64, error) {
-	if task.GrpcConfig == nil || s.codebookSvc == nil {
-		return 0, nil
-	}
-	for paramKey, bindingName := range task.Metadata {
-		if bindingName != "codebook" {
-			continue
-		}
-		codebookID, err := strconv.ParseInt(task.GrpcConfig.Params[paramKey], 10, 64)
-		if err != nil || codebookID <= 0 {
-			return 0, fmt.Errorf("Codebook 绑定 ID 非法: %q", task.GrpcConfig.Params[paramKey])
-		}
-		codebook, err := s.codebookSvc.GetByID(ctx, codebookID)
-		if err != nil {
-			return 0, fmt.Errorf("查询任务来源 Codebook 失败: %w", err)
-		}
-		return codebook.ProjectID, nil
-	}
-	return 0, nil
+	snapshot.GrpcConfig.Params = resolvedParams
+	return snapshot, selection, nil
 }
 
 func (s *executionService) FindByID(ctx context.Context, id int64) (domain.TaskExecution, error) {

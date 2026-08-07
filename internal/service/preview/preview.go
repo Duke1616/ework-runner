@@ -6,9 +6,9 @@ import (
 	"fmt"
 
 	"github.com/Duke1616/etask/internal/domain"
-	codebookSvc "github.com/Duke1616/etask/internal/service/codebook"
 	"github.com/Duke1616/etask/internal/service/dispatcher"
 	"github.com/Duke1616/etask/internal/service/invoker"
+	programSvc "github.com/Duke1616/etask/internal/service/program"
 	runnerSvc "github.com/Duke1616/etask/internal/service/runner"
 	taskSvc "github.com/Duke1616/etask/internal/service/task"
 	"github.com/gotomicro/ego/core/elog"
@@ -19,17 +19,16 @@ const (
 	maxTimeoutSeconds     int64 = 3600
 )
 
-// RunCommand 描述一次 Codebook 试运行使用的临时代码和参数。
+// RunCommand 描述一次程序试运行使用的来源、执行单元和临时参数。
 type RunCommand struct {
-	CodebookID          int64
 	RunnerID            int64
-	Code                string
+	Program             *domain.ProgramSpec
 	Args                string
 	Variables           []domain.RunnerVariable
 	MaxExecutionSeconds int64
 }
 
-// Service 定义 Codebook 试运行能力。
+// Service 定义程序试运行能力。
 type Service interface {
 	// Run 创建试运行记录，并异步派发到正式执行器链路。
 	Run(ctx context.Context, command RunCommand) (domain.TaskExecution, error)
@@ -40,18 +39,18 @@ type Service interface {
 }
 
 type service struct {
-	codebookSvc codebookSvc.Service
-	runnerSvc   runnerSvc.Service
-	execSvc     taskSvc.ExecutionService
-	logSvc      taskSvc.LogService
-	invoker     invoker.Invoker
-	routes      dispatcher.RoutePlanner
-	logger      *elog.Component
+	programSvc programSvc.Service
+	runnerSvc  runnerSvc.Service
+	execSvc    taskSvc.ExecutionService
+	logSvc     taskSvc.LogService
+	invoker    invoker.Invoker
+	routes     dispatcher.RoutePlanner
+	logger     *elog.Component
 }
 
-// NewService 创建 Codebook 试运行服务。
+// NewService 创建程序试运行服务。
 func NewService(
-	codebookService codebookSvc.Service,
+	programService programSvc.Service,
 	runnerService runnerSvc.Service,
 	executionService taskSvc.ExecutionService,
 	logService taskSvc.LogService,
@@ -59,13 +58,13 @@ func NewService(
 	routePlanner dispatcher.RoutePlanner,
 ) Service {
 	return &service{
-		codebookSvc: codebookService,
-		runnerSvc:   runnerService,
-		execSvc:     executionService,
-		logSvc:      logService,
-		invoker:     executionInvoker,
-		routes:      routePlanner,
-		logger:      elog.DefaultLogger.With(elog.FieldComponentName("service.codebook.preview")),
+		programSvc: programService,
+		runnerSvc:  runnerService,
+		execSvc:    executionService,
+		logSvc:     logService,
+		invoker:    executionInvoker,
+		routes:     routePlanner,
+		logger:     elog.DefaultLogger.With(elog.FieldComponentName("service.codebook.preview")),
 	}
 }
 
@@ -80,7 +79,7 @@ func (s *service) Run(ctx context.Context, command RunCommand) (domain.TaskExecu
 		return domain.TaskExecution{}, fmt.Errorf("序列化试运行变量失败: %w", err)
 	}
 
-	draft := s.buildDraft(command, prepared, variablesJSON)
+	draft := s.buildDraft(prepared, variablesJSON)
 
 	route, err := s.routes.Plan(ctx, draft.Task)
 	if err != nil {
@@ -97,7 +96,7 @@ func (s *service) Run(ctx context.Context, command RunCommand) (domain.TaskExecu
 		draft.Status = domain.TaskExecutionStatusWaitingPull
 	}
 
-	execution, err := s.execSvc.CreatePreview(ctx, draft, prepared.codebook.ProjectID)
+	execution, err := s.execSvc.CreatePreview(ctx, draft, prepared.sourceProjectID)
 	if err != nil {
 		return domain.TaskExecution{}, fmt.Errorf("创建试运行失败: %w", err)
 	}

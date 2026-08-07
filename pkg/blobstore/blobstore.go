@@ -6,6 +6,8 @@ import (
 	"io"
 )
 
+//go:generate go tool mockgen -source=./blobstore.go -package=blobstoremocks -destination=./mocks/blobstore.mock.go -typed
+
 var ErrNotFound = errors.New("制品对象不存在")
 
 // Store 仅负责持久化不可变字节对象，不承载 Codebook 或任务领域语义。

@@ -8,26 +8,20 @@ import (
 	"github.com/Duke1616/etask/sdk/executor"
 )
 
-// ArtifactRoots 描述脚本运行时使用的系统制品层和租户依赖层目录。
-type ArtifactRoots struct {
-	System string
-	Named  map[string]string
-}
-
 // WorkspaceOptions 描述创建单次执行工作区所需的信息。
 type WorkspaceOptions struct {
 	ExecutionID int64
 	Extension   string
-	Code        []byte
-	Artifacts   ArtifactRoots
+	Program     *executor.Program
+	Artifacts   executor.ArtifactRoots
 }
 
 // Workspace 是语言适配器可使用的单次执行目录。
 type Workspace interface {
-	// Root 返回工作区绝对路径。
-	Root() string
-	// CodeFile 返回脚本文件绝对路径。
-	CodeFile() string
+	// ProgramRoot 返回程序运行根目录。
+	ProgramRoot() string
+	// EntryPoint 返回程序入口文件绝对路径。
+	EntryPoint() string
 	// Environment 返回工作区和制品提供的环境变量。
 	Environment() []string
 	// WriteFile 在工作区写入受控文件并返回绝对路径。

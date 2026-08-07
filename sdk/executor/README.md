@@ -38,13 +38,24 @@ func (SyncHandler) Run(ctx *executor.Context) error {
 }
 ```
 
+需要程序输入的 Handler 额外实现可选的 `ProgramHandler`：
+
+```go
+func (SyncHandler) ProgramKinds() []executor.ProgramKind {
+    return []executor.ProgramKind{executor.ProgramKindInline, executor.ProgramKindProject}
+}
+```
+
+该声明会随节点能力上报，管理端据此展示对应的程序来源配置；未实现时仍按普通参数型 Handler 处理。
+
 `Context` 主要能力：
 
 - `Param`、`ParamInt`、`ParamInt64`、`ParamBool`：读取任务参数。
 - `GetResolvedParam`：按 Handler 元数据解析参数绑定。
 - `SetResult`、`SetResults`、`AddResult`：写入结构化结果。
-- `ArtifactRoots`：读取已准备的默认层和具名制品层。
-- `Log`、`Logger`：记录任务日志和结构化系统日志。
+- `Program`：读取已准备好的 INLINE 代码，或 PROJECT 根目录和入口。
+- `ArtifactRoots`：读取已准备的默认层和具名依赖制品层。
+- `Log`、`SystemLogger`：记录任务执行日志和结构化系统日志。
 - `ReportProgress`：上报规范化到 0-100 的任务进度。
 
 ## 启动标准 Node

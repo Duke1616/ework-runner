@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"sync/atomic"
 	"testing"
 
 	"github.com/Duke1616/etask/sdk/executor/artifact"
@@ -14,13 +13,12 @@ import (
 func TestEngineExecute(t *testing.T) {
 	handlerErr := errors.New("执行失败")
 	testCases := []struct {
-		name       string
-		artifacts  []artifact.Ref
-		preparer   artifact.Preparer
-		handler    task.TaskHandler
-		wantValue  string
-		wantErr    string
-		wantClosed int32
+		name      string
+		artifacts []artifact.Ref
+		preparer  artifact.Preparer
+		handler   task.TaskHandler
+		wantValue string
+		wantErr   string
 	}{
 		{
 			name: "无制品时直接执行处理器",
@@ -31,7 +29,7 @@ func TestEngineExecute(t *testing.T) {
 			wantValue: `{"status":"ok"}`,
 		},
 		{
-			name:      "制品目录会注入并在执行后清理",
+			name:      "制品目录会注入任务上下文",
 			artifacts: []artifact.Ref{{ReleaseID: 1}},
 			preparer: &preparerStub{prepared: &preparedStub{
 				roots: task.ArtifactRoots{Default: "/system", Named: map[string]string{"ops_common": "/ops"}},
@@ -41,8 +39,7 @@ func TestEngineExecute(t *testing.T) {
 				ctx.SetResult("roots", roots.Default+":"+roots.Named["ops_common"])
 				return nil
 			}},
-			wantValue:  `{"roots":"/system:/ops"}`,
-			wantClosed: 1,
+			wantValue: `{"roots":"/system:/ops"}`,
 		},
 		{
 			name:      "声明制品但未配置准备器",
@@ -103,10 +100,46 @@ func TestEngineExecute(t *testing.T) {
 			if result.Value != testCase.wantValue {
 				t.Fatalf("Execute() 结果 = %q, 期望 %q", result.Value, testCase.wantValue)
 			}
-			if prepared, ok := testCase.preparer.(*preparerStub); ok && prepared.prepared.closed.Load() != testCase.wantClosed {
-				t.Fatalf("PreparedArtifacts.Close() 次数 = %d, 期望 %d", prepared.prepared.closed.Load(), testCase.wantClosed)
-			}
 		})
+	}
+}
+
+func TestEnginePreparesCompleteProjectProgram(t *testing.T) {
+	registry := task.NewHandlerRegistry()
+	requireNoError(t, registry.Register(handlerStub{run: func(ctx *task.Context) error {
+		program := ctx.Program()
+		if program == nil || program.Project == nil {
+			return errors.New("缺少 PROJECT 程序")
+		}
+		ctx.SetResult("entry", program.Project.Root+"/"+program.Project.EntryPoint)
+		return nil
+	}}))
+	preparer := &preparerStub{prepared: &preparedStub{sourceRoot: "/cache/project"}}
+	program := &task.Program{
+		Kind:    task.ProgramProject,
+		Project: &task.ProjectProgram{EntryPoint: "playbooks/deploy.yml"},
+	}
+	projectSource := &artifact.SourceRef{SourceID: 9, Digest: strings.Repeat("a", 64),
+		BlobChecksum: strings.Repeat("b", 64), Size: 1, Format: "tar.zst", FormatVersion: 1}
+
+	result, err := New(registry, preparer).Execute(t.Context(), Command{
+		Task: task.TaskInfo{ExecutionID: 1, Handler: "test"}, Program: program, ProjectSource: projectSource,
+	})
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if result.Value != `{"entry":"/cache/project/playbooks/deploy.yml"}` {
+		t.Fatalf("Execute() result = %s", result.Value)
+	}
+	if preparer.source != projectSource {
+		t.Fatalf("Prepare() source = %+v", preparer.source)
+	}
+}
+
+func requireNoError(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -126,21 +159,22 @@ func (h handlerStub) Run(ctx *task.Context) error {
 
 type preparerStub struct {
 	prepared *preparedStub
+	source   *artifact.SourceRef
+	refs     []artifact.Ref
 }
 
 func (p *preparerStub) Prune() error { return nil }
-func (p *preparerStub) Prepare(context.Context, artifact.Downloader,
-	[]artifact.Ref) (artifact.PreparedArtifacts, error) {
+func (p *preparerStub) Prepare(_ context.Context, _ artifact.Downloader,
+	source *artifact.SourceRef, refs []artifact.Ref) (artifact.PreparedArtifacts, error) {
+	p.source = source
+	p.refs = append([]artifact.Ref(nil), refs...)
 	return p.prepared, nil
 }
 
 type preparedStub struct {
-	roots  task.ArtifactRoots
-	closed atomic.Int32
+	sourceRoot string
+	roots      task.ArtifactRoots
 }
 
+func (p *preparedStub) SourceRoot() string        { return p.sourceRoot }
 func (p *preparedStub) Roots() task.ArtifactRoots { return p.roots }
-func (p *preparedStub) Close() error {
-	p.closed.Add(1)
-	return nil
-}

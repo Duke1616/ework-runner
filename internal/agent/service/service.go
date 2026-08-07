@@ -11,6 +11,7 @@ import (
 	executorv1 "github.com/Duke1616/etask/api/proto/gen/etask/executor/v1"
 	"github.com/Duke1616/etask/internal/agent/domain"
 	internaldomain "github.com/Duke1616/etask/internal/domain"
+	programmapper "github.com/Duke1616/etask/internal/execution/program"
 	"github.com/Duke1616/etask/sdk/executor"
 	"github.com/Duke1616/etask/sdk/executor/artifact"
 	artifactgrpc "github.com/Duke1616/etask/sdk/executor/artifact/grpc"
@@ -123,6 +124,12 @@ func (s *service) Receive(ctx context.Context, request ExecutionRequest) (domain
 		s.finish(entry, domain.ExecutionOutput{}, err)
 		return domain.ExecutionOutput{}, err
 	}
+	program, projectSource, err := programmapper.ToExecutor(execution.Program)
+	if err != nil {
+		request.ExecutionLogger.Close()
+		s.finish(entry, domain.ExecutionOutput{}, err)
+		return domain.ExecutionOutput{}, err
+	}
 	// 与独立 Executor 复用同一个 Engine，制品和 Handler 行为保持一致。
 	result, err := s.engine.Execute(runCtx, executionengine.Command{
 		Task: executor.TaskInfo{
@@ -130,6 +137,7 @@ func (s *service) Receive(ctx context.Context, request ExecutionRequest) (domain
 			Name: execution.Task.Name, Handler: execution.Task.GrpcConfig.HandlerName,
 		},
 		Params: execution.GRPCParams(), Parameters: s.handlerMetadata(execution.Task.GrpcConfig.HandlerName),
+		Program: program, ProjectSource: projectSource,
 		Artifacts: refs, ExecutionLogger: request.ExecutionLogger,
 	})
 	output := domain.ExecutionOutput{Result: result.Value}

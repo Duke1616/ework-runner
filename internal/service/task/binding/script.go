@@ -7,37 +7,16 @@ import (
 	"strconv"
 
 	"github.com/Duke1616/etask/internal/domain"
-	codebookSvc "github.com/Duke1616/etask/internal/service/codebook"
 	runnerSvc "github.com/Duke1616/etask/internal/service/runner"
 	"github.com/samber/lo"
 )
 
 const (
-	CodebookBinding = "codebook"
-	RunnerBinding   = "runner"
+	RunnerBinding = "runner"
 )
 
-func NewScriptBindingResolvers(codebookSvc codebookSvc.Service, runnerSvc runnerSvc.Service) *Registry {
-	return NewRegistry().
-		Register(CodebookBinding, CodebookResolver{svc: codebookSvc}).
-		Register(RunnerBinding, RunnerResolver{svc: runnerSvc})
-}
-
-type CodebookResolver struct {
-	svc codebookSvc.Service
-}
-
-func (r CodebookResolver) Resolve(ctx context.Context, req ResolveRequest) (string, error) {
-	id, err := parseID(req.Value, req.ParamKey)
-	if err != nil {
-		return "", err
-	}
-
-	codebook, err := r.svc.GetByID(ctx, id)
-	if err != nil {
-		return "", fmt.Errorf("获取代码资源失败: %w", err)
-	}
-	return codebook.Code, nil
+func NewScriptBindingResolvers(runnerSvc runnerSvc.Service) *Registry {
+	return NewRegistry().Register(RunnerBinding, RunnerResolver{svc: runnerSvc})
 }
 
 type RunnerResolver struct {
@@ -84,5 +63,4 @@ type variable struct {
 	Secret bool   `json:"secret"`
 }
 
-var _ Resolver = CodebookResolver{}
 var _ Resolver = RunnerResolver{}

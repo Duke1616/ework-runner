@@ -5,7 +5,8 @@ import (
 	"testing"
 
 	"github.com/Duke1616/etask/internal/domain"
-	codebookmocks "github.com/Duke1616/etask/internal/service/codebook/mocks"
+	program "github.com/Duke1616/etask/internal/service/program"
+	programmocks "github.com/Duke1616/etask/internal/service/program/mocks"
 	runnermocks "github.com/Duke1616/etask/internal/service/runner/mocks"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -13,25 +14,24 @@ import (
 
 func TestPrepareMergesTemporaryVariables(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	codebooks := codebookmocks.NewMockService(ctrl)
+	programs := programmocks.NewMockService(ctrl)
 	runners := runnermocks.NewMockService(ctrl)
-	codebooks.EXPECT().GetByID(gomock.Any(), int64(11)).Return(domain.Codebook{
-		ID: 11, Name: "main.py", Kind: domain.CodebookKindFile,
-	}, nil)
-	runners.EXPECT().FindByID(gomock.Any(), int64(22)).Return(domain.Runner{
-		ID: 22, CodebookID: 11, Kind: domain.RunnerKindGRPC, Target: "executor",
+	spec := inlineCode("print('ok')")
+	resolved := domain.NewInlineProgram("print('ok')")
+	runners.EXPECT().FindForExecution(gomock.Any(), int64(22)).Return(domain.Runner{
+		ID: 22, Name: "Python", CodebookID: 11, Kind: domain.RunnerKindGRPC, Target: "executor",
 		Handler: "python", Action: domain.RunnerActionRegistered,
+		Variables: []domain.RunnerVariable{
+			{Key: "REGION", Value: "default"},
+			{Key: "TOKEN", Value: "secret", Secret: true},
+		},
 	}, nil)
-	runners.EXPECT().ListMergedVariables(gomock.Any(), int64(22)).Return([]domain.RunnerVariable{
-		{Key: "REGION", Value: "default"},
-		{Key: "TOKEN", Value: "secret", Secret: true},
-	}, nil)
+	programs.EXPECT().Resolve(gomock.Any(), spec).Return(program.Resolution{Program: resolved}, nil)
 
-	svc := &service{codebookSvc: codebooks, runnerSvc: runners}
+	svc := &service{programSvc: programs, runnerSvc: runners}
 	result, err := svc.prepare(context.Background(), RunCommand{
-		CodebookID: 11,
-		RunnerID:   22,
-		Code:       "print('ok')",
+		RunnerID: 22,
+		Program:  spec,
 		Variables: []domain.RunnerVariable{
 			{Key: "REGION", Value: "temporary"},
 			{Key: "DEBUG", Value: "true"},
@@ -39,6 +39,7 @@ func TestPrepareMergesTemporaryVariables(t *testing.T) {
 	})
 
 	require.NoError(t, err)
+	require.Same(t, resolved, result.program)
 	require.Equal(t, "{}", result.args)
 	require.Equal(t, defaultTimeoutSeconds, result.timeout)
 	require.Equal(t, []previewVariable{
@@ -50,43 +51,65 @@ func TestPrepareMergesTemporaryVariables(t *testing.T) {
 
 func TestPrepareRejectsRunnerFromAnotherCodebook(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	codebooks := codebookmocks.NewMockService(ctrl)
 	runners := runnermocks.NewMockService(ctrl)
-	codebooks.EXPECT().GetByID(gomock.Any(), int64(11)).Return(domain.Codebook{
-		ID: 11, Name: "main.py", Kind: domain.CodebookKindFile,
-	}, nil)
-	runners.EXPECT().FindByID(gomock.Any(), int64(22)).Return(domain.Runner{
+	runners.EXPECT().FindForExecution(gomock.Any(), int64(22)).Return(domain.Runner{
 		ID: 22, CodebookID: 99, Kind: domain.RunnerKindGRPC, Target: "executor",
-		Handler: "python", Action: domain.RunnerActionRegistered,
+		Handler: "ansible", Action: domain.RunnerActionRegistered,
 	}, nil)
 
-	svc := &service{codebookSvc: codebooks, runnerSvc: runners}
+	svc := &service{programSvc: programmocks.NewMockService(ctrl), runnerSvc: runners}
 	_, err := svc.prepare(context.Background(), RunCommand{
-		CodebookID: 11, RunnerID: 22, Code: "print('ok')",
+		RunnerID: 22,
+		Program: &domain.ProgramSpec{
+			Kind: domain.ProgramProject, Project: &domain.ProjectProgramSpec{EntryCodebookID: 11},
+		},
 	})
 
 	require.ErrorContains(t, err, "未绑定当前 Codebook")
 }
 
-func TestPrepareAcceptsKafkaRunner(t *testing.T) {
+func TestPrepareAcceptsProjectProgramAndAnsibleRunner(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	codebooks := codebookmocks.NewMockService(ctrl)
+	programs := programmocks.NewMockService(ctrl)
 	runners := runnermocks.NewMockService(ctrl)
-	codebooks.EXPECT().GetByID(gomock.Any(), int64(11)).Return(domain.Codebook{
-		ID: 11, Name: "main.sh", Kind: domain.CodebookKindFile,
+	spec := &domain.ProgramSpec{
+		Kind: domain.ProgramProject, Project: &domain.ProjectProgramSpec{EntryCodebookID: 11},
+	}
+	resolved := &domain.Program{Kind: domain.ProgramProject, Project: &domain.ProjectProgram{
+		EntryPoint: "playbooks/site.yml",
+	}}
+	runners.EXPECT().FindForExecution(gomock.Any(), int64(22)).Return(domain.Runner{
+		ID: 22, Name: "Ansible", CodebookID: 11, Kind: domain.RunnerKindKafka, Target: "agent-ansible",
+		Handler: "ansible", Action: domain.RunnerActionRegistered,
 	}, nil)
-	runners.EXPECT().FindByID(gomock.Any(), int64(22)).Return(domain.Runner{
-		ID: 22, CodebookID: 11, Kind: domain.RunnerKindKafka, Target: "agent-shell",
-		Handler: "shell", Action: domain.RunnerActionRegistered,
+	programs.EXPECT().Resolve(gomock.Any(), spec).Return(program.Resolution{
+		Program: resolved, SourceProjectID: 9,
 	}, nil)
-	runners.EXPECT().ListMergedVariables(gomock.Any(), int64(22)).Return(nil, nil)
 
-	svc := &service{codebookSvc: codebooks, runnerSvc: runners}
-	result, err := svc.prepare(context.Background(), RunCommand{
-		CodebookID: 11, RunnerID: 22, Code: "echo ok",
-	})
+	svc := &service{programSvc: programs, runnerSvc: runners}
+	result, err := svc.prepare(context.Background(), RunCommand{RunnerID: 22, Program: spec})
 
 	require.NoError(t, err)
+	require.Same(t, resolved, result.program)
+	require.Equal(t, int64(9), result.sourceProjectID)
 	require.Equal(t, domain.RunnerKindKafka, result.runner.Kind)
-	require.Equal(t, "agent-shell", result.runner.Target)
+	require.Equal(t, "ansible", result.runner.Handler)
+}
+
+func TestBuildDraftUsesResolvedProgram(t *testing.T) {
+	resolved := domain.NewInlineProgram("echo ok")
+	draft := (&service{}).buildDraft(prepareResult{
+		runner:  domain.Runner{Name: "Shell", Target: "executor", Handler: "shell"},
+		program: resolved,
+		args:    `{}`,
+		timeout: 30,
+	}, []byte(`[]`))
+
+	require.Same(t, resolved, draft.Program)
+	require.Equal(t, "试运行: Shell", draft.Task.Name)
+	require.NotContains(t, draft.Task.GrpcConfig.Params, "code")
+}
+
+func inlineCode(code string) *domain.ProgramSpec {
+	return &domain.ProgramSpec{Kind: domain.ProgramInline, Inline: &domain.InlineProgramSpec{Code: code}}
 }

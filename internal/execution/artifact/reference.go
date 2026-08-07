@@ -14,7 +14,9 @@ import (
 
 // layerRef 是执行侧校验并规范化后的不可变制品引用。
 type layerRef struct {
+	kind          layerKind
 	releaseID     int64
+	sourceID      int64
 	digest        string
 	blobChecksum  string
 	size          int64
@@ -23,7 +25,15 @@ type layerRef struct {
 	mountName     string
 }
 
+type layerKind uint8
+
+const (
+	layerArtifact layerKind = iota + 1
+	layerProjectSource
+)
+
 type layerSet struct {
+	sourceLayer  *layerRef
 	defaultLayer layerRef
 	hasDefault   bool
 	namedLayers  []layerRef
@@ -37,11 +47,18 @@ type cacheMarker struct {
 	FormatVersion int32  `json:"format_version"`
 }
 
-func parseLayerSet(refs []executorartifact.Ref) (layerSet, error) {
+func parseLayerSet(source *executorartifact.SourceRef, refs []executorartifact.Ref) (layerSet, error) {
 	result := layerSet{namedLayers: make([]layerRef, 0, len(refs))}
+	if source != nil {
+		ref, err := parseSourceLayerRef(*source)
+		if err != nil {
+			return layerSet{}, err
+		}
+		result.sourceLayer = &ref
+	}
 	namespaces := make(map[string]struct{}, len(refs))
 	for _, value := range refs {
-		ref, err := parseLayerRef(value)
+		ref, err := parseArtifactLayerRef(value)
 		if err != nil {
 			return layerSet{}, err
 		}
@@ -65,7 +82,7 @@ func parseLayerSet(refs []executorartifact.Ref) (layerSet, error) {
 	return result, nil
 }
 
-func parseLayerRef(value executorartifact.Ref) (layerRef, error) {
+func parseArtifactLayerRef(value executorartifact.Ref) (layerRef, error) {
 	if value.ReleaseID <= 0 {
 		return layerRef{}, fmt.Errorf("制品发布 ID 非法")
 	}
@@ -84,9 +101,34 @@ func parseLayerRef(value executorartifact.Ref) (layerRef, error) {
 		return layerRef{}, fmt.Errorf("不支持的制品格式: %s/%d", value.Format, value.FormatVersion)
 	}
 	return layerRef{
-		releaseID: value.ReleaseID, digest: digest, blobChecksum: checksum,
+		kind: layerArtifact, releaseID: value.ReleaseID, digest: digest, blobChecksum: checksum,
 		size: value.Size, format: value.Format, formatVersion: value.FormatVersion,
 		mountName: value.MountName,
+	}, nil
+}
+
+func parseSourceLayerRef(value executorartifact.SourceRef) (layerRef, error) {
+	if value.SourceID <= 0 {
+		return layerRef{}, fmt.Errorf("项目源码 ID 非法")
+	}
+	if value.Size <= 0 {
+		return layerRef{}, fmt.Errorf("项目源码大小非法: %d", value.Size)
+	}
+	digest, err := normalizeDigest(value.Digest)
+	if err != nil {
+		return layerRef{}, err
+	}
+	checksum, err := normalizeDigest(value.BlobChecksum)
+	if err != nil {
+		return layerRef{}, fmt.Errorf("项目源码压缩包校验和非法: %w", err)
+	}
+	if !artifactarchive.Supports(value.Format, value.FormatVersion) {
+		return layerRef{}, fmt.Errorf("不支持的项目源码格式: %s/%d", value.Format, value.FormatVersion)
+	}
+	return layerRef{
+		kind: layerProjectSource, sourceID: value.SourceID,
+		digest: digest, blobChecksum: checksum, size: value.Size,
+		format: value.Format, formatVersion: value.FormatVersion,
 	}, nil
 }
 
@@ -111,10 +153,17 @@ func (r layerRef) cacheKey() string {
 	return r.digest + "-" + r.blobChecksum
 }
 
-func (r layerRef) ref() executorartifact.Ref {
+func (r layerRef) artifactRef() executorartifact.Ref {
 	return executorartifact.Ref{
 		ReleaseID: r.releaseID, Digest: r.digest, BlobChecksum: r.blobChecksum,
 		Size: r.size, Format: r.format, FormatVersion: r.formatVersion, MountName: r.mountName,
+	}
+}
+
+func (r layerRef) sourceRef() executorartifact.SourceRef {
+	return executorartifact.SourceRef{
+		SourceID: r.sourceID, Digest: r.digest, BlobChecksum: r.blobChecksum,
+		Size: r.size, Format: r.format, FormatVersion: r.formatVersion,
 	}
 }
 

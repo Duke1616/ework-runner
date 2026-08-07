@@ -275,6 +275,45 @@ func (c *MockRunnerRepositoryFindByIDCall) DoAndReturn(f func(context.Context, i
 	return c
 }
 
+// FindForExecution mocks base method.
+func (m *MockRunnerRepository) FindForExecution(ctx context.Context, id int64) (domain.Runner, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindForExecution", ctx, id)
+	ret0, _ := ret[0].(domain.Runner)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindForExecution indicates an expected call of FindForExecution.
+func (mr *MockRunnerRepositoryMockRecorder) FindForExecution(ctx, id any) *MockRunnerRepositoryFindForExecutionCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindForExecution", reflect.TypeOf((*MockRunnerRepository)(nil).FindForExecution), ctx, id)
+	return &MockRunnerRepositoryFindForExecutionCall{Call: call}
+}
+
+// MockRunnerRepositoryFindForExecutionCall wrap *gomock.Call
+type MockRunnerRepositoryFindForExecutionCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockRunnerRepositoryFindForExecutionCall) Return(arg0 domain.Runner, arg1 error) *MockRunnerRepositoryFindForExecutionCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockRunnerRepositoryFindForExecutionCall) Do(f func(context.Context, int64) (domain.Runner, error)) *MockRunnerRepositoryFindForExecutionCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockRunnerRepositoryFindForExecutionCall) DoAndReturn(f func(context.Context, int64) (domain.Runner, error)) *MockRunnerRepositoryFindForExecutionCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // List mocks base method.
 func (m *MockRunnerRepository) List(ctx context.Context, offset, limit int64, keyword, kind string) ([]domain.Runner, error) {
 	m.ctrl.T.Helper()

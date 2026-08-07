@@ -14,6 +14,8 @@ type (
 	BindingOption = task.BindingOption
 	// TaskHandler 定义 Executor 可以调度的一类任务。
 	TaskHandler = task.TaskHandler
+	// ProgramHandler 声明 Handler 支持的程序来源类型。
+	ProgramHandler = task.ProgramHandler
 	// HandlerMeta 是处理器展示和注册元数据。
 	HandlerMeta = task.HandlerMeta
 )

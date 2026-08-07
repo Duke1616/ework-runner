@@ -17,6 +17,11 @@ func (s *service) Publish(ctx context.Context, target domain.ArtifactTarget,
 	if err != nil {
 		return domain.ArtifactRelease{}, err
 	}
+	return s.publish(ctx, target, tenantID, message)
+}
+
+func (s *service) publish(ctx context.Context, target domain.ArtifactTarget,
+	tenantID int64, message string) (domain.ArtifactRelease, error) {
 	// 从当前版本生成一致性源码快照，再打包成内容寻址的不可变对象。
 	files, sourceRevision, err := s.repo.SnapshotFiles(ctx, target)
 	if err != nil {

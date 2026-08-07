@@ -53,3 +53,29 @@ func artifactRefs(values []*artifactv1.ArtifactRef) []artifact.Ref {
 	}
 	return refs
 }
+
+func programFromProto(value *executorv1.ProgramSource) (*task.Program, *artifact.SourceRef) {
+	if value == nil {
+		return nil, nil
+	}
+	result := &task.Program{}
+	switch source := value.GetSource().(type) {
+	case *executorv1.ProgramSource_Inline:
+		result.Kind = task.ProgramInline
+		result.Inline = &task.InlineProgram{Code: source.Inline.GetCode()}
+	case *executorv1.ProgramSource_Project:
+		result.Kind = task.ProgramProject
+		ref := source.Project.GetSource()
+		if ref == nil {
+			return result, nil
+		}
+		result.Project = &task.ProjectProgram{
+			EntryPoint: source.Project.GetEntryPoint(),
+		}
+		return result, &artifact.SourceRef{
+			SourceID: ref.GetSourceId(), Digest: ref.GetDigest(), BlobChecksum: ref.GetBlobChecksum(),
+			Size: ref.GetSize(), Format: ref.GetFormat(), FormatVersion: ref.GetFormatVersion(),
+		}
+	}
+	return result, nil
+}

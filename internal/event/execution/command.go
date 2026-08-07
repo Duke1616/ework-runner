@@ -19,6 +19,7 @@ type Command struct {
 	Handler     string                     `json:"handler"`
 	Params      map[string]string          `json:"params"`
 	Artifacts   []domain.ArtifactRef       `json:"artifacts"`
+	Program     *domain.Program            `json:"program,omitempty"`
 }
 
 // NewCommand 将领域执行快照转换为 Kafka 协议，并在发布前校验协议约束。
@@ -36,6 +37,7 @@ func NewCommand(execution domain.TaskExecution, dispatchID string) (Command, err
 		Handler:     execution.Task.GrpcConfig.HandlerName,
 		Params:      execution.GRPCParams(),
 		Artifacts:   execution.Artifacts,
+		Program:     execution.Program,
 	}
 	if err := command.Validate(); err != nil {
 		return Command{}, err
@@ -56,13 +58,18 @@ func (c Command) Validate() error {
 	if c.Source == domain.TaskExecutionSourceTask && c.TaskID <= 0 {
 		return fmt.Errorf("Agent 正式任务命令缺少 task_id: execution_id=%d source=%s", c.ExecutionID, c.Source)
 	}
+	if c.Program != nil {
+		if err := c.Program.Validate(); err != nil {
+			return fmt.Errorf("Agent 执行命令程序非法: execution_id=%d: %w", c.ExecutionID, err)
+		}
+	}
 	return nil
 }
 
 // Execution 将消息协议转换为 Agent 执行引擎使用的领域快照。
 func (c Command) Execution() domain.TaskExecution {
 	return domain.TaskExecution{
-		ID: c.ExecutionID, TenantID: c.TenantID, Source: c.Source, Artifacts: c.Artifacts,
+		ID: c.ExecutionID, TenantID: c.TenantID, Source: c.Source, Artifacts: c.Artifacts, Program: c.Program,
 		Task: domain.Task{
 			ID: c.TaskID, TenantID: c.TenantID, Name: c.TaskName,
 			GrpcConfig: &domain.GrpcConfig{HandlerName: c.Handler, Params: c.Params},

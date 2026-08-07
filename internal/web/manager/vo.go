@@ -10,6 +10,22 @@ type CreateTaskReq struct {
 	MaxExecutionSeconds int64             `json:"max_execution_seconds"` // 最大执行秒数，默认24小时
 	ScheduleParams      map[string]string `json:"schedule_params"`       // 调度参数（如分页偏移量、处理进度等）
 	Metadata            map[string]string `json:"metadata"`              // 任务参数元数据
+	Program             *ProgramSpec      `json:"program"`               // 程序来源
+}
+
+type ProgramSpec struct {
+	Kind    string              `json:"kind"`
+	Inline  *InlineProgramSpec  `json:"inline,omitempty"`
+	Project *ProjectProgramSpec `json:"project,omitempty"`
+}
+
+type InlineProgramSpec struct {
+	Code       string `json:"code,omitempty"`
+	CodebookID int64  `json:"codebook_id,omitempty"`
+}
+
+type ProjectProgramSpec struct {
+	EntryCodebookID int64 `json:"entry_codebook_id"`
 }
 
 type GrpcConfig struct {
@@ -55,6 +71,7 @@ type UpdateTaskReq struct {
 	MaxExecutionSeconds int64             `json:"max_execution_seconds"` // 最大执行秒数，默认24小时
 	ScheduleParams      map[string]string `json:"schedule_params"`       // 调度参数
 	Metadata            map[string]string `json:"metadata"`              // 任务参数元数据
+	Program             *ProgramSpec      `json:"program"`               // 程序来源
 }
 
 type TaskVO struct {
@@ -72,6 +89,7 @@ type TaskVO struct {
 	CTime               int64             `json:"ctime"`
 	UTime               int64             `json:"utime"`
 	Metadata            map[string]string `json:"metadata"`
+	Program             *ProgramSpec      `json:"program"`
 }
 
 type ListTaskResp struct {

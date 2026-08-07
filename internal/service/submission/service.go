@@ -11,9 +11,9 @@ import (
 
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/repository"
-	codebookSvc "github.com/Duke1616/etask/internal/service/codebook"
 	"github.com/Duke1616/etask/internal/service/dispatcher"
 	"github.com/Duke1616/etask/internal/service/invoker"
+	programSvc "github.com/Duke1616/etask/internal/service/program"
 	runnerSvc "github.com/Duke1616/etask/internal/service/runner"
 	taskSvc "github.com/Duke1616/etask/internal/service/task"
 	terminationSvc "github.com/Duke1616/etask/internal/service/termination"
@@ -33,10 +33,11 @@ var (
 
 // RunRunnerCommand 描述外部工作流提交的一次幂等 Runner 执行。
 type RunRunnerCommand struct {
-	RequestID string
-	RunnerID  int64
-	Params    map[string]string
-	Variables map[string]string
+	RequestID   string
+	RunnerID    int64
+	ProgramKind domain.ProgramKind
+	Params      map[string]string
+	Variables   map[string]string
 }
 
 // TerminateExecutionCommand 描述外部工作流对一次 execution 的幂等终止请求。
@@ -62,7 +63,7 @@ type Service interface {
 
 type service struct {
 	runners     runnerSvc.Service
-	codebooks   codebookSvc.Service
+	programs    programSvc.Service
 	executions  taskSvc.ExecutionService
 	routes      dispatcher.RoutePlanner
 	invoker     invoker.Invoker
@@ -71,11 +72,11 @@ type service struct {
 }
 
 // NewService 创建外部执行提交服务。
-func NewService(runners runnerSvc.Service, codebooks codebookSvc.Service,
+func NewService(runners runnerSvc.Service, programs programSvc.Service,
 	executions taskSvc.ExecutionService, routes dispatcher.RoutePlanner,
 	executionInvoker invoker.Invoker, termination terminationSvc.Service) Service {
 	return &service{
-		runners: runners, codebooks: codebooks, executions: executions,
+		runners: runners, programs: programs, executions: executions,
 		routes: routes, invoker: executionInvoker, termination: termination,
 		logger: elog.DefaultLogger.With(elog.FieldComponentName("service.submission")),
 	}
@@ -85,22 +86,18 @@ func (s *service) RunRunner(ctx context.Context, command RunRunnerCommand) (RunR
 	if err := validateCommand(command); err != nil {
 		return RunResult{}, fmt.Errorf("%w: %v", ErrInvalidCommand, err)
 	}
-	runner, err := s.runners.FindByID(ctx, command.RunnerID)
+	runner, err := s.runners.FindForExecution(ctx, command.RunnerID)
 	if err != nil {
 		return RunResult{}, fmt.Errorf("查询执行单元失败: %w", err)
 	}
 	if runner.Action != domain.RunnerActionRegistered {
 		return RunResult{}, fmt.Errorf("%w: 执行单元未启用", ErrRejected)
 	}
-	codebook, err := s.codebooks.GetByID(ctx, runner.CodebookID)
+	program, err := s.resolveProgram(ctx, runner.CodebookID, command.ProgramKind)
 	if err != nil {
-		return RunResult{}, fmt.Errorf("查询执行单元 Codebook 失败: %w", err)
+		return RunResult{}, fmt.Errorf("解析工作流程序失败: %w", err)
 	}
-	if !codebook.IsFile() {
-		return RunResult{}, fmt.Errorf("%w: 执行单元未绑定 Codebook 文件", ErrRejected)
-	}
-
-	params, err := s.buildParams(ctx, runner, codebook, command)
+	params, err := s.buildParams(runner, command)
 	if err != nil {
 		return RunResult{}, err
 	}
@@ -109,7 +106,7 @@ func (s *service) RunRunner(ctx context.Context, command RunRunnerCommand) (RunR
 		Status:    domain.TaskExecutionStatusPrepare,
 		StartTime: time.Now().UnixMilli(),
 		Task: domain.Task{
-			Name:                "工作流执行: " + codebook.Name,
+			Name:                "工作流执行: " + runner.Name,
 			MaxExecutionSeconds: defaultTimeoutSeconds,
 			RetryConfig:         &domain.RetryConfig{MaxRetries: 0},
 			GrpcConfig: &domain.GrpcConfig{
@@ -118,6 +115,7 @@ func (s *service) RunRunner(ctx context.Context, command RunRunnerCommand) (RunR
 				Params:      params,
 			},
 		},
+		Program: program.Program,
 	}
 
 	route, err := s.routes.Plan(ctx, draft.Task)
@@ -134,7 +132,7 @@ func (s *service) RunRunner(ctx context.Context, command RunRunnerCommand) (RunR
 		draft.Status = domain.TaskExecutionStatusWaitingPull
 	}
 
-	execution, created, err := s.executions.CreateWorkflow(ctx, draft, codebook.ProjectID)
+	execution, created, err := s.executions.CreateWorkflow(ctx, draft, program.SourceProjectID)
 	if err != nil {
 		return RunResult{}, fmt.Errorf("创建工作流执行记录失败: %w", err)
 	}
@@ -179,15 +177,29 @@ func validateCommand(command RunRunnerCommand) error {
 	if command.RunnerID <= 0 {
 		return fmt.Errorf("执行单元 ID 非法: %d", command.RunnerID)
 	}
+	if !command.ProgramKind.Valid() {
+		return fmt.Errorf("程序模式非法: %s", command.ProgramKind)
+	}
 	if args := strings.TrimSpace(command.Params["args"]); args != "" && !json.Valid([]byte(args)) {
 		return fmt.Errorf("工作流执行参数必须是合法 JSON")
 	}
 	return nil
 }
 
-func (s *service) buildParams(ctx context.Context, runner domain.Runner, codebook domain.Codebook,
-	command RunRunnerCommand) (map[string]string, error) {
-	variables, err := s.mergeVariables(ctx, runner.ID, command.Variables)
+func (s *service) resolveProgram(ctx context.Context, codebookID int64,
+	kind domain.ProgramKind) (programSvc.Resolution, error) {
+	spec := &domain.ProgramSpec{Kind: kind}
+	switch kind {
+	case domain.ProgramInline:
+		spec.Inline = &domain.InlineProgramSpec{CodebookID: codebookID}
+	case domain.ProgramProject:
+		spec.Project = &domain.ProjectProgramSpec{EntryCodebookID: codebookID}
+	}
+	return s.programs.Resolve(ctx, spec)
+}
+
+func (s *service) buildParams(runner domain.Runner, command RunRunnerCommand) (map[string]string, error) {
+	variables, err := mergeVariables(runner.Variables, command.Variables)
 	if err != nil {
 		return nil, err
 	}
@@ -195,14 +207,13 @@ func (s *service) buildParams(ctx context.Context, runner domain.Runner, codeboo
 	if err != nil {
 		return nil, fmt.Errorf("序列化执行单元变量失败: %w", err)
 	}
-	params := make(map[string]string, len(command.Params)+2)
+	params := make(map[string]string, len(command.Params)+1)
 	for key, value := range command.Params {
 		params[key] = value
 	}
 	if strings.TrimSpace(params["args"]) == "" {
 		params["args"] = "{}"
 	}
-	params["code"] = codebook.Code
 	params["variables"] = string(variablesJSON)
 	return params, nil
 }
@@ -213,12 +224,7 @@ type runtimeVariable struct {
 	Secret bool   `json:"secret"`
 }
 
-func (s *service) mergeVariables(ctx context.Context, runnerID int64,
-	overrides map[string]string) ([]runtimeVariable, error) {
-	defaults, err := s.runners.ListMergedVariables(ctx, runnerID)
-	if err != nil {
-		return nil, fmt.Errorf("查询执行单元变量失败: %w", err)
-	}
+func mergeVariables(defaults []domain.RunnerVariable, overrides map[string]string) ([]runtimeVariable, error) {
 	values := make(map[string]domain.RunnerVariable, len(defaults)+len(overrides))
 	keys := make([]string, 0, len(defaults)+len(overrides))
 	for _, variable := range defaults {

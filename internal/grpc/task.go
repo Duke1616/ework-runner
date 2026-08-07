@@ -75,6 +75,9 @@ func (s *TaskServer) toDomainTask(bizID int64, req *taskv1.CreateTaskRequest) do
 		CronExpr:            req.GetCronExpr(),
 		MaxExecutionSeconds: req.GetMaxExecutionSeconds(),
 		ScheduleParams:      req.GetScheduleParams(),
+		ExecMode:            domain.ExecModeFromProto(req.GetExecMode()),
+		Metadata:            req.GetMetadata(),
+		Program:             s.toDomainProgramSpec(req.GetProgram()),
 		GrpcConfig: &domain.GrpcConfig{
 			ServiceName: req.GrpcConfig.GetServiceName(),
 			HandlerName: req.GrpcConfig.GetHandlerName(),
@@ -108,40 +111,26 @@ func (s *TaskServer) toDomainTaskType(t taskv1.TaskType) domain.TaskType {
 }
 func (s *TaskServer) RetryTaskByID(ctx context.Context, req *taskv1.RetryTaskByIDRequest) (*taskv1.RetryTaskResponse, error) {
 	s.logger.Info("收到按ID重试任务请求", elog.Int64("id", req.GetId()))
-
-	response := &taskv1.RetryTaskResponse{}
 	retryTask, err := s.taskSvc.RetryByID(ctx, req.GetId())
-	if err != nil {
-		if s.isSystemError(err) {
-			return nil, status.Errorf(codes.Internal, "重试失败: %v", err)
-		}
-		response.Code = s.convertToTaskErrorCode(err)
-		response.Message = err.Error()
-		return response, nil
-	}
-
-	response.Id = retryTask.ID
-	response.Code = taskv1.TaskErrorCode_SUCCESS
-	return response, nil
+	return s.retryTaskResponse(retryTask, err)
 }
 
 func (s *TaskServer) RetryTaskByName(ctx context.Context, req *taskv1.RetryTaskByNameRequest) (*taskv1.RetryTaskResponse, error) {
 	s.logger.Info("收到按名称重试任务请求", elog.String("name", req.GetName()))
-
-	response := &taskv1.RetryTaskResponse{}
 	retryTask, err := s.taskSvc.RetryByName(ctx, req.GetName())
+	return s.retryTaskResponse(retryTask, err)
+}
+
+func (s *TaskServer) retryTaskResponse(retryTask domain.Task, err error) (*taskv1.RetryTaskResponse, error) {
 	if err != nil {
 		if s.isSystemError(err) {
 			return nil, status.Errorf(codes.Internal, "重试失败: %v", err)
 		}
-		response.Code = s.convertToTaskErrorCode(err)
-		response.Message = err.Error()
-		return response, nil
+		return &taskv1.RetryTaskResponse{
+			Code: s.convertToTaskErrorCode(err), Message: err.Error(),
+		}, nil
 	}
-
-	response.Id = retryTask.ID
-	response.Code = taskv1.TaskErrorCode_SUCCESS
-	return response, nil
+	return &taskv1.RetryTaskResponse{Id: retryTask.ID, Code: taskv1.TaskErrorCode_SUCCESS}, nil
 }
 
 // GetTask 获取任务
@@ -193,6 +182,8 @@ func (s *TaskServer) toProtoTask(t domain.Task) *taskv1.Task {
 		Ctime:               t.CTime,
 		Utime:               t.UTime,
 		ExecMode:            t.ExecMode.ToProto(),
+		Metadata:            t.Metadata,
+		Program:             s.toProtoProgramSpec(t.Program),
 		GrpcConfig:          s.toProtoGrpcConfig(t.GrpcConfig),
 		HttpConfig:          s.toProtoHTTPConfig(t.HTTPConfig),
 		RetryConfig:         s.toProtoRetryConfig(t.RetryConfig),
@@ -208,6 +199,59 @@ func (s *TaskServer) toProtoGrpcConfig(cfg *domain.GrpcConfig) *taskv1.GrpcConfi
 		HandlerName: cfg.HandlerName,
 		Params:      cfg.Params,
 	}
+}
+
+func (s *TaskServer) toDomainProgramSpec(spec *taskv1.ProgramSpec) *domain.ProgramSpec {
+	if spec == nil {
+		return nil
+	}
+	switch source := spec.Source.(type) {
+	case *taskv1.ProgramSpec_Inline:
+		inline := &domain.InlineProgramSpec{}
+		if source.Inline != nil {
+			switch value := source.Inline.Source.(type) {
+			case *taskv1.InlineProgramSpec_Code:
+				inline.Code = value.Code
+			case *taskv1.InlineProgramSpec_CodebookId:
+				inline.CodebookID = value.CodebookId
+			}
+		}
+		return &domain.ProgramSpec{Kind: domain.ProgramInline, Inline: inline}
+	case *taskv1.ProgramSpec_Project:
+		project := &domain.ProjectProgramSpec{}
+		if source.Project != nil {
+			project.EntryCodebookID = source.Project.EntryCodebookId
+		}
+		return &domain.ProgramSpec{Kind: domain.ProgramProject, Project: project}
+	default:
+		return &domain.ProgramSpec{}
+	}
+}
+
+func (s *TaskServer) toProtoProgramSpec(spec *domain.ProgramSpec) *taskv1.ProgramSpec {
+	if spec == nil {
+		return nil
+	}
+	result := &taskv1.ProgramSpec{}
+	switch spec.Kind {
+	case domain.ProgramInline:
+		inline := &taskv1.InlineProgramSpec{}
+		if spec.Inline != nil {
+			if spec.Inline.CodebookID > 0 {
+				inline.Source = &taskv1.InlineProgramSpec_CodebookId{CodebookId: spec.Inline.CodebookID}
+			} else {
+				inline.Source = &taskv1.InlineProgramSpec_Code{Code: spec.Inline.Code}
+			}
+		}
+		result.Source = &taskv1.ProgramSpec_Inline{Inline: inline}
+	case domain.ProgramProject:
+		project := &taskv1.ProjectProgramSpec{}
+		if spec.Project != nil {
+			project.EntryCodebookId = spec.Project.EntryCodebookID
+		}
+		result.Source = &taskv1.ProgramSpec_Project{Project: project}
+	}
+	return result
 }
 
 func (s *TaskServer) toProtoHTTPConfig(cfg *domain.HTTPConfig) *taskv1.HTTPConfig {

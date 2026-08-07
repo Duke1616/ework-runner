@@ -2,7 +2,9 @@ package scripts
 
 import (
 	"context"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -11,6 +13,52 @@ import (
 	"github.com/Duke1616/etask/sdk/executor"
 	"github.com/stretchr/testify/require"
 )
+
+func TestRuntimeHandlersExecuteProjectSource(t *testing.T) {
+	python, err := exec.LookPath("python3")
+	if err != nil {
+		t.Skip("当前环境未安装 python3")
+	}
+	project := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(project, "check.sh"), []byte(
+		`test -f ./check.sh && test -f "$ETASK_PROJECT_ROOT/check.sh"`+"\n"), 0o440))
+	require.NoError(t, os.WriteFile(filepath.Join(project, "check.py"), []byte(
+		"import os\nimport helper\nassert helper.VALUE == 'ok'\nassert os.path.isfile('check.py')\nassert os.path.isfile(os.path.join(os.environ['ETASK_PROJECT_ROOT'], 'check.py'))\n"), 0o440))
+	require.NoError(t, os.WriteFile(filepath.Join(project, "helper.py"), []byte("VALUE = 'ok'\n"), 0o440))
+	disabled := false
+	runtime, err := NewRuntime(RuntimeConfig{
+		WorkspaceDir: t.TempDir(), ShellBinary: "/bin/sh", PythonBinary: python,
+		Archive: ArchiveConfig{Enabled: &disabled},
+	})
+	require.NoError(t, err)
+	handlers := make(map[string]executor.TaskHandler)
+	for _, handler := range runtime.Handlers() {
+		handlers[handler.Name()] = handler
+	}
+	for _, tc := range []struct{ handler, entryPoint string }{
+		{handler: "shell", entryPoint: "check.sh"},
+		{handler: "python", entryPoint: "check.py"},
+	} {
+		t.Run(tc.handler, func(t *testing.T) {
+			task := executor.NewContext(executor.ContextOptions{
+				Context:         t.Context(),
+				Task:            executor.TaskInfo{ExecutionID: 1, Handler: tc.handler},
+				Params:          map[string]string{"args": `{}`, "variables": `[]`},
+				ExecutionLogger: runtimeExecutionLogger{},
+			})
+			task.SetProgram(&executor.Program{
+				Kind:    executor.ProgramKindProject,
+				Project: &executor.ProjectProgram{Root: project, EntryPoint: tc.entryPoint},
+			})
+			require.NoError(t, handlers[tc.handler].Run(task))
+		})
+	}
+}
+
+type runtimeExecutionLogger struct{}
+
+func (runtimeExecutionLogger) Log(string, ...any) {}
+func (runtimeExecutionLogger) Close()             {}
 
 func TestNewRuntime(t *testing.T) {
 	testCases := []struct {

@@ -25,7 +25,7 @@ func (r commandRunner) Run(task *executor.Context, workspace Workspace, prepared
 	if command == nil {
 		return fmt.Errorf("语言适配器返回了空命令")
 	}
-	command.Dir = workspace.Root()
+	command.Dir = workspace.ProgramRoot()
 	command.Env = MergeEnvironment(workspace.Environment(), prepared.Environment)
 
 	// 子进程通过额外文件描述符 3 输出结构化 JSON，避免与普通日志混在 stdout。

@@ -3,11 +3,13 @@ package runtimefs
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/Duke1616/etask/internal/grpc/scripts/engine"
+	"github.com/Duke1616/etask/sdk/executor"
 )
 
 type WorkspaceFactory struct {
@@ -27,7 +29,7 @@ func NewWorkspaceFactory(config WorkspaceConfig, access WorkspaceAccess) (*Works
 	return &WorkspaceFactory{config: normalized, access: access}, nil
 }
 
-// Create 创建代码文件并挂载制品目录。
+// Create 物化程序并挂载制品目录。
 func (f *WorkspaceFactory) Create(options engine.WorkspaceOptions) (engine.Workspace, error) {
 	if err := os.MkdirAll(f.config.Dir, 0o750); err != nil {
 		return nil, fmt.Errorf("创建任务工作区根目录失败: %w", err)
@@ -70,17 +72,20 @@ func (f *WorkspaceFactory) Validate() error {
 
 type workspace struct {
 	root        string
-	codeFile    string
+	programRoot string
+	entryPoint  string
 	artifacts   mountedArtifactRoots
 	environment []string
 	access      WorkspaceAccess
 }
 
 func (w *workspace) prepare(options engine.WorkspaceOptions) error {
-	codeName := "task" + options.Extension
+	if err := w.materializeProgram(options.Program, options.Extension); err != nil {
+		return fmt.Errorf("物化程序来源失败: %w", err)
+	}
 	// SYSTEM 层固定挂载，并额外映射为 etask Python 命名空间。
-	if options.Artifacts.System != "" {
-		mounted, err := w.mount("system", options.Artifacts.System)
+	if options.Artifacts.Default != "" {
+		mounted, err := w.mount("system", options.Artifacts.Default)
 		if err != nil {
 			return err
 		}
@@ -109,15 +114,67 @@ func (w *workspace) prepare(options engine.WorkspaceOptions) error {
 		}
 		w.artifacts.named = mounted
 	}
-	// 脚本和环境最后生成，确保 Handler 看到的是完整且稳定的工作区。
-	w.codeFile = filepath.Join(w.root, codeName)
-	if err := os.WriteFile(w.codeFile, options.Code, 0o700); err != nil {
-		return fmt.Errorf("写入任务脚本失败: %w", err)
-	}
-	if err := w.access.Own(w.codeFile); err != nil {
-		return fmt.Errorf("设置任务脚本属主失败: %w", err)
-	}
 	w.environment = buildEnvironment(w.artifacts, w.root, w.access)
+	return nil
+}
+
+func (w *workspace) materializeProgram(program *executor.Program, extension string) error {
+	if err := program.Validate(); err != nil {
+		return err
+	}
+	switch program.Kind {
+	case executor.ProgramKindInline:
+		entryPoint, err := w.WriteFile("task"+extension, []byte(program.Inline.Code), 0o700)
+		if err != nil {
+			return fmt.Errorf("写入 INLINE 程序入口失败: %w", err)
+		}
+		w.programRoot = w.root
+		w.entryPoint = entryPoint
+		return nil
+	case executor.ProgramKindProject:
+		return w.materializeProject(program)
+	default:
+		return fmt.Errorf("不支持的程序类型: %s", program.Kind)
+	}
+}
+
+func (w *workspace) materializeProject(program *executor.Program) error {
+	project := program.Project
+	if err := validateProgramEntryPoint(project.EntryPoint); err != nil {
+		return err
+	}
+	if project.Root == "" {
+		return fmt.Errorf("PROJECT 程序缺少已准备的来源目录")
+	}
+	root, err := w.mount("project", project.Root)
+	if err != nil {
+		return err
+	}
+	entryPoint := filepath.Join(root, filepath.FromSlash(project.EntryPoint))
+	relative, err := filepath.Rel(root, entryPoint)
+	if err != nil || relative == "." || relative == ".." ||
+		strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative) {
+		return fmt.Errorf("PROJECT 程序入口路径非法: %q", project.EntryPoint)
+	}
+	info, err := os.Stat(entryPoint)
+	if err != nil {
+		return fmt.Errorf("访问 PROJECT 程序入口失败: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("PROJECT 程序入口不是普通文件: %s", project.EntryPoint)
+	}
+	w.programRoot = root
+	w.entryPoint = entryPoint
+	w.artifacts.project = root
+	return nil
+}
+
+func validateProgramEntryPoint(value string) error {
+	if value == "" || strings.TrimSpace(value) != value || strings.ContainsAny(value, "\\\x00") ||
+		strings.HasPrefix(value, "/") || path.Clean(value) != value || value == "." || value == ".." ||
+		strings.HasPrefix(value, "../") {
+		return fmt.Errorf("PROJECT 程序入口路径非法: %q", value)
+	}
 	return nil
 }
 
@@ -187,12 +244,12 @@ func validateDependencyName(name string) error {
 	return nil
 }
 
-func (w *workspace) Root() string {
-	return w.root
+func (w *workspace) ProgramRoot() string {
+	return w.programRoot
 }
 
-func (w *workspace) CodeFile() string {
-	return w.codeFile
+func (w *workspace) EntryPoint() string {
+	return w.entryPoint
 }
 
 func (w *workspace) Environment() []string {

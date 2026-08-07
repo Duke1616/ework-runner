@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package etask.task.v1;
 
-option go_package = "etask/task/v1;task";
+option go_package = "etask/task/v1;taskv1";
 
 // TaskType 任务类型
 enum TaskType {
@@ -27,6 +27,24 @@ enum TaskErrorCode {
   DUPLICATE_NAME = 1001; // 任务名称重复
   TASK_NOT_FOUND = 1002; // 任务不存在
   TASK_RUNNING = 1003; // 任务正在运行中，无法重试
+}
+
+message ProgramSpec {
+  oneof source {
+    InlineProgramSpec inline = 1;
+    ProjectProgramSpec project = 2;
+  }
+}
+
+message InlineProgramSpec {
+  oneof source {
+    string code = 1;
+    int64 codebook_id = 2;
+  }
+}
+
+message ProjectProgramSpec {
+  int64 entry_codebook_id = 1;
 }
 
 // GrpcConfig gRPC配置
@@ -77,6 +95,7 @@ message Task {
   int64 utime = 15; // 更新时间戳
   ExecMode exec_mode = 16; // 执行模式 (PUSH 或 PULL)
   map<string, string> metadata = 17; // 任务参数元数据(存储绑定关系等)
+  ProgramSpec program = 18; // 用户声明的程序来源
 }
 
 // CreateTaskRequest 创建任务请求
@@ -91,6 +110,7 @@ message CreateTaskRequest {
   map<string, string> schedule_params = 8; // 调度参数(如分页偏移量、处理进度等)
   ExecMode exec_mode = 9; // 执行模式
   map<string, string> metadata = 10; // 任务参数元数据
+  ProgramSpec program = 11; // 用户声明的程序来源
 }
 
 message CreateTaskResponse {

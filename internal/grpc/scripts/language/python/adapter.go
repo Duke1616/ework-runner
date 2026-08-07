@@ -40,7 +40,7 @@ func (a *Adapter) Extension() string {
 
 // Metadata 返回 Python 脚本参数元数据。
 func (a *Adapter) Metadata() []executor.Parameter {
-	return language.Metadata("python")
+	return language.Metadata()
 }
 
 // Prepare 创建 Python 命令，并通过受控文件传递参数和变量。
@@ -50,7 +50,7 @@ func (a *Adapter) Prepare(ctx context.Context, workspace engine.Workspace,
 	if err != nil {
 		return engine.PreparedCommand{}, err
 	}
-	command := exec.CommandContext(ctx, a.binary, workspace.CodeFile())
+	command := exec.CommandContext(ctx, a.binary, workspace.EntryPoint())
 	return engine.PreparedCommand{
 		Command: language.ConfigureCancellation(command), Environment: environment,
 	}, nil

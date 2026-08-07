@@ -4,7 +4,7 @@ package etask.executor.v1;
 
 import "etask/artifact/v1/artifact.proto";
 
-option go_package = "etask/executor/v1;executor";
+option go_package = "etask/executor/v1;executorv1";
 
 enum ExecutionStatus {
   UNKNOWN = 0; // 未知状态
@@ -65,8 +65,39 @@ message ExecuteRequest {
   // 即包含了业务参数和调度参数 (e.g., offset, limit)
   map<string, string> params = 5;
   int64 tenant_id = 6; // 租户ID，用于多租户上下文透传
-  // 可选的代码制品层；为空时保持原有单文件运行方式。
+  // 可选的 SYSTEM 和具名依赖制品层。
   repeated etask.artifact.v1.ArtifactRef artifacts = 7;
+  // 可选的程序来源；非程序型 Handler 不需要设置。
+  ProgramSource program = 8;
+}
+
+// ProgramSource 使用 oneof 明确表达 INLINE 与 PROJECT 两种互斥来源。
+message ProgramSource {
+  oneof source {
+    InlineProgramSource inline = 1;
+    ProjectProgramSource project = 2;
+  }
+}
+
+message InlineProgramSource {
+  string code = 1;
+}
+
+message ProjectProgramSource {
+  ProjectSourceRef source = 1;
+  string entry_point = 2;
+}
+
+// ProjectSourceRef 描述一次 PROJECT 执行固定使用的不可变项目源码。
+message ProjectSourceRef {
+  int64 source_id = 1;
+  int64 project_id = 2;
+  int64 source_revision = 3;
+  string digest = 4;
+  string blob_checksum = 5;
+  int64 size = 6;
+  string format = 7;
+  int32 format_version = 8;
 }
 
 message ExecuteResponse {

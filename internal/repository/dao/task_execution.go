@@ -45,6 +45,7 @@ type TaskExecution struct {
 	TaskScheduleNodeID      string                                 `gorm:"type:varchar(255);not null;comment:'创建此执行的调度节点ID'"`
 	TaskScheduleParams      sqlx.JSONColumn[map[string]string]     `gorm:"type:json;comment:'创建时Task的调度参数快照'"`
 	Artifact                sqlx.JSONColumn[[]domain.ArtifactRef]  `gorm:"type:json;comment:'本次执行固定的代码制品层'"`
+	Program                 sqlx.JSONColumn[domain.Program]        `gorm:"type:json;comment:'本次执行固定的程序来源'"`
 	ExecutionRoute          sqlx.JSONColumn[domain.ExecutionRoute] `gorm:"type:json;comment:'本次执行固定的传输和派发路由'"`
 
 	// 下面这些是 TaskExecution 的自身信息

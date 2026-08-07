@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/Duke1616/etask/internal/grpc/scripts/engine"
+	"github.com/Duke1616/etask/sdk/executor"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,13 +24,13 @@ func TestSandboxWorkspaceProjectsArtifactsWithoutCacheMutation(t *testing.T) {
 	)
 	require.NoError(t, err)
 	workspace, err := factory.Create(engine.WorkspaceOptions{
-		ExecutionID: 1, Extension: ".sh", Code: []byte("echo ok\n"),
-		Artifacts: engine.ArtifactRoots{System: source},
+		ExecutionID: 1, Extension: ".sh", Program: inlineProgram("echo ok\n"),
+		Artifacts: executor.ArtifactRoots{Default: source},
 	})
 	require.NoError(t, err)
 	defer func() { require.NoError(t, workspace.Close()) }()
 
-	projectedRoot := filepath.Join(workspace.Root(), "system")
+	projectedRoot := filepath.Join(workspace.ProgramRoot(), "system")
 	info, err := os.Lstat(projectedRoot)
 	require.NoError(t, err)
 	require.NotEqual(t, os.ModeSymlink, info.Mode()&os.ModeSymlink)
@@ -41,10 +42,10 @@ func TestSandboxWorkspaceProjectsArtifactsWithoutCacheMutation(t *testing.T) {
 	content, err := os.ReadFile(sourceFile)
 	require.NoError(t, err)
 	require.Equal(t, "original\n", string(content))
-	requireEnvironment(t, workspace.Environment(), "HOME", workspace.Root())
-	requireEnvironment(t, workspace.Environment(), "TMPDIR", filepath.Join(workspace.Root(), "tmp"))
+	requireEnvironment(t, workspace.Environment(), "HOME", workspace.ProgramRoot())
+	requireEnvironment(t, workspace.Environment(), "TMPDIR", filepath.Join(workspace.ProgramRoot(), "tmp"))
 	requireEnvironment(t, workspace.Environment(), "PYTHONDONTWRITEBYTECODE", "1")
-	require.DirExists(t, filepath.Join(workspace.Root(), "tmp"))
+	require.DirExists(t, filepath.Join(workspace.ProgramRoot(), "tmp"))
 }
 
 func TestSandboxWorkspacePreservesNamedArtifactLayout(t *testing.T) {
@@ -53,15 +54,15 @@ func TestSandboxWorkspacePreservesNamedArtifactLayout(t *testing.T) {
 	)
 	require.NoError(t, err)
 	workspace, err := factory.Create(engine.WorkspaceOptions{
-		ExecutionID: 1, Extension: ".py", Code: []byte("print('ok')\n"),
-		Artifacts: engine.ArtifactRoots{Named: map[string]string{
+		ExecutionID: 1, Extension: ".py", Program: inlineProgram("print('ok')\n"),
+		Artifacts: executor.ArtifactRoots{Named: map[string]string{
 			"ops_common": createPythonArtifact(t, "named"),
 		}},
 	})
 	require.NoError(t, err)
 	defer func() { require.NoError(t, workspace.Close()) }()
 	require.FileExists(t, filepath.Join(
-		workspace.Root(), "dependencies", "python", "ops_common", "private", "util.py",
+		workspace.ProgramRoot(), "dependencies", "python", "ops_common", "private", "util.py",
 	))
 }
 
@@ -73,8 +74,8 @@ func TestSandboxWorkspaceRejectsArtifactSymlinkCycle(t *testing.T) {
 	)
 	require.NoError(t, err)
 	_, err = factory.Create(engine.WorkspaceOptions{
-		ExecutionID: 1, Extension: ".sh", Code: []byte("echo ok\n"),
-		Artifacts: engine.ArtifactRoots{System: source},
+		ExecutionID: 1, Extension: ".sh", Program: inlineProgram("echo ok\n"),
+		Artifacts: executor.ArtifactRoots{Default: source},
 	})
 	require.ErrorContains(t, err, "循环链接")
 }

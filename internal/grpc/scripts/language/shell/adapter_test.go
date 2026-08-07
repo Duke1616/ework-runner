@@ -14,8 +14,8 @@ type workspaceStub struct {
 	code string
 }
 
-func (w *workspaceStub) Root() string          { return w.root }
-func (w *workspaceStub) CodeFile() string      { return w.code }
+func (w *workspaceStub) ProgramRoot() string   { return w.root }
+func (w *workspaceStub) EntryPoint() string    { return w.code }
 func (w *workspaceStub) Environment() []string { return os.Environ() }
 func (w *workspaceStub) Close() error          { return nil }
 func (w *workspaceStub) WriteFile(name string, content []byte, mode os.FileMode) (string, error) {

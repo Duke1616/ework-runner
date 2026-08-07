@@ -7,15 +7,15 @@ import (
 )
 
 type executionRequest struct {
-	code      string
+	program   *executor.Program
 	args      string
 	variables string
 }
 
 func resolveRequest(task *executor.Context, adapterName string, config Config) (executionRequest, error) {
-	code, err := task.GetResolvedParam("code")
-	if err != nil {
-		return executionRequest{}, fmt.Errorf("解析代码参数失败: %w", err)
+	program := task.Program()
+	if program == nil {
+		return executionRequest{}, fmt.Errorf("[%s] 程序来源不能为空", adapterName)
 	}
 	args, err := task.GetResolvedParam("args")
 	if err != nil {
@@ -25,15 +25,11 @@ func resolveRequest(task *executor.Context, adapterName string, config Config) (
 	if err != nil {
 		return executionRequest{}, fmt.Errorf("解析变量参数失败: %w", err)
 	}
-	if code == "" {
-		return executionRequest{}, fmt.Errorf("[%s] 代码参数不能为空", adapterName)
-	}
 	checks := []struct {
 		name  string
 		value string
 		limit int64
 	}{
-		{name: "代码", value: code, limit: config.MaxCodeSize},
 		{name: "运行参数", value: args, limit: config.MaxArgsSize},
 		{name: "运行变量", value: variables, limit: config.MaxVariablesSize},
 	}
@@ -42,5 +38,11 @@ func resolveRequest(task *executor.Context, adapterName string, config Config) (
 			return executionRequest{}, fmt.Errorf("%s大小超过限制: %d > %d 字节", check.name, len(check.value), check.limit)
 		}
 	}
-	return executionRequest{code: code, args: args, variables: variables}, nil
+	if program.Kind == executor.ProgramKindInline {
+		if int64(len(program.Inline.Code)) > config.MaxCodeSize {
+			return executionRequest{}, fmt.Errorf("代码大小超过限制: %d > %d 字节",
+				len(program.Inline.Code), config.MaxCodeSize)
+		}
+	}
+	return executionRequest{program: program, args: args, variables: variables}, nil
 }

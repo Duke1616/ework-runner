@@ -10,17 +10,18 @@ import (
 
 // Prepared 描述任务可直接使用的不可变缓存目录。
 type Prepared struct {
-	roots executor.ArtifactRoots
+	sourceRoot string
+	roots      executor.ArtifactRoots
+}
+
+// SourceRoot 返回已准备的程序项目来源目录。
+func (p Prepared) SourceRoot() string {
+	return p.sourceRoot
 }
 
 // Roots 返回 Handler 可读取的制品目录。
 func (p Prepared) Roots() executor.ArtifactRoots {
 	return p.roots
-}
-
-// Close 实现 PreparedArtifacts 契约；不可变缓存层没有任务级资源需要释放。
-func (p Prepared) Close() error {
-	return nil
 }
 
 // Runtime 管理制品缓存和本地物化。
@@ -38,14 +39,20 @@ func (r *Runtime) Prune() error {
 	return r.cache.Prune()
 }
 
-// Prepare 下载任务声明的默认制品层和具名依赖层。
+// Prepare 下载任务声明的项目来源、默认制品层和具名依赖层。
 func (r *Runtime) Prepare(ctx context.Context, downloader executorartifact.Downloader,
-	refs []executorartifact.Ref) (executorartifact.PreparedArtifacts, error) {
-	layers, err := parseLayerSet(refs)
+	source *executorartifact.SourceRef, refs []executorartifact.Ref) (executorartifact.PreparedArtifacts, error) {
+	layers, err := parseLayerSet(source, refs)
 	if err != nil {
 		return nil, err
 	}
 	prepared := Prepared{roots: executor.ArtifactRoots{}}
+	if layers.sourceLayer != nil {
+		prepared.sourceRoot, err = r.cache.Ensure(ctx, downloader, *layers.sourceLayer)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if layers.hasDefault {
 		prepared.roots.Default, err = r.cache.Ensure(ctx, downloader, layers.defaultLayer)
 		if err != nil {

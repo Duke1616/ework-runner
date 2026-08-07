@@ -80,6 +80,7 @@ func (e *Executor) runTask(ctx context.Context, req *executorv1.ExecuteRequest) 
 		}
 	}()
 	// Engine 统一完成制品准备、任务 Context 创建、Handler 调用和现场回收。
+	program, projectSource := programFromProto(req.GetProgram())
 	result, err := e.engine.Execute(ctx, enginepkg.Command{
 		Task: task.TaskInfo{
 			ExecutionID: executionID, TaskID: req.GetTaskId(),
@@ -87,7 +88,8 @@ func (e *Executor) runTask(ctx context.Context, req *executorv1.ExecuteRequest) 
 			ExecutorNodeID: e.config.Server.ServiceId,
 		},
 		Params: req.GetParams(), Parameters: e.handlerMetadata(req.GetTaskHandlerName()),
-		Artifacts: artifactRefs(req.GetArtifacts()), ExecutionLogger: e.newExecutionLogger(ctx, executionID),
+		Program: program, ProjectSource: projectSource, Artifacts: artifactRefs(req.GetArtifacts()),
+		ExecutionLogger: e.newExecutionLogger(ctx, executionID),
 	})
 	e.finishTask(ctx, executionID, result.Value, logger, err)
 }

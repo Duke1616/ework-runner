@@ -11,6 +11,7 @@ import (
 	codebookSvc "github.com/Duke1616/etask/internal/service/codebook"
 	poolSvc "github.com/Duke1616/etask/internal/service/pool"
 	previewSvc "github.com/Duke1616/etask/internal/service/preview"
+	programSvc "github.com/Duke1616/etask/internal/service/program"
 	runnerSvc "github.com/Duke1616/etask/internal/service/runner"
 	submissionSvc "github.com/Duke1616/etask/internal/service/submission"
 	taskSvc "github.com/Duke1616/etask/internal/service/task"
@@ -67,6 +68,7 @@ var (
 		dao.NewGORMCodebookProjectDAO,
 		repository.NewCodebookRepository,
 		codebookSvc.NewService,
+		wire.Bind(new(programSvc.CodebookReader), new(codebookSvc.Service)),
 		codebookSvc.NewWorkspaceService,
 		wire.Bind(new(codebookSvc.WorkspaceSourceReader), new(repository.ICodebookRepository)),
 		codebookWeb.NewHandler,
@@ -83,11 +85,14 @@ var (
 
 	ArtifactSet = wire.NewSet(
 		dao.NewGORMArtifactDAO,
+		dao.NewGORMProjectSourceDAO,
 		repository.NewArtifactRepository,
+		repository.NewProjectSourceRepository,
 		InitArtifactConfig,
 		InitArtifactArchive,
 		InitArtifactStore,
 		artifactSvc.NewService,
+		programSvc.NewService,
 		wire.Bind(new(codebookSvc.WorkspaceArtifactReader), new(artifactSvc.Service)),
 		artifactWeb.NewHandler,
 	)

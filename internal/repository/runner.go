@@ -27,6 +27,8 @@ type RunnerRepository interface {
 	Delete(ctx context.Context, id int64) (int64, error)
 	// FindByID 根据主键 ID 加载执行单元。
 	FindByID(ctx context.Context, id int64) (domain.Runner, error)
+	// FindForExecution 加载执行单元及其全局和私有有效变量。
+	FindForExecution(ctx context.Context, id int64) (domain.Runner, error)
 	// List 分页查询执行单元。
 	List(ctx context.Context, offset, limit int64, keyword, kind string) ([]domain.Runner, error)
 	// Count 统计匹配条件的执行单元总数。
@@ -89,6 +91,19 @@ func (repo *runnerRepository) FindByID(ctx context.Context, id int64) (domain.Ru
 	}
 	res := repo.toDomain(r)
 	res.Variables, err = repo.listRunnerVariables(ctx, id)
+	if err != nil {
+		return domain.Runner{}, err
+	}
+	return res, nil
+}
+
+func (repo *runnerRepository) FindForExecution(ctx context.Context, id int64) (domain.Runner, error) {
+	r, err := repo.runnerDAO.FindByID(ctx, id)
+	if err != nil {
+		return domain.Runner{}, err
+	}
+	res := repo.toDomain(r)
+	res.Variables, err = repo.ListMergedVariables(ctx, id)
 	if err != nil {
 		return domain.Runner{}, err
 	}

@@ -9,6 +9,7 @@ import (
 
 	executorv1 "github.com/Duke1616/etask/api/proto/gen/etask/executor/v1"
 	"github.com/Duke1616/etask/internal/domain"
+	programmapper "github.com/Duke1616/etask/internal/execution/program"
 	"github.com/Duke1616/etask/pkg/grpc/balancer"
 	"github.com/Duke1616/etask/pkg/grpc/pool"
 	"github.com/gotomicro/ego/core/elog"
@@ -41,6 +42,10 @@ func (r *GRPCInvoker) Run(ctx context.Context, exec domain.TaskExecution) (domai
 	if err != nil {
 		return domain.ExecutionState{}, fmt.Errorf("执行制品引用非法: %w", err)
 	}
+	program, err := programmapper.ToProto(exec.Program)
+	if err != nil {
+		return domain.ExecutionState{}, fmt.Errorf("执行程序来源非法: %w", err)
+	}
 	// 获取 client
 	client := r.grpcClients.Get(exec.Task.GrpcConfig.ServiceName)
 
@@ -56,6 +61,7 @@ func (r *GRPCInvoker) Run(ctx context.Context, exec domain.TaskExecution) (domai
 		Params:          exec.GRPCParams(),
 		TenantId:        exec.Task.TenantID,
 		Artifacts:       artifacts,
+		Program:         program,
 	})
 
 	if err != nil {

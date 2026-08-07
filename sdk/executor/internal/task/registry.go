@@ -67,11 +67,15 @@ func (r *HandlerRegistry) ListMetas() []HandlerMeta {
 	handlers := r.Snapshot()
 	metas := make([]HandlerMeta, 0, len(handlers))
 	for _, h := range handlers {
-		metas = append(metas, HandlerMeta{
+		meta := HandlerMeta{
 			Name:     h.Name(),
 			Desc:     h.Desc(),
 			Metadata: h.Metadata(),
-		})
+		}
+		if programHandler, ok := h.(ProgramHandler); ok {
+			meta.ProgramKinds = append([]ProgramKind(nil), programHandler.ProgramKinds()...)
+		}
+		metas = append(metas, meta)
 	}
 	sort.Slice(metas, func(i, j int) bool { return metas[i].Name < metas[j].Name })
 	return metas

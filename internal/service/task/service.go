@@ -58,6 +58,9 @@ func NewService(repo repository.TaskRepository, bindingSvc poolSvc.BindingServic
 }
 
 func (s *service) Create(ctx context.Context, task domain.Task) (domain.Task, error) {
+	if err := validateProgramConfig(task); err != nil {
+		return domain.Task{}, err
+	}
 	if err := s.AuthorizeExecutionPool(ctx, task); err != nil {
 		return domain.Task{}, err
 	}
@@ -172,6 +175,9 @@ func (s *service) Update(ctx context.Context, task domain.Task) error {
 	if task.TenantID == 0 {
 		task.TenantID = oldTask.TenantID
 	}
+	if err = validateProgramConfig(task); err != nil {
+		return err
+	}
 	if err = s.AuthorizeExecutionPool(ctx, task); err != nil {
 		return err
 	}
@@ -186,6 +192,16 @@ func (s *service) Update(ctx context.Context, task domain.Task) error {
 	}
 
 	return s.repo.Update(ctx, task)
+}
+
+func validateProgramConfig(task domain.Task) error {
+	if task.Program == nil {
+		return nil
+	}
+	if err := task.Program.Validate(); err != nil {
+		return fmt.Errorf("程序配置非法: %w", err)
+	}
+	return nil
 }
 
 func (s *service) setNextScheduleTime(task *domain.Task) error {

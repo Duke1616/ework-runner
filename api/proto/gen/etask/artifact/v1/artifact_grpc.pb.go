@@ -19,7 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ArtifactService_DownloadArtifact_FullMethodName = "/etask.artifact.v1.ArtifactService/DownloadArtifact"
+	ArtifactService_DownloadArtifact_FullMethodName      = "/etask.artifact.v1.ArtifactService/DownloadArtifact"
+	ArtifactService_DownloadProjectSource_FullMethodName = "/etask.artifact.v1.ArtifactService/DownloadProjectSource"
 )
 
 // ArtifactServiceClient is the client API for ArtifactService service.
@@ -30,6 +31,8 @@ const (
 type ArtifactServiceClient interface {
 	// DownloadArtifact 根据发布记录和内容摘要流式下载不可变制品。
 	DownloadArtifact(ctx context.Context, in *DownloadArtifactRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ArtifactChunk], error)
+	// DownloadProjectSource 下载一次 PROJECT 执行固定使用的不可变项目源码。
+	DownloadProjectSource(ctx context.Context, in *DownloadProjectSourceRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ArtifactChunk], error)
 }
 
 type artifactServiceClient struct {
@@ -59,6 +62,25 @@ func (c *artifactServiceClient) DownloadArtifact(ctx context.Context, in *Downlo
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type ArtifactService_DownloadArtifactClient = grpc.ServerStreamingClient[ArtifactChunk]
 
+func (c *artifactServiceClient) DownloadProjectSource(ctx context.Context, in *DownloadProjectSourceRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ArtifactChunk], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &ArtifactService_ServiceDesc.Streams[1], ArtifactService_DownloadProjectSource_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[DownloadProjectSourceRequest, ArtifactChunk]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ArtifactService_DownloadProjectSourceClient = grpc.ServerStreamingClient[ArtifactChunk]
+
 // ArtifactServiceServer is the server API for ArtifactService service.
 // All implementations must embed UnimplementedArtifactServiceServer
 // for forward compatibility.
@@ -67,6 +89,8 @@ type ArtifactService_DownloadArtifactClient = grpc.ServerStreamingClient[Artifac
 type ArtifactServiceServer interface {
 	// DownloadArtifact 根据发布记录和内容摘要流式下载不可变制品。
 	DownloadArtifact(*DownloadArtifactRequest, grpc.ServerStreamingServer[ArtifactChunk]) error
+	// DownloadProjectSource 下载一次 PROJECT 执行固定使用的不可变项目源码。
+	DownloadProjectSource(*DownloadProjectSourceRequest, grpc.ServerStreamingServer[ArtifactChunk]) error
 	mustEmbedUnimplementedArtifactServiceServer()
 }
 
@@ -79,6 +103,9 @@ type UnimplementedArtifactServiceServer struct{}
 
 func (UnimplementedArtifactServiceServer) DownloadArtifact(*DownloadArtifactRequest, grpc.ServerStreamingServer[ArtifactChunk]) error {
 	return status.Error(codes.Unimplemented, "method DownloadArtifact not implemented")
+}
+func (UnimplementedArtifactServiceServer) DownloadProjectSource(*DownloadProjectSourceRequest, grpc.ServerStreamingServer[ArtifactChunk]) error {
+	return status.Error(codes.Unimplemented, "method DownloadProjectSource not implemented")
 }
 func (UnimplementedArtifactServiceServer) mustEmbedUnimplementedArtifactServiceServer() {}
 func (UnimplementedArtifactServiceServer) testEmbeddedByValue()                         {}
@@ -112,6 +139,17 @@ func _ArtifactService_DownloadArtifact_Handler(srv interface{}, stream grpc.Serv
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type ArtifactService_DownloadArtifactServer = grpc.ServerStreamingServer[ArtifactChunk]
 
+func _ArtifactService_DownloadProjectSource_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(DownloadProjectSourceRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(ArtifactServiceServer).DownloadProjectSource(m, &grpc.GenericServerStream[DownloadProjectSourceRequest, ArtifactChunk]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ArtifactService_DownloadProjectSourceServer = grpc.ServerStreamingServer[ArtifactChunk]
+
 // ArtifactService_ServiceDesc is the grpc.ServiceDesc for ArtifactService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -123,6 +161,11 @@ var ArtifactService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "DownloadArtifact",
 			Handler:       _ArtifactService_DownloadArtifact_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "DownloadProjectSource",
+			Handler:       _ArtifactService_DownloadProjectSource_Handler,
 			ServerStreams: true,
 		},
 	},

@@ -285,6 +285,11 @@ func (r *taskExecutionRepository) toEntity(execution domain.TaskExecution) dao.T
 		executionRoute = sqlx.JSONColumn[domain.ExecutionRoute]{Val: execution.Route, Valid: true}
 	}
 
+	var program sqlx.JSONColumn[domain.Program]
+	if execution.Program != nil {
+		program = sqlx.JSONColumn[domain.Program]{Val: *execution.Program, Valid: true}
+	}
+
 	var executorNodeID sql.NullString
 	if execution.ExecutorNodeID != "" {
 		executorNodeID = sql.NullString{String: execution.ExecutorNodeID, Valid: true}
@@ -308,6 +313,7 @@ func (r *taskExecutionRepository) toEntity(execution domain.TaskExecution) dao.T
 		TaskScheduleNodeID:      execution.Task.ScheduleNodeID,
 		TaskScheduleParams:      taskScheduleParams,
 		Artifact:                artifact,
+		Program:                 program,
 		ExecutionRoute:          executionRoute,
 		// TaskExecution自身字段
 		Deadline:        execution.Deadline,
@@ -356,6 +362,11 @@ func (r *taskExecutionRepository) toDomain(daoExecution dao.TaskExecution) domai
 		executionRoute = daoExecution.ExecutionRoute.Val
 	}
 
+	var program *domain.Program
+	if daoExecution.Program.Valid {
+		program = &daoExecution.Program.Val
+	}
+
 	var executorNodeID string
 	if daoExecution.ExecutorNodeID.Valid {
 		executorNodeID = daoExecution.ExecutorNodeID.String
@@ -392,6 +403,7 @@ func (r *taskExecutionRepository) toDomain(daoExecution dao.TaskExecution) domai
 		Status:          domain.TaskExecutionStatus(daoExecution.Status),
 		TaskResult:      daoExecution.TaskResult,
 		Artifacts:       artifacts,
+		Program:         program,
 		Route:           executionRoute,
 		CTime:           daoExecution.Ctime,
 		UTime:           daoExecution.Utime,

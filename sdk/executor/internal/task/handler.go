@@ -18,6 +18,13 @@ type Parameter struct {
 	Default  string             `json:"default"`
 }
 
+// ProgramHandler 声明 Handler 支持的程序来源类型。
+// 未实现该接口的 Handler 不要求调度任务提供 ProgramSpec。
+type ProgramHandler interface {
+	// ProgramKinds 返回 Handler 支持的程序来源类型。
+	ProgramKinds() []ProgramKind
+}
+
 // Binding 定义运行阶段的参数绑定解析行为。
 type Binding interface {
 	// Resolve 根据原始值解析并返回任务处理器实际使用的参数。
@@ -55,7 +62,8 @@ type TaskHandler interface {
 
 // HandlerMeta 是用于注册中心和管理页面展示的处理器元数据。
 type HandlerMeta struct {
-	Name     string      `json:"name"`
-	Desc     string      `json:"desc"`
-	Metadata []Parameter `json:"metadata"`
+	Name         string        `json:"name"`
+	Desc         string        `json:"desc"`
+	Metadata     []Parameter   `json:"metadata"`
+	ProgramKinds []ProgramKind `json:"program_kinds,omitempty"`
 }

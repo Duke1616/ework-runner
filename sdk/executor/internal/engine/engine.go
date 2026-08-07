@@ -16,6 +16,8 @@ type Command struct {
 	Params          map[string]string
 	Metadata        map[string]string
 	Parameters      []task.Parameter
+	Program         *task.Program
+	ProjectSource   *artifact.SourceRef
 	Artifacts       []artifact.Ref
 	ExecutionLogger task.ExecutionLogger
 }
@@ -92,19 +94,19 @@ func (e *Engine) Execute(ctx context.Context, command Command) (result Result, e
 		}
 	}()
 
-	// 准备器返回本次任务固定的制品根；Close 释放实现可能持有的任务级资源。
+	// 准备器返回本次任务固定的制品根。
 	prepared, err := e.prepareArtifacts(ctx, command)
 	if err != nil {
 		return Result{}, err
 	}
 	if prepared != nil {
-		defer func() {
-			if closeErr := prepared.Close(); closeErr != nil {
-				err = errors.Join(err, fmt.Errorf("清理制品运行现场失败: %w", closeErr))
-			}
-		}()
 		taskCtx.SetArtifactRoots(prepared.Roots())
 	}
+	program, err := prepareProgram(command.Program, prepared)
+	if err != nil {
+		return Result{}, err
+	}
+	taskCtx.SetProgram(program)
 	// Handler 只接触稳定的 Context，不感知下载、缓存和传输协议。
 	if err = handler.Run(taskCtx); err != nil {
 		value, resultErr := taskCtx.Result()
@@ -112,6 +114,22 @@ func (e *Engine) Execute(ctx context.Context, command Command) (result Result, e
 	}
 	value, err := taskCtx.Result()
 	return Result{Value: value}, err
+}
+
+func prepareProgram(program *task.Program, artifacts artifact.PreparedArtifacts) (*task.Program, error) {
+	if program == nil {
+		return nil, nil
+	}
+	if err := program.Validate(); err != nil {
+		return nil, err
+	}
+	if program.Kind == task.ProgramProject {
+		if artifacts == nil || artifacts.SourceRoot() == "" {
+			return nil, fmt.Errorf("PROJECT 程序缺少已准备的来源目录")
+		}
+		program.Project.Root = artifacts.SourceRoot()
+	}
+	return program, nil
 }
 
 // Prune 清理制品准备器维护的本地缓存。
@@ -123,13 +141,13 @@ func (e *Engine) Prune() error {
 }
 
 func (e *Engine) prepareArtifacts(ctx context.Context, command Command) (artifact.PreparedArtifacts, error) {
-	if len(command.Artifacts) == 0 {
+	if command.ProjectSource == nil && len(command.Artifacts) == 0 {
 		return nil, nil
 	}
 	if e.artifacts == nil {
 		return nil, fmt.Errorf("任务声明了制品，但执行引擎未配置制品准备器")
 	}
-	prepared, err := e.artifacts.Prepare(ctx, e.downloader, command.Artifacts)
+	prepared, err := e.artifacts.Prepare(ctx, e.downloader, command.ProjectSource, command.Artifacts)
 	if err != nil {
 		return nil, fmt.Errorf("准备代码制品失败: %w", err)
 	}

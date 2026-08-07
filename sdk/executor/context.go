@@ -13,10 +13,23 @@ type (
 	ExecutionLogger = task.ExecutionLogger
 	// SystemLogger 定义 Executor 和 Handler 的结构化内部诊断日志端口。
 	SystemLogger = task.SystemLogger
-	// ArtifactRoots 描述 Executor 为任务准备的默认层和具名层。
+	// ArtifactRoots 描述 Executor 为任务准备的默认层和具名依赖层。
 	ArtifactRoots = task.ArtifactRoots
+	// Program 描述 Executor 为 Handler 准备好的完整程序输入。
+	Program = task.Program
+	// ProgramKind 描述程序形态。
+	ProgramKind = task.ProgramKind
+	// InlineProgram 描述内联程序代码。
+	InlineProgram = task.InlineProgram
+	// ProjectProgram 描述已准备项目的根目录和入口。
+	ProjectProgram = task.ProjectProgram
 	// ProgressReporter 定义任务进度的运行环境上报能力。
 	ProgressReporter = task.ProgressReporter
+)
+
+const (
+	ProgramKindInline  = task.ProgramInline
+	ProgramKindProject = task.ProgramProject
 )
 
 // NewContext 创建任务处理器上下文。

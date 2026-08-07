@@ -31,14 +31,14 @@ func TestHandlerRun(t *testing.T) {
 	}{
 		{
 			name:   "成功执行后归档并清理工作区",
-			params: map[string]string{"code": "echo ok", "args": `{}`, "variables": `[]`},
+			params: map[string]string{"args": `{}`, "variables": `[]`},
 			adapter: adapterFake{command: func(ctx context.Context) *exec.Cmd {
 				return exec.CommandContext(ctx, "/bin/sh", "-c", "printf ok")
 			}},
 		},
 		{
 			name:   "失败执行记录失败归档",
-			params: map[string]string{"code": "exit 1", "args": `{}`, "variables": `[]`},
+			params: map[string]string{"args": `{}`, "variables": `[]`},
 			adapter: adapterFake{command: func(ctx context.Context) *exec.Cmd {
 				return exec.CommandContext(ctx, "/bin/sh", "-c", "exit 1")
 			}},
@@ -46,7 +46,7 @@ func TestHandlerRun(t *testing.T) {
 		},
 		{
 			name:   "输入超限时不创建工作区",
-			params: map[string]string{"code": "12345"},
+			params: map[string]string{},
 			adapter: adapterFake{command: func(ctx context.Context) *exec.Cmd {
 				return exec.CommandContext(ctx, "/bin/sh", "-c", "exit 0")
 			}},
@@ -75,6 +75,16 @@ func TestHandlerRun(t *testing.T) {
 			current.task = executor.NewContext(executor.ContextOptions{
 				Context: t.Context(), Task: executor.TaskInfo{ExecutionID: 9, TaskID: 1, Name: "test", Handler: "shell"},
 				Params: tc.params, ExecutionLogger: &executionLoggerFake{},
+			})
+			code := "echo ok"
+			if tc.wantFailed {
+				code = "exit 1"
+			}
+			if tc.wantError == "代码大小超过限制" {
+				code = "12345"
+			}
+			current.task.SetProgram(&executor.Program{
+				Kind: executor.ProgramKindInline, Inline: &executor.InlineProgram{Code: code},
 			})
 			if tc.before != nil {
 				tc.before(t, current)
@@ -112,15 +122,15 @@ type workspaceFake struct {
 
 func (w *workspaceFake) Create(options WorkspaceOptions) (Workspace, error) {
 	w.created = true
-	if err := os.WriteFile(w.code, options.Code, 0o700); err != nil {
+	if err := os.WriteFile(w.code, []byte(options.Program.Inline.Code), 0o700); err != nil {
 		return nil, err
 	}
 	return w, nil
 }
 func (w *workspaceFake) Prune() error          { return nil }
 func (w *workspaceFake) Validate() error       { return nil }
-func (w *workspaceFake) Root() string          { return w.root }
-func (w *workspaceFake) CodeFile() string      { return w.code }
+func (w *workspaceFake) ProgramRoot() string   { return w.root }
+func (w *workspaceFake) EntryPoint() string    { return w.code }
 func (w *workspaceFake) Environment() []string { return os.Environ() }
 func (w *workspaceFake) Close() error          { w.closed = true; return nil }
 func (w *workspaceFake) WriteFile(name string, content []byte, mode os.FileMode) (string, error) {

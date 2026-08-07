@@ -19,11 +19,13 @@ func TestHandlerRegistry(t *testing.T) {
 		{
 			name: "注册结果按名称稳定排序",
 			before: func(registry *HandlerRegistry) {
-				_ = registry.Register(handlerStub{name: "python"}, handlerStub{name: "shell"})
+				_ = registry.Register(handlerStub{name: "python"}, programHandlerStub{handlerStub{name: "shell"}})
 			},
 			assertions: func(t *testing.T, registry *HandlerRegistry) {
 				require.Equal(t, []string{"python", "shell"}, registry.Names())
 				require.Equal(t, "python", registry.ListMetas()[0].Name)
+				require.Empty(t, registry.ListMetas()[0].ProgramKinds)
+				require.Equal(t, []ProgramKind{ProgramInline, ProgramProject}, registry.ListMetas()[1].ProgramKinds)
 			},
 		},
 		{
@@ -87,3 +89,11 @@ func (h handlerStub) Metadata() []Parameter { return nil }
 func (h handlerStub) Run(*Context) error    { return nil }
 
 var _ TaskHandler = handlerStub{}
+
+type programHandlerStub struct{ handlerStub }
+
+func (programHandlerStub) ProgramKinds() []ProgramKind {
+	return []ProgramKind{ProgramInline, ProgramProject}
+}
+
+var _ ProgramHandler = programHandlerStub{}
