@@ -210,7 +210,10 @@ type ArtifactStatus struct {
 
 // ArtifactFile 是构建制品时使用的文件快照。
 type ArtifactFile struct {
-	Path string
-	Hash string
-	Code string
+	Path        string
+	Hash        string
+	Code        string
+	StorageType CodebookContentStorage
+	ObjectKey   string
+	Size        int64
 }

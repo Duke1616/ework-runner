@@ -5,6 +5,7 @@ package task
 import (
 	"fmt"
 	"strings"
+	"sync"
 )
 
 // ExecutionLogger 定义用户可见的任务执行日志写入和关闭行为。
@@ -17,22 +18,42 @@ type ExecutionLogger interface {
 
 type maskingExecutionLogger struct {
 	next  ExecutionLogger
+	mu    sync.RWMutex
 	masks []string
 }
 
 func newMaskingExecutionLogger(next ExecutionLogger, masks []string) ExecutionLogger {
-	if len(masks) == 0 {
-		return next
-	}
-	return &maskingExecutionLogger{next: next, masks: masks}
+	return &maskingExecutionLogger{next: next, masks: append([]string(nil), masks...)}
 }
 
 func (l *maskingExecutionLogger) Log(format string, args ...any) {
 	message := fmt.Sprintf(format, args...)
+	l.mu.RLock()
 	for _, mask := range l.masks {
 		message = strings.ReplaceAll(message, mask, "[MASKED]")
 	}
+	l.mu.RUnlock()
 	l.next.Log("%s", message)
+}
+
+func (l *maskingExecutionLogger) AddMasks(masks ...string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for _, mask := range masks {
+		if mask == "" || containsString(l.masks, mask) {
+			continue
+		}
+		l.masks = append(l.masks, mask)
+	}
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }
 
 func (l *maskingExecutionLogger) Close() {

@@ -16,7 +16,7 @@ COPY ./third_party ./third_party
 RUN pip install --upgrade pip -i https://pypi.tuna.tsinghua.edu.cn/simple --no-cache-dir \
     && pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -r /app/third_party/requirements.txt \
     && apt-get update \
-    && apt-get install --no-install-recommends vim jq curl -y \
+    && apt-get install --no-install-recommends vim jq curl openssh-client sshpass -y \
     && rm -rf /var/lib/apt/lists/*
 EXPOSE 8765 9002 9004
 

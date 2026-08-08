@@ -32,12 +32,30 @@ type ArchiveConfig struct {
 	MaxSize    int64         `mapstructure:"max_size" yaml:"max_size"`
 }
 
+// AnsibleConfig 配置 Ansible 命令和 Agent 本地连接凭据。
+type AnsibleConfig struct {
+	Binary         string                             `mapstructure:"binary" yaml:"binary"`
+	SSHPassBinary  string                             `mapstructure:"sshpass_binary" yaml:"sshpass_binary"`
+	CredentialRoot string                             `mapstructure:"credential_root" yaml:"credential_root"`
+	KnownHostsFile string                             `mapstructure:"known_hosts_file" yaml:"known_hosts_file"`
+	Credentials    map[string]AnsibleCredentialConfig `mapstructure:"credentials" yaml:"credentials"`
+}
+
+// AnsibleCredentialConfig 描述一个仅在 Agent 本地解析的 SSH 凭据。
+type AnsibleCredentialConfig struct {
+	Type           string `mapstructure:"type" yaml:"type"`
+	Username       string `mapstructure:"username" yaml:"username"`
+	PrivateKeyFile string `mapstructure:"private_key_file" yaml:"private_key_file"`
+	PasswordFile   string `mapstructure:"password_file" yaml:"password_file"`
+}
+
 // RuntimeConfig 汇总脚本执行编排、工作区、解释器和归档配置。
 type RuntimeConfig struct {
 	WorkspaceDir     string        `mapstructure:"workspace_dir" yaml:"workspace_dir"`
 	WorkspaceMaxAge  time.Duration `mapstructure:"workspace_max_age" yaml:"workspace_max_age"`
 	PythonBinary     string        `mapstructure:"python_binary" yaml:"python_binary"`
 	ShellBinary      string        `mapstructure:"shell_binary" yaml:"shell_binary"`
+	Ansible          AnsibleConfig `mapstructure:"ansible" yaml:"ansible"`
 	MaxCodeSize      int64         `mapstructure:"max_code_size" yaml:"max_code_size"`
 	MaxArgsSize      int64         `mapstructure:"max_args_size" yaml:"max_args_size"`
 	MaxVariablesSize int64         `mapstructure:"max_variables_size" yaml:"max_variables_size"`

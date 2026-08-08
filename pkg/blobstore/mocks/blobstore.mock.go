@@ -14,6 +14,7 @@ import (
 	io "io"
 	reflect "reflect"
 
+	blobstore "github.com/Duke1616/etask/pkg/blobstore"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -39,6 +40,44 @@ func NewMockStore(ctrl *gomock.Controller) *MockStore {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockStore) EXPECT() *MockStoreMockRecorder {
 	return m.recorder
+}
+
+// Delete mocks base method.
+func (m *MockStore) Delete(ctx context.Context, key string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Delete", ctx, key)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Delete indicates an expected call of Delete.
+func (mr *MockStoreMockRecorder) Delete(ctx, key any) *MockStoreDeleteCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockStore)(nil).Delete), ctx, key)
+	return &MockStoreDeleteCall{Call: call}
+}
+
+// MockStoreDeleteCall wrap *gomock.Call
+type MockStoreDeleteCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockStoreDeleteCall) Return(arg0 error) *MockStoreDeleteCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockStoreDeleteCall) Do(f func(context.Context, string) error) *MockStoreDeleteCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockStoreDeleteCall) DoAndReturn(f func(context.Context, string) error) *MockStoreDeleteCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
 }
 
 // Open mocks base method.
@@ -81,17 +120,17 @@ func (c *MockStoreOpenCall) DoAndReturn(f func(context.Context, string) (io.Read
 }
 
 // Put mocks base method.
-func (m *MockStore) Put(ctx context.Context, key string, src io.Reader, size int64, checksum string) error {
+func (m *MockStore) Put(ctx context.Context, key string, src io.Reader, options blobstore.PutOptions) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Put", ctx, key, src, size, checksum)
+	ret := m.ctrl.Call(m, "Put", ctx, key, src, options)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Put indicates an expected call of Put.
-func (mr *MockStoreMockRecorder) Put(ctx, key, src, size, checksum any) *MockStorePutCall {
+func (mr *MockStoreMockRecorder) Put(ctx, key, src, options any) *MockStorePutCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockStore)(nil).Put), ctx, key, src, size, checksum)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockStore)(nil).Put), ctx, key, src, options)
 	return &MockStorePutCall{Call: call}
 }
 
@@ -107,13 +146,13 @@ func (c *MockStorePutCall) Return(arg0 error) *MockStorePutCall {
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockStorePutCall) Do(f func(context.Context, string, io.Reader, int64, string) error) *MockStorePutCall {
+func (c *MockStorePutCall) Do(f func(context.Context, string, io.Reader, blobstore.PutOptions) error) *MockStorePutCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockStorePutCall) DoAndReturn(f func(context.Context, string, io.Reader, int64, string) error) *MockStorePutCall {
+func (c *MockStorePutCall) DoAndReturn(f func(context.Context, string, io.Reader, blobstore.PutOptions) error) *MockStorePutCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

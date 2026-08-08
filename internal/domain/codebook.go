@@ -54,6 +54,20 @@ func (k CodebookKind) Valid() bool {
 	return k == CodebookKindDirectory || k == CodebookKindFile
 }
 
+// CodebookContentStorage 表示代码版本内容的持久化位置。
+type CodebookContentStorage string
+
+const (
+	CodebookContentInline CodebookContentStorage = "INLINE"
+	CodebookContentBlob   CodebookContentStorage = "BLOB"
+)
+
+func (s CodebookContentStorage) String() string { return string(s) }
+
+func (s CodebookContentStorage) Valid() bool {
+	return s == CodebookContentInline || s == CodebookContentBlob
+}
+
 type CodebookProjectStatus string
 
 const (
@@ -95,6 +109,10 @@ type Codebook struct {
 	Kind             CodebookKind
 	SortNo           int64
 	Code             string
+	StorageType      CodebookContentStorage
+	ObjectKey        string
+	Size             int64
+	ContentType      string
 	Secret           string
 	CurrentVersionID int64
 	CurrentVersionNo int64
@@ -109,6 +127,10 @@ type CodebookVersion struct {
 	Scope        CodebookScope
 	VersionNo    int64
 	Code         string
+	StorageType  CodebookContentStorage
+	ObjectKey    string
+	Size         int64
+	ContentType  string
 	Hash         string
 	Message      string
 	AuthorUserID int64
@@ -141,6 +163,36 @@ type CodebookSortItem struct {
 	PathIDs   string
 	Depth     int
 	SortNo    int64
+}
+
+// CodebookImportFile 描述已经完成内容持久化的待导入项目文件。
+type CodebookImportFile struct {
+	Path        string
+	Code        string
+	StorageType CodebookContentStorage
+	ObjectKey   string
+	Size        int64
+	ContentType string
+	Hash        string
+}
+
+// CodebookImport 描述一次原子项目文件树导入。
+type CodebookImport struct {
+	ProjectID int64
+	ParentID  int64
+	Files     []CodebookImportFile
+}
+
+// CodebookImportResult 汇总一次项目文件导入的写入结果。
+type CodebookImportResult struct {
+	FileCount      int
+	DirectoryCount int
+}
+
+// CodebookDeleteResult 汇总节点删除结果及其待清理的外部内容对象。
+type CodebookDeleteResult struct {
+	NodeCount  int64
+	ObjectKeys []string
 }
 
 const CodebookRootPathIDs = "/"

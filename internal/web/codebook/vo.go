@@ -71,6 +71,11 @@ type WorkspaceTreeResp struct {
 	Nodes []WorkspaceNode `json:"nodes"`
 }
 
+type ImportResp struct {
+	FileCount      int `json:"file_count"`
+	DirectoryCount int `json:"directory_count"`
+}
+
 type WorkspaceNode struct {
 	Key          string          `json:"key"`
 	SourceID     int64           `json:"source_id"`
@@ -87,6 +92,8 @@ type WorkspaceNode struct {
 	ProjectID    int64           `json:"project_id"`
 	ParentID     int64           `json:"parent_id"`
 	SortNo       int64           `json:"sort_no"`
+	DownloadOnly bool            `json:"download_only"`
+	Size         int64           `json:"size"`
 	Namespace    string          `json:"namespace"`
 	Children     []WorkspaceNode `json:"children"`
 }
@@ -104,6 +111,8 @@ type Codebook struct {
 	Kind             string `json:"kind"`
 	SortNo           int64  `json:"sort_no"`
 	Code             string `json:"code"`
+	Size             int64  `json:"size"`
+	DownloadOnly     bool   `json:"download_only"`
 	Secret           string `json:"secret"`
 	CurrentVersionID int64  `json:"current_version_id"`
 	CurrentVersionNo int64  `json:"current_version_no"`

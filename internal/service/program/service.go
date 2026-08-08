@@ -84,6 +84,9 @@ func (r inlineResolver) Resolve(ctx context.Context, spec *domain.ProgramSpec) (
 	if err != nil {
 		return Resolution{}, err
 	}
+	if codebook.StorageType == domain.CodebookContentBlob {
+		return Resolution{}, fmt.Errorf("Blob 文件不能作为 INLINE 程序，请改用 PROJECT 模式")
+	}
 	return Resolution{Program: domain.NewInlineProgram(codebook.Code), SourceProjectID: codebook.ProjectID}, nil
 }
 
@@ -185,7 +188,7 @@ func (s *service) prepareSource(ctx context.Context, projectID int64) (domain.Pr
 	if err != nil {
 		return domain.ProjectSource{}, err
 	}
-	packed, err := s.archive.Pack(files)
+	packed, err := s.archive.PackContext(ctx, files, s.openSourceFile)
 	if err != nil {
 		return domain.ProjectSource{}, err
 	}
@@ -197,7 +200,9 @@ func (s *service) prepareSource(ctx context.Context, projectID int64) (domain.Pr
 	defer file.Close()
 	objectKey := fmt.Sprintf("project-sources/%d/%d/%d/%s.%s", tenantID, projectID,
 		sourceRevision, packed.Digest, packed.Format)
-	if err = s.store.Put(ctx, objectKey, file, packed.Size, packed.BlobChecksum); err != nil {
+	if err = s.store.Put(ctx, objectKey, file, blobstore.PutOptions{
+		Size: packed.Size, Checksum: packed.BlobChecksum, ContentType: "application/zstd",
+	}); err != nil {
 		return domain.ProjectSource{}, fmt.Errorf("保存项目源码失败: %w", err)
 	}
 	return s.repo.Create(ctx, domain.ProjectSource{
@@ -205,6 +210,14 @@ func (s *service) prepareSource(ctx context.Context, projectID int64) (domain.Pr
 		Digest: packed.Digest, BlobChecksum: packed.BlobChecksum, ObjectKey: objectKey,
 		Size: packed.Size, Format: packed.Format, FormatVersion: packed.FormatVersion,
 	})
+}
+
+func (s *service) openSourceFile(ctx context.Context,
+	file domain.ArtifactFile) (io.ReadCloser, error) {
+	if file.StorageType == domain.CodebookContentBlob {
+		return s.store.Open(ctx, file.ObjectKey)
+	}
+	return io.NopCloser(strings.NewReader(file.Code)), nil
 }
 
 func (s *service) OpenSource(ctx context.Context, sourceID int64, digest string) (io.ReadCloser, error) {

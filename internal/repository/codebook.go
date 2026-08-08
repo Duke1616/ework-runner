@@ -47,8 +47,10 @@ type ICodebookRepository interface {
 	UpdateSort(ctx context.Context, item domain.CodebookSortItem) error
 	// BatchUpdateSort 批量更新代码资源排序。
 	BatchUpdateSort(ctx context.Context, items []domain.CodebookSortItem) error
+	// Import 在一个事务中导入项目文件树。
+	Import(ctx context.Context, request domain.CodebookImport) (domain.CodebookImportResult, error)
 	// Delete 根据主键 ID 删除代码资源。
-	Delete(ctx context.Context, id int64) (int64, error)
+	Delete(ctx context.Context, id int64) (domain.CodebookDeleteResult, error)
 
 	// CreateProject 插入一个代码资源项目。
 	CreateProject(ctx context.Context, req domain.CodebookProject) (int64, error)
@@ -245,9 +247,29 @@ func (repo *codebookRepository) BatchUpdateSort(ctx context.Context, items []dom
 	}))
 }
 
+// Import 在一个事务中导入项目文件树。
+func (repo *codebookRepository) Import(ctx context.Context,
+	request domain.CodebookImport) (domain.CodebookImportResult, error) {
+	result, err := repo.dao.Import(ctx, dao.CodebookImport{
+		ProjectID: request.ProjectID, ParentID: request.ParentID,
+		Files: lo.Map(request.Files, func(file domain.CodebookImportFile, _ int) dao.CodebookImportFile {
+			return dao.CodebookImportFile{
+				Path: file.Path, Code: file.Code, StorageType: file.StorageType.String(),
+				ObjectKey: file.ObjectKey, Size: file.Size, ContentType: file.ContentType, Hash: file.Hash,
+			}
+		}),
+	})
+	return domain.CodebookImportResult{
+		FileCount: result.FileCount, DirectoryCount: result.DirectoryCount,
+	}, err
+}
+
 // Delete 根据主键 ID 删除代码资源。
-func (repo *codebookRepository) Delete(ctx context.Context, id int64) (int64, error) {
-	return repo.dao.Delete(ctx, id)
+func (repo *codebookRepository) Delete(ctx context.Context, id int64) (domain.CodebookDeleteResult, error) {
+	result, err := repo.dao.Delete(ctx, id)
+	return domain.CodebookDeleteResult{
+		NodeCount: result.NodeCount, ObjectKeys: result.ObjectKeys,
+	}, err
 }
 
 func (repo *codebookRepository) fillCode(ctx context.Context, c domain.Codebook) (domain.Codebook, error) {
@@ -261,7 +283,12 @@ func (repo *codebookRepository) fillCode(ctx context.Context, c domain.Codebook)
 	if err != nil {
 		return domain.Codebook{}, err
 	}
+	version = normalizeVersion(version)
 	c.Code = version.Code
+	c.StorageType = domain.CodebookContentStorage(version.StorageType)
+	c.ObjectKey = version.ObjectKey
+	c.Size = version.Size
+	c.ContentType = version.ContentType
 	c.CurrentVersionNo = version.VersionNo
 	return c, nil
 }
@@ -277,11 +304,19 @@ func (repo *codebookRepository) fillCurrentVersionNo(ctx context.Context, cs []d
 	if err != nil {
 		return nil, err
 	}
-	versionNoMap := lo.SliceToMap(versions, func(v dao.CodebookVersion) (int64, int64) {
-		return v.ID, v.VersionNo
+	versionMap := lo.SliceToMap(versions, func(v dao.CodebookVersion) (int64, dao.CodebookVersion) {
+		return v.ID, v
 	})
 	for i := range cs {
-		cs[i].CurrentVersionNo = versionNoMap[cs[i].CurrentVersionID]
+		version, exists := versionMap[cs[i].CurrentVersionID]
+		if !exists {
+			continue
+		}
+		version = normalizeVersion(version)
+		cs[i].CurrentVersionNo = version.VersionNo
+		cs[i].StorageType = domain.CodebookContentStorage(version.StorageType)
+		cs[i].Size = version.Size
+		cs[i].ContentType = version.ContentType
 	}
 	return cs, nil
 }
@@ -354,6 +389,7 @@ func (repo *codebookRepository) toVersionEntity(
 }
 
 func (repo *codebookRepository) toVersionDomain(req dao.CodebookVersion) domain.CodebookVersion {
+	req = normalizeVersion(req)
 	return domain.CodebookVersion{
 		ID:           req.ID,
 		NodeID:       req.NodeID,
@@ -361,11 +397,28 @@ func (repo *codebookRepository) toVersionDomain(req dao.CodebookVersion) domain.
 		Scope:        domain.CodebookScope(req.Scope),
 		VersionNo:    req.VersionNo,
 		Code:         req.Code,
+		StorageType:  domain.CodebookContentStorage(req.StorageType),
+		ObjectKey:    req.ObjectKey,
+		Size:         req.Size,
+		ContentType:  req.ContentType,
 		Hash:         req.Hash,
 		Message:      req.Message,
 		AuthorUserID: req.AuthorUserID,
 		CTime:        req.CTime,
 	}
+}
+
+func normalizeVersion(version dao.CodebookVersion) dao.CodebookVersion {
+	if version.StorageType == "" {
+		version.StorageType = domain.CodebookContentInline.String()
+	}
+	if version.StorageType == domain.CodebookContentInline.String() {
+		version.Size = int64(len(version.Code))
+		if version.ContentType == "" {
+			version.ContentType = "text/plain; charset=utf-8"
+		}
+	}
+	return version
 }
 
 func optionalString(value string) *string {

@@ -30,6 +30,8 @@ type WorkspaceNode struct {
 	ProjectID    int64
 	ParentID     int64
 	SortNo       int64
+	DownloadOnly bool
+	Size         int64
 	Namespace    string
 	Children     []WorkspaceNode
 }

@@ -41,7 +41,11 @@ func (s artifactSnapshot) Files() ([]domain.ArtifactFile, error) {
 		if err != nil {
 			return nil, err
 		}
-		files = append(files, domain.ArtifactFile{Path: filePath, Hash: version.Hash, Code: version.Code})
+		files = append(files, domain.ArtifactFile{
+			Path: filePath, Hash: version.Hash, Code: version.Code,
+			StorageType: domain.CodebookContentStorage(version.StorageType),
+			ObjectKey:   version.ObjectKey, Size: version.Size,
+		})
 	}
 	return files, nil
 }

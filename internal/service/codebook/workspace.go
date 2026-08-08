@@ -169,6 +169,7 @@ func buildProjectNodes(source []domain.Codebook, projectID int64) ([]domain.Work
 				Name: node.Name, Owner: node.Owner, Kind: node.Kind, Scope: node.Scope,
 				Layer: domain.WorkspaceLayerProject, RuntimePath: runtimePath,
 				ProjectID: projectID, ParentID: node.ParentID, SortNo: node.SortNo,
+				DownloadOnly: node.StorageType == domain.CodebookContentBlob, Size: node.Size,
 				Children: make([]domain.WorkspaceNode, 0),
 			}
 			var buildErr error
@@ -215,11 +216,12 @@ func buildArtifactNodes(content domain.ArtifactContent, rootPath string,
 			current = next
 		}
 	}
-	return convertArtifactNodes(root, content.Release, rootPath, layer)
+	return convertArtifactNodes(root, content.Release, rootPath, layer, content.Files)
 }
 
 func convertArtifactNodes(parent *artifactTreeNode, release domain.ArtifactRelease,
-	parentPath string, layer domain.WorkspaceLayer) []domain.WorkspaceNode {
+	parentPath string, layer domain.WorkspaceLayer,
+	files []domain.ArtifactManifestFile) []domain.WorkspaceNode {
 	names := make([]string, 0, len(parent.children))
 	for name := range parent.children {
 		names = append(names, name)
@@ -238,10 +240,20 @@ func convertArtifactNodes(parent *artifactTreeNode, release domain.ArtifactRelea
 			ReleaseID: release.ID, Digest: release.Digest, ArtifactPath: node.filePath,
 			Name: name, Kind: kind, Scope: release.Scope, Layer: layer,
 			RuntimePath: runtimePath, Readonly: true, ProjectID: release.ProjectID,
+			Size:      artifactNodeSize(files, node.filePath),
 			Namespace: release.Namespace, Children: make([]domain.WorkspaceNode, 0),
 		}
-		value.Children = convertArtifactNodes(node, release, runtimePath, layer)
+		value.Children = convertArtifactNodes(node, release, runtimePath, layer, files)
 		result = append(result, value)
 	}
 	return result
+}
+
+func artifactNodeSize(files []domain.ArtifactManifestFile, filePath string) int64 {
+	for _, file := range files {
+		if file.Path == filePath {
+			return file.Size
+		}
+	}
+	return 0
 }

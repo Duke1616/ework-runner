@@ -7,36 +7,31 @@ import (
 )
 
 type executionRequest struct {
-	program   *executor.Program
-	args      string
-	variables string
+	program *executor.Program
+	input   Input
 }
 
-func resolveRequest(task *executor.Context, adapterName string, config Config) (executionRequest, error) {
+func resolveRequest(task *executor.Context, adapterName string,
+	parameters []executor.Parameter, config Config) (executionRequest, error) {
 	program := task.Program()
 	if program == nil {
 		return executionRequest{}, fmt.Errorf("[%s] 程序来源不能为空", adapterName)
 	}
-	args, err := task.GetResolvedParam("args")
-	if err != nil {
-		return executionRequest{}, fmt.Errorf("解析命令参数失败: %w", err)
-	}
-	variables, err := task.GetResolvedParam("variables")
-	if err != nil {
-		return executionRequest{}, fmt.Errorf("解析变量参数失败: %w", err)
-	}
-	checks := []struct {
-		name  string
-		value string
-		limit int64
-	}{
-		{name: "运行参数", value: args, limit: config.MaxArgsSize},
-		{name: "运行变量", value: variables, limit: config.MaxVariablesSize},
-	}
-	for _, check := range checks {
-		if int64(len(check.value)) > check.limit {
-			return executionRequest{}, fmt.Errorf("%s大小超过限制: %d > %d 字节", check.name, len(check.value), check.limit)
+	params := make(map[string]string, len(parameters))
+	for _, parameter := range parameters {
+		value, err := task.GetResolvedParam(parameter.Key)
+		if err != nil {
+			return executionRequest{}, fmt.Errorf("解析参数 %s 失败: %w", parameter.Key, err)
 		}
+		limit := config.MaxArgsSize
+		if parameter.Key == "variables" {
+			limit = config.MaxVariablesSize
+		}
+		if int64(len(value)) > limit {
+			return executionRequest{}, fmt.Errorf("参数 %s 大小超过限制: %d > %d 字节",
+				parameter.Key, len(value), limit)
+		}
+		params[parameter.Key] = value
 	}
 	if program.Kind == executor.ProgramKindInline {
 		if int64(len(program.Inline.Code)) > config.MaxCodeSize {
@@ -44,5 +39,10 @@ func resolveRequest(task *executor.Context, adapterName string, config Config) (
 				len(program.Inline.Code), config.MaxCodeSize)
 		}
 	}
-	return executionRequest{program: program, args: args, variables: variables}, nil
+	args, variables := params["args"], params["variables"]
+	delete(params, "args")
+	delete(params, "variables")
+	return executionRequest{program: program, input: Input{
+		Args: args, Variables: variables, Params: params,
+	}}, nil
 }

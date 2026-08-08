@@ -70,6 +70,10 @@ type CodebookVersion struct {
 	Scope        string  `gorm:"column:scope;type:varchar(32);not null;default:'TENANT';index;comment:'作用域 SYSTEM/TENANT'"`
 	VersionNo    int64   `gorm:"column:version_no;type:bigint;not null;default:1;uniqueIndex:uniq_codebook_version_no,priority:2;comment:'版本号'"`
 	Code         string  `gorm:"column:code;type:text;comment:'脚本源码内容'"`
+	StorageType  string  `gorm:"column:storage_type;type:varchar(16);not null;default:'INLINE';comment:'内容存储类型 INLINE/BLOB'"`
+	ObjectKey    string  `gorm:"column:object_key;type:varchar(512);not null;default:'';index;comment:'Blob 对象键'"`
+	Size         int64   `gorm:"column:size;type:bigint;not null;default:0;comment:'原始内容大小'"`
+	ContentType  string  `gorm:"column:content_type;type:varchar(128);not null;default:'text/plain';comment:'内容类型'"`
 	Hash         string  `gorm:"column:hash;type:varchar(64);comment:'源码哈希'"`
 	Message      string  `gorm:"column:message;type:varchar(255);comment:'版本说明'"`
 	SourceKey    *string `gorm:"column:source_key;type:varchar(128);uniqueIndex:uniq_codebook_version_source,priority:2;comment:'版本幂等来源'"`
@@ -96,6 +100,12 @@ type CodebookSortItem struct {
 	PathIDs   string
 	Depth     int
 	SortNo    int64
+}
+
+// CodebookDeleteResult 汇总数据库删除结果及事务提交后需要清理的 Blob 对象。
+type CodebookDeleteResult struct {
+	NodeCount  int64
+	ObjectKeys []string
 }
 
 // CodebookProjectDAO 定义代码资源项目的数据访问操作。
@@ -160,8 +170,10 @@ type CodebookDAO interface {
 	UpdateSort(ctx context.Context, item CodebookSortItem) error
 	// BatchUpdateSort 批量更新代码节点排序。
 	BatchUpdateSort(ctx context.Context, items []CodebookSortItem) error
+	// Import 在一个事务中导入项目文件树。
+	Import(ctx context.Context, request CodebookImport) (CodebookImportResult, error)
 	// Delete 根据主键 ID 删除代码节点。
-	Delete(ctx context.Context, id int64) (int64, error)
+	Delete(ctx context.Context, id int64) (CodebookDeleteResult, error)
 }
 
 // GORMCodebookDAO 基于 GORM 实现 CodebookDAO。
@@ -306,6 +318,9 @@ func (g *GORMCodebookDAO) Create(ctx context.Context, c Codebook, code string) (
 				Scope:        c.Scope,
 				VersionNo:    1,
 				Code:         code,
+				StorageType:  domain.CodebookContentInline.String(),
+				Size:         int64(len(code)),
+				ContentType:  "text/plain; charset=utf-8",
 				Hash:         hashCode(code),
 				AuthorUserID: codebookAuthorUserID(ctx),
 				CTime:        now,
@@ -548,8 +563,12 @@ func (g *GORMCodebookDAO) updateVersionCode(tx *gorm.DB, versionID, nodeID int64
 	return tx.Model(&CodebookVersion{}).
 		Where("id = ? AND node_id = ?", versionID, nodeID).
 		Updates(map[string]any{
-			"code": code,
-			"hash": hashCode(code),
+			"code":         code,
+			"storage_type": domain.CodebookContentInline.String(),
+			"object_key":   "",
+			"size":         len(code),
+			"content_type": "text/plain; charset=utf-8",
+			"hash":         hashCode(code),
 		}).Error
 }
 
@@ -596,7 +615,17 @@ func (g *GORMCodebookDAO) CreateVersion(ctx context.Context, request CodebookVer
 			version.AuthorUserID = codebookAuthorUserID(ctx)
 		}
 		version.CTime = now
-		version.Hash = hashCode(version.Code)
+		if version.StorageType == "" {
+			version.StorageType = domain.CodebookContentInline.String()
+		}
+		if version.StorageType == domain.CodebookContentInline.String() {
+			version.ObjectKey = ""
+			version.Size = int64(len(version.Code))
+			version.Hash = hashCode(version.Code)
+			if version.ContentType == "" {
+				version.ContentType = "text/plain; charset=utf-8"
+			}
+		}
 		if err := tx.Create(&version).Error; err != nil {
 			return err
 		}
@@ -665,8 +694,8 @@ func (g *GORMCodebookDAO) BatchUpdateSort(ctx context.Context, items []CodebookS
 }
 
 // Delete 根据主键 ID 删除代码节点，目录会级联删除整棵子树和对应版本。
-func (g *GORMCodebookDAO) Delete(ctx context.Context, id int64) (int64, error) {
-	var rowsAffected int64
+func (g *GORMCodebookDAO) Delete(ctx context.Context, id int64) (CodebookDeleteResult, error) {
+	var result CodebookDeleteResult
 	err := g.dbWithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var node Codebook
 		if err := tx.Where("id = ?", id).First(&node).Error; err != nil {
@@ -683,6 +712,13 @@ func (g *GORMCodebookDAO) Delete(ctx context.Context, id int64) (int64, error) {
 			return gorm.ErrRecordNotFound
 		}
 		ids := lo.Map(nodes, func(n Codebook, _ int) int64 { return n.ID })
+		if err := tx.Model(&CodebookVersion{}).
+			Distinct("object_key").
+			Where("node_id IN ? AND storage_type = ? AND object_key <> ''", ids,
+				domain.CodebookContentBlob.String()).
+			Pluck("object_key", &result.ObjectKeys).Error; err != nil {
+			return err
+		}
 		if err := tx.Where("node_id IN ?", ids).Delete(&CodebookVersion{}).Error; err != nil {
 			return err
 		}
@@ -690,10 +726,10 @@ func (g *GORMCodebookDAO) Delete(ctx context.Context, id int64) (int64, error) {
 		if res.Error != nil {
 			return res.Error
 		}
-		rowsAffected = res.RowsAffected
+		result.NodeCount = res.RowsAffected
 		return bumpProjectSourceRevision(tx, node.Scope, node.ProjectID)
 	})
-	return rowsAffected, err
+	return result, err
 }
 
 func (g *GORMCodebookDAO) dbWithContext(ctx context.Context) *gorm.DB {

@@ -5,6 +5,8 @@ import (
 	"sync"
 
 	"github.com/Duke1616/etask/internal/grpc/scripts/engine"
+	"github.com/Duke1616/etask/internal/grpc/scripts/language/ansible"
+	ansibleconnection "github.com/Duke1616/etask/internal/grpc/scripts/language/ansible/connection"
 	"github.com/Duke1616/etask/internal/grpc/scripts/language/python"
 	"github.com/Duke1616/etask/internal/grpc/scripts/language/shell"
 	"github.com/Duke1616/etask/internal/grpc/scripts/runtimefs"
@@ -36,9 +38,28 @@ func NewRuntime(config RuntimeConfig) (*Runtime, error) {
 	if err != nil {
 		return nil, err
 	}
+	credentials := make(map[string]ansibleconnection.CredentialConfig, len(config.Ansible.Credentials))
+	for reference, credential := range config.Ansible.Credentials {
+		credentials[reference] = ansibleconnection.CredentialConfig{
+			Type: credential.Type, Username: credential.Username,
+			PrivateKeyFile: credential.PrivateKeyFile, PasswordFile: credential.PasswordFile,
+		}
+	}
+	credentialProvider, err := ansibleconnection.NewLocalCredentialProvider(config.Ansible.CredentialRoot, credentials)
+	if err != nil {
+		return nil, err
+	}
+	hostKeyProvider, err := ansibleconnection.NewFileHostKeyProvider(config.Ansible.KnownHostsFile)
+	if err != nil {
+		return nil, err
+	}
+	connections := ansibleconnection.NewSSHPreparer(
+		credentialProvider, hostKeyProvider, ansibleconnection.WithSSHPassBinary(config.Ansible.SSHPassBinary),
+	)
 	adapters := []engine.Adapter{
 		shell.New(config.ShellBinary),
 		python.New(config.PythonBinary),
+		ansible.New(config.Ansible.Binary, ansible.WithSSHConnectionPreparer(connections)),
 	}
 	// 每种语言复用同一套执行编排，仅替换命令和参数适配逻辑。
 	handlers := make([]executor.TaskHandler, 0, len(adapters))

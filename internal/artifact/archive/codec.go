@@ -2,10 +2,15 @@
 package archive
 
 import (
+	"context"
 	"io"
+	"strings"
 
 	"github.com/Duke1616/etask/internal/domain"
 )
+
+// OpenFile 打开一个待归档文件的只读内容流。
+type OpenFile func(ctx context.Context, file domain.ArtifactFile) (io.ReadCloser, error)
 
 // PackedArtifact 描述已写入临时文件、等待上传的制品。
 type PackedArtifact struct {
@@ -47,11 +52,20 @@ func Supports(format string, version int32) bool {
 
 // Pack 将代码文件规范化、校验并写入临时压缩包。
 func (c *Codec) Pack(files []domain.ArtifactFile) (PackedArtifact, error) {
+	return c.PackContext(context.Background(), files, func(_ context.Context,
+		file domain.ArtifactFile) (io.ReadCloser, error) {
+		return io.NopCloser(strings.NewReader(file.Code)), nil
+	})
+}
+
+// PackContext 使用调用方提供的内容流生成归档，支持 Blob 文件而不整体加载到内存。
+func (c *Codec) PackContext(ctx context.Context, files []domain.ArtifactFile,
+	open OpenFile) (PackedArtifact, error) {
 	prepared, err := buildManifest(files)
 	if err != nil {
 		return PackedArtifact{}, err
 	}
-	return writeArchive(c.tempDir, prepared)
+	return writeArchive(ctx, c.tempDir, prepared, open)
 }
 
 // ReadManifest 读取并校验归档首项中的制品清单。

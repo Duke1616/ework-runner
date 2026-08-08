@@ -189,6 +189,13 @@ func (c *Context) Log(format string, args ...any) {
 	c.executionLogger.Log(format, args...)
 }
 
+// AddSecretMasks 注册执行期间产生的敏感值，后续用户日志会自动替换这些值。
+func (c *Context) AddSecretMasks(values ...string) {
+	if logger, ok := c.executionLogger.(interface{ AddMasks(...string) }); ok {
+		logger.AddMasks(values...)
+	}
+}
+
 // ReportProgress 记录规范化到 0 到 100 的任务进度。
 func (c *Context) ReportProgress(progress int) error {
 	progress = max(0, min(progress, 100))
@@ -210,14 +217,16 @@ func (c *Context) Close() {
 }
 
 func secretMasks(params map[string]string) []string {
-	var variables []Variable
-	if json.Unmarshal([]byte(params["variables"]), &variables) != nil {
-		return nil
-	}
-	masks := make([]string, 0, len(variables))
-	for _, variable := range variables {
-		if variable.Secret && variable.Value != "" {
-			masks = append(masks, variable.Value)
+	masks := make([]string, 0)
+	for _, parameter := range []string{"variables", "vars"} {
+		var variables []Variable
+		if json.Unmarshal([]byte(params[parameter]), &variables) != nil {
+			continue
+		}
+		for _, variable := range variables {
+			if variable.Secret && variable.Value != "" {
+				masks = append(masks, variable.Value)
+			}
 		}
 	}
 	return masks

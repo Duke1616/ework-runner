@@ -273,7 +273,8 @@ func (s *service) Delete(ctx context.Context, id int64) (int64, error) {
 	if err = validateCodebookWriteScope(ctx, node.Scope); err != nil {
 		return 0, err
 	}
-	return s.repo.Delete(ctx, id)
+	result, err := s.repo.Delete(ctx, id)
+	return result.NodeCount, err
 }
 
 func (s *service) prepareSortNo(ctx context.Context, req *domain.Codebook) error {

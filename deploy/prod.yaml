@@ -18,6 +18,21 @@ artifact_cache:
 runtime:
   workspace_dir: "/tmp/etask/runs"
   workspace_max_age: 24h
+  ansible:
+    binary: "ansible-playbook"
+    # 密码凭据依赖该命令；默认值为 sshpass。
+    # sshpass_binary: "sshpass"
+    # credential_root: "/run/credentials/etask-ansible"
+    # known_hosts_file: "/etc/etask/ssh/known_hosts"
+    # credentials:
+    #   production-linux:
+    #     type: "private_key"
+    #     username: "etask"
+    #     private_key_file: "production-linux-key"
+    #   legacy-linux:
+    #     type: "password"
+    #     username: "root"
+    #     password_file: "legacy-linux-password"
   sandbox:
     mode: required
     uid: 65534

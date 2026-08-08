@@ -7,7 +7,7 @@ Executor SDK 将稳定的 Handler 契约与可选运行时分开：
 - `sdk/executor/engine`：Kafka 等自定义传输使用的进程内执行管线。
 - `sdk/executor/artifact`：Node 和 Engine 可选的制品物化契约。
 
-Shell/Python 处理器支持的环境变量、Runner 变量和制品路径约定见 [`internal/grpc/scripts/README.md`](../../internal/grpc/scripts/README.md)。
+Shell、Python 与 Ansible 处理器支持的环境变量、Runner 变量和制品路径约定见 [`internal/grpc/scripts/README.md`](../../internal/grpc/scripts/README.md)。
 
 ## 定义 Handler
 

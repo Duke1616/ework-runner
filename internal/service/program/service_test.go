@@ -34,6 +34,15 @@ func TestResolveInlineCodebook(t *testing.T) {
 	require.Equal(t, int64(9), got.SourceProjectID)
 }
 
+func TestResolveInlineRejectsBlobCodebook(t *testing.T) {
+	svc := program.NewService(codebooks{values: map[int64]domain.Codebook{
+		11: {ID: 11, ProjectID: 9, Kind: domain.CodebookKindFile, StorageType: domain.CodebookContentBlob},
+	}}, nil, nil, nil)
+	_, err := svc.Resolve(t.Context(), &domain.ProgramSpec{Kind: domain.ProgramInline,
+		Inline: &domain.InlineProgramSpec{CodebookID: 11}})
+	require.ErrorContains(t, err, "PROJECT")
+}
+
 func TestResolveProject(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	repo := repositorymocks.NewMockProjectSourceRepository(ctrl)

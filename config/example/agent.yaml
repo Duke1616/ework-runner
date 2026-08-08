@@ -28,6 +28,23 @@ runtime:
   workspace_dir: "/tmp/etask/runs"
   # 历史工作目录保留时间
   workspace_max_age: 24h
+  # Ansible Handler 始终注册；可覆盖 ansible-playbook 命令路径。
+  ansible:
+    binary: "ansible-playbook"
+    # 密码凭据依赖该命令；默认值为 sshpass。
+    # sshpass_binary: "sshpass"
+    # SSH 私钥和密码只保存在 Agent 本地；任务和 inventory 仅引用凭据别名。
+    # credential_root: "/run/credentials/etask-ansible"
+    # known_hosts_file: "/etc/etask/ssh/known_hosts"
+    # credentials:
+    #   production-linux:
+    #     type: "private_key"
+    #     username: "etask"
+    #     private_key_file: "production-linux-key"
+    #   legacy-linux:
+    #     type: "password"
+    #     username: "root"
+    #     password_file: "legacy-linux-password"
   # root 运行时自动将脚本降权；required 可用于强制生产节点校验。
   sandbox:
     mode: auto

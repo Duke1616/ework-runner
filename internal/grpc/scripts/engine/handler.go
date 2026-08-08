@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/Duke1616/etask/sdk/executor"
 	"github.com/gotomicro/ego/core/elog"
@@ -42,7 +43,7 @@ func (h *Handler) Desc() string {
 
 // ProgramKinds 返回脚本 Handler 支持的程序来源类型。
 func (h *Handler) ProgramKinds() []executor.ProgramKind {
-	return []executor.ProgramKind{executor.ProgramKindInline, executor.ProgramKindProject}
+	return append([]executor.ProgramKind(nil), h.adapter.ProgramKinds()...)
 }
 
 // Metadata 返回语言 handler 支持的参数元数据。
@@ -53,9 +54,12 @@ func (h *Handler) Metadata() []executor.Parameter {
 // Run 执行脚本并将日志和结果写回 executor.Context。
 func (h *Handler) Run(task *executor.Context) (runErr error) {
 	// 绑定解析和大小校验在写入任何运行文件前完成。
-	request, err := resolveRequest(task, h.adapter.Name(), h.config)
+	request, err := resolveRequest(task, h.adapter.Name(), h.adapter.Metadata(), h.config)
 	if err != nil {
 		return err
+	}
+	if !slices.Contains(h.adapter.ProgramKinds(), request.program.Kind) {
+		return fmt.Errorf("[%s] 不支持 %s 程序来源", h.adapter.Name(), request.program.Kind)
 	}
 	workspace, err := h.workspaces.Create(WorkspaceOptions{
 		ExecutionID: task.ExecutionID(),
@@ -71,7 +75,7 @@ func (h *Handler) Run(task *executor.Context) (runErr error) {
 		if archiveErr := h.archiver.Archive(ArchiveRecord{
 			ExecutionID: task.ExecutionID(),
 			CodeFile:    workspace.EntryPoint(),
-			Args:        request.args, Variables: request.variables,
+			Args:        request.input.Args, Variables: request.input.Variables,
 			Failed: runErr != nil,
 		}); archiveErr != nil {
 			task.SystemLogger().Error("归档脚本执行现场失败", elog.FieldErr(archiveErr))
@@ -82,12 +86,11 @@ func (h *Handler) Run(task *executor.Context) (runErr error) {
 	}()
 
 	// 语言适配器只负责生成命令，通用 Runner 统一处理环境、日志和结果流。
-	prepared, err := h.adapter.Prepare(task.Context(), workspace, Input{
-		Args: request.args, Variables: request.variables,
-	})
+	prepared, err := h.adapter.Prepare(task.Context(), workspace, request.input)
 	if err != nil {
 		return fmt.Errorf("准备 %s 执行命令失败: %w", h.adapter.Name(), err)
 	}
+	task.AddSecretMasks(prepared.SecretMasks...)
 	runner := commandRunner{
 		maxLogLineSize: h.config.MaxLogLineSize,
 		maxResultSize:  h.config.MaxResultSize,

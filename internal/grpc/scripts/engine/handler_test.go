@@ -56,6 +56,21 @@ func TestHandlerRun(t *testing.T) {
 				require.Empty(t, state.archiver.records)
 			},
 		},
+		{
+			name:   "拒绝适配器不支持的程序来源",
+			params: map[string]string{"args": `{}`, "variables": `[]`},
+			adapter: adapterFake{
+				programKinds: []executor.ProgramKind{executor.ProgramKindProject},
+				command: func(ctx context.Context) *exec.Cmd {
+					return exec.CommandContext(ctx, "/bin/sh", "-c", "exit 0")
+				},
+			},
+			wantError: "不支持 INLINE 程序来源",
+			after: func(t *testing.T, state *handlerTestState) {
+				require.False(t, state.workspace.created)
+				require.Empty(t, state.archiver.records)
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -98,7 +113,7 @@ func TestHandlerRun(t *testing.T) {
 			} else {
 				require.NoError(t, runErr)
 			}
-			if tc.wantError == "代码大小超过限制" {
+			if tc.wantError == "代码大小超过限制" || tc.wantError == "不支持 INLINE 程序来源" {
 				return
 			}
 			require.True(t, current.workspace.closed)
@@ -139,11 +154,18 @@ func (w *workspaceFake) WriteFile(name string, content []byte, mode os.FileMode)
 }
 
 type adapterFake struct {
-	command func(context.Context) *exec.Cmd
+	programKinds []executor.ProgramKind
+	command      func(context.Context) *exec.Cmd
 }
 
-func (a *adapterFake) Name() string                   { return "shell" }
-func (a *adapterFake) Description() string            { return "测试脚本" }
+func (a *adapterFake) Name() string        { return "shell" }
+func (a *adapterFake) Description() string { return "测试脚本" }
+func (a *adapterFake) ProgramKinds() []executor.ProgramKind {
+	if len(a.programKinds) > 0 {
+		return a.programKinds
+	}
+	return []executor.ProgramKind{executor.ProgramKindInline, executor.ProgramKindProject}
+}
 func (a *adapterFake) Extension() string              { return ".sh" }
 func (a *adapterFake) Metadata() []executor.Parameter { return nil }
 func (a *adapterFake) Validate() error                { return nil }

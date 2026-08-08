@@ -10,6 +10,7 @@ import (
 	"github.com/Duke1616/etask/internal/domain"
 	repositorymocks "github.com/Duke1616/etask/internal/repository/mocks"
 	artifactsvc "github.com/Duke1616/etask/internal/service/artifact"
+	"github.com/Duke1616/etask/pkg/blobstore"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
@@ -18,13 +19,15 @@ type artifactFileStore struct {
 	path string
 }
 
-func (artifactFileStore) Put(context.Context, string, io.Reader, int64, string) error {
+func (artifactFileStore) Put(context.Context, string, io.Reader, blobstore.PutOptions) error {
 	return nil
 }
 
 func (s artifactFileStore) Open(context.Context, string) (io.ReadCloser, error) {
 	return os.Open(s.path)
 }
+
+func (artifactFileStore) Delete(context.Context, string) error { return nil }
 
 func TestServiceReadsImmutableArtifactContents(t *testing.T) {
 	ctrl := gomock.NewController(t)

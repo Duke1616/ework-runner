@@ -4,6 +4,7 @@ package task
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -107,6 +108,30 @@ func TestContextResultRejectsUnsupportedValue(t *testing.T) {
 	_, err := ctx.Result()
 	require.ErrorContains(t, err, "序列化任务结果失败")
 }
+
+func TestSecretMasksIncludesAnsibleVars(t *testing.T) {
+	masks := secretMasks(map[string]string{
+		"variables": `[{"key":"TOKEN","value":"shell-secret","secret":true}]`,
+		"vars":      `[{"key":"API_KEY","value":"ansible-secret","secret":true}]`,
+	})
+	require.ElementsMatch(t, []string{"shell-secret", "ansible-secret"}, masks)
+}
+
+func TestContextAddSecretMasks(t *testing.T) {
+	logger := &recordingExecutionLogger{}
+	ctx := NewContext(ContextOptions{ExecutionLogger: logger})
+	ctx.AddSecretMasks("local-password")
+	ctx.Log("连接失败: %s", "local-password")
+	require.Equal(t, "连接失败: [MASKED]", logger.message)
+}
+
+type recordingExecutionLogger struct{ message string }
+
+func (l *recordingExecutionLogger) Log(format string, args ...any) {
+	l.message = fmt.Sprintf(format, args...)
+}
+
+func (l *recordingExecutionLogger) Close() {}
 
 type executionLoggerStub struct{}
 

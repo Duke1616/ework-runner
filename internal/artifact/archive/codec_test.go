@@ -2,17 +2,41 @@ package archive
 
 import (
 	"archive/tar"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/klauspost/compress/zstd"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCodecPackContextStreamsBlobFile(t *testing.T) {
+	content := strings.Repeat("payload", 1024)
+	sum := sha256.Sum256([]byte(content))
+	packed, err := New(t.TempDir()).PackContext(context.Background(), []domain.ArtifactFile{{
+		Path: "files/payload.bin", StorageType: domain.CodebookContentBlob,
+		ObjectKey: "blob-key", Size: int64(len(content)), Hash: hex.EncodeToString(sum[:]),
+	}}, func(_ context.Context, file domain.ArtifactFile) (io.ReadCloser, error) {
+		require.Equal(t, "blob-key", file.ObjectKey)
+		return io.NopCloser(strings.NewReader(content)), nil
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.Remove(packed.Path) })
+
+	reader, err := os.Open(packed.Path)
+	require.NoError(t, err)
+	actual, err := New("").ReadFile(reader, packed.Digest, "files/payload.bin")
+	require.NoError(t, err)
+	require.Equal(t, content, actual)
+}
 
 func TestCodecProducesDeterministicArtifact(t *testing.T) {
 	codec := New(t.TempDir())

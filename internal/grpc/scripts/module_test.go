@@ -55,6 +55,58 @@ func TestRuntimeHandlersExecuteProjectSource(t *testing.T) {
 	}
 }
 
+func TestRuntimeAnsibleHandlerExecutesProjectSource(t *testing.T) {
+	project := t.TempDir()
+	entryPoint := filepath.Join(project, "playbooks", "deploy.yml")
+	role := filepath.Join(project, "roles", "deploy", "tasks", "main.yml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(entryPoint), 0o750))
+	require.NoError(t, os.MkdirAll(filepath.Dir(role), 0o750))
+	require.NoError(t, os.WriteFile(entryPoint, []byte("---\n"), 0o440))
+	require.NoError(t, os.WriteFile(role, []byte("---\n"), 0o440))
+
+	binary := filepath.Join(t.TempDir(), "ansible-playbook")
+	require.NoError(t, os.WriteFile(binary, []byte(`#!/bin/sh
+set -eu
+test "$1" = "--extra-vars"
+extra_vars="${2#@}"
+test -f "$extra_vars"
+test -f "$3"
+test -f "./roles/deploy/tasks/main.yml"
+grep -q '"environment":"staging"' "$extra_vars"
+`), 0o700))
+	disabled := false
+	runtime, err := NewRuntime(RuntimeConfig{
+		WorkspaceDir: t.TempDir(), ShellBinary: "/bin/sh", PythonBinary: "/bin/sh",
+		Sandbox: SandboxConfig{Mode: SandboxModeOff},
+		Ansible: AnsibleConfig{Binary: binary}, Archive: ArchiveConfig{Enabled: &disabled},
+	})
+	require.NoError(t, err)
+	require.NoError(t, runtime.Initialize())
+
+	var handler executor.TaskHandler
+	for _, candidate := range runtime.Handlers() {
+		if candidate.Name() == "ansible" {
+			handler = candidate
+			break
+		}
+	}
+	require.NotNil(t, handler)
+	task := executor.NewContext(executor.ContextOptions{
+		Context: t.Context(), Task: executor.TaskInfo{ExecutionID: 2, Handler: "ansible"},
+		Params: map[string]string{
+			"vars": `[{"key":"environment","value":"staging"},{"key":"ansible_user","value":"deploy"}]`,
+		},
+		ExecutionLogger: runtimeExecutionLogger{},
+	})
+	task.SetProgram(&executor.Program{
+		Kind: executor.ProgramKindProject,
+		Project: &executor.ProjectProgram{
+			Root: project, EntryPoint: "playbooks/deploy.yml",
+		},
+	})
+	require.NoError(t, handler.Run(task))
+}
+
 type runtimeExecutionLogger struct{}
 
 func (runtimeExecutionLogger) Log(string, ...any) {}
@@ -62,11 +114,13 @@ func (runtimeExecutionLogger) Close()             {}
 
 func TestNewRuntime(t *testing.T) {
 	testCases := []struct {
-		name   string
-		config RuntimeConfig
+		name         string
+		config       RuntimeConfig
+		wantHandlers []string
 	}{
-		{name: "默认配置创建两个处理器"},
-		{name: "允许自定义运行目录", config: RuntimeConfig{WorkspaceDir: t.TempDir()}},
+		{name: "默认配置创建三个处理器", wantHandlers: []string{"shell", "python", "ansible"}},
+		{name: "允许自定义运行目录", config: RuntimeConfig{WorkspaceDir: t.TempDir()},
+			wantHandlers: []string{"shell", "python", "ansible"}},
 	}
 
 	for _, tc := range testCases {
@@ -74,13 +128,29 @@ func TestNewRuntime(t *testing.T) {
 			runtime, err := NewRuntime(tc.config)
 			require.NoError(t, err)
 			handlers := runtime.Handlers()
-			require.Len(t, handlers, 2)
-			require.Equal(t, "shell", handlers[0].Name())
-			require.Equal(t, "python", handlers[1].Name())
+			require.Len(t, handlers, len(tc.wantHandlers))
+			for index, name := range tc.wantHandlers {
+				require.Equal(t, name, handlers[index].Name())
+			}
+			if len(handlers) == 3 {
+				programHandler, ok := handlers[2].(executor.ProgramHandler)
+				require.True(t, ok)
+				require.Equal(t, []executor.ProgramKind{executor.ProgramKindProject}, programHandler.ProgramKinds())
+			}
 			handlers[0] = nil
 			require.NotNil(t, runtime.Handlers()[0], "Handlers 应返回副本")
 		})
 	}
+}
+
+func TestNewRuntimeRejectsUnsafeAnsibleCredentialConfig(t *testing.T) {
+	_, err := NewRuntime(RuntimeConfig{Ansible: AnsibleConfig{
+		CredentialRoot: "relative/credentials",
+		Credentials: map[string]AnsibleCredentialConfig{
+			"production": {Username: "deploy", PrivateKeyFile: "production-key"},
+		},
+	}})
+	require.ErrorContains(t, err, "credential_root 必须是绝对路径")
 }
 
 func TestRuntimeInitializeOnce(t *testing.T) {
@@ -131,8 +201,11 @@ func (f *runtimeLifecycleFake) Prune() error {
 
 type runtimeAdapterFake struct{ validations atomic.Int32 }
 
-func (f *runtimeAdapterFake) Name() string                   { return "test" }
-func (f *runtimeAdapterFake) Description() string            { return "测试解释器" }
+func (f *runtimeAdapterFake) Name() string        { return "test" }
+func (f *runtimeAdapterFake) Description() string { return "测试解释器" }
+func (f *runtimeAdapterFake) ProgramKinds() []executor.ProgramKind {
+	return []executor.ProgramKind{executor.ProgramKindInline}
+}
 func (f *runtimeAdapterFake) Extension() string              { return ".test" }
 func (f *runtimeAdapterFake) Metadata() []executor.Parameter { return nil }
 func (f *runtimeAdapterFake) Prepare(context.Context, engine.Workspace,

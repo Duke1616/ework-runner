@@ -75,25 +75,40 @@ func NewS3(cfg S3Config) (*S3, error) {
 	}, nil
 }
 
-func (s *S3) Put(ctx context.Context, key string, src io.Reader, size int64, checksum string) error {
+func (s *S3) Put(ctx context.Context, key string, src io.Reader, options PutOptions) error {
 	resolved, err := s.resolve(key)
 	if err != nil {
 		return err
 	}
 	hash := sha256.New()
-	_, err = s.client.PutObject(ctx, s.bucket, resolved, io.TeeReader(src, hash), size, minio.PutObjectOptions{
-		ContentType: "application/zstd",
+	contentType := strings.TrimSpace(options.ContentType)
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	_, err = s.client.PutObject(ctx, s.bucket, resolved, io.TeeReader(src, hash), options.Size, minio.PutObjectOptions{
+		ContentType: contentType,
 	})
 	if err != nil {
 		return fmt.Errorf("上传 MinIO 制品对象 %s 失败: %w", resolved, err)
 	}
 	actual := hex.EncodeToString(hash.Sum(nil))
-	if checksum != "" && !strings.EqualFold(actual, checksum) {
-		mismatchErr := fmt.Errorf("制品校验和不一致: 预期=%s 实际=%s", checksum, actual)
+	if options.Checksum != "" && !strings.EqualFold(actual, options.Checksum) {
+		mismatchErr := fmt.Errorf("Blob 校验和不一致: 预期=%s 实际=%s", options.Checksum, actual)
 		if removeErr := s.client.RemoveObject(ctx, s.bucket, resolved, minio.RemoveObjectOptions{}); removeErr != nil {
 			return fmt.Errorf("%v，清理 MinIO 对象失败: %w", mismatchErr, removeErr)
 		}
 		return mismatchErr
+	}
+	return nil
+}
+
+func (s *S3) Delete(ctx context.Context, key string) error {
+	resolved, err := s.resolve(key)
+	if err != nil {
+		return err
+	}
+	if err = s.client.RemoveObject(ctx, s.bucket, resolved, minio.RemoveObjectOptions{}); err != nil {
+		return fmt.Errorf("删除 MinIO Blob 对象 %s 失败: %w", resolved, err)
 	}
 	return nil
 }

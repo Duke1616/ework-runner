@@ -3,11 +3,13 @@ package artifact
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
 	"github.com/Duke1616/eiam/pkg/ctxutil"
 	"github.com/Duke1616/etask/internal/domain"
+	"github.com/Duke1616/etask/pkg/blobstore"
 )
 
 func (s *service) Publish(ctx context.Context, target domain.ArtifactTarget,
@@ -27,7 +29,7 @@ func (s *service) publish(ctx context.Context, target domain.ArtifactTarget,
 	if err != nil {
 		return domain.ArtifactRelease{}, err
 	}
-	packed, err := s.archive.Pack(files)
+	packed, err := s.archive.PackContext(ctx, files, s.openSourceFile)
 	if err != nil {
 		return domain.ArtifactRelease{}, err
 	}
@@ -41,7 +43,9 @@ func (s *service) publish(ctx context.Context, target domain.ArtifactTarget,
 	defer file.Close()
 	objectKey := fmt.Sprintf("artifacts/%d/%s/%d/%s.%s", tenantID, target.Scope,
 		target.ProjectID, packed.Digest, packed.Format)
-	if err = s.store.Put(ctx, objectKey, file, packed.Size, packed.BlobChecksum); err != nil {
+	if err = s.store.Put(ctx, objectKey, file, blobstore.PutOptions{
+		Size: packed.Size, Checksum: packed.BlobChecksum, ContentType: "application/zstd",
+	}); err != nil {
 		return domain.ArtifactRelease{}, fmt.Errorf("保存制品失败: %w", err)
 	}
 	// 数据对象写入成功后再创建发布记录，数据库事务负责激活版本和并发校验。
@@ -57,4 +61,12 @@ func (s *service) publish(ctx context.Context, target domain.ArtifactTarget,
 		return domain.ArtifactRelease{}, fmt.Errorf("保存并激活制品发布记录失败: %w", err)
 	}
 	return created, nil
+}
+
+func (s *service) openSourceFile(ctx context.Context,
+	file domain.ArtifactFile) (io.ReadCloser, error) {
+	if file.StorageType == domain.CodebookContentBlob {
+		return s.store.Open(ctx, file.ObjectKey)
+	}
+	return io.NopCloser(strings.NewReader(file.Code)), nil
 }

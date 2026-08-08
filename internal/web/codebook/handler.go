@@ -17,13 +17,16 @@ var _ ginx.Handler = &Handler{}
 type Handler struct {
 	svc       codebookSvc.Service
 	workspace codebookSvc.WorkspaceService
+	files     codebookSvc.ProjectFileService
 	capability.IRegistry
 }
 
-func NewHandler(svc codebookSvc.Service, workspace codebookSvc.WorkspaceService) *Handler {
+func NewHandler(svc codebookSvc.Service, workspace codebookSvc.WorkspaceService,
+	files codebookSvc.ProjectFileService) *Handler {
 	return &Handler{
 		svc:       svc,
 		workspace: workspace,
+		files:     files,
 		IRegistry: capability.NewRegistry("task", "codebook", "脚本引擎"),
 	}
 }
@@ -64,6 +67,12 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 	)
 	g.POST("/sort", cb("模板排序", "sort").
 		Handle(ginx.B[SortReq](h.Sort)),
+	)
+	g.POST("/import", cb("导入项目文件", "import").NoSync().Needs("task:codebook:add").
+		Handle(ginx.W(h.Import)),
+	)
+	g.GET("/file/:id/download", cb("下载项目文件", "download").NoSync().Needs("task:codebook:get").
+		Handle(ginx.W(h.Download)),
 	)
 	g.DELETE("/delete/:id", cb("删除脚本模板", "delete").
 		Handle(ginx.W(h.Delete)),
@@ -172,7 +181,7 @@ func (h *Handler) Delete(ctx *ginx.Context) (ginx.Result, error) {
 	if err != nil {
 		return invalidCodebookIDError, err
 	}
-	count, err := h.svc.Delete(ctx, id)
+	count, err := h.files.Delete(ctx, id)
 	if err != nil {
 		return h.translateError(err), err
 	}
@@ -305,6 +314,7 @@ func (h *Handler) toWorkspaceNodes(nodes []domain.WorkspaceNode) []WorkspaceNode
 			Owner: node.Owner, Kind: node.Kind.String(), Scope: node.Scope.String(),
 			Layer: string(node.Layer), RuntimePath: node.RuntimePath, Readonly: node.Readonly,
 			ProjectID: node.ProjectID, ParentID: node.ParentID, SortNo: node.SortNo,
+			DownloadOnly: node.DownloadOnly, Size: node.Size,
 			Namespace: node.Namespace, Children: h.toWorkspaceNodes(node.Children),
 		}
 	})
@@ -324,6 +334,8 @@ func (h *Handler) toVO(req domain.Codebook) Codebook {
 		Kind:             req.Kind.String(),
 		SortNo:           req.SortNo,
 		Code:             req.Code,
+		Size:             req.Size,
+		DownloadOnly:     req.StorageType == domain.CodebookContentBlob,
 		Secret:           req.Secret,
 		CurrentVersionID: req.CurrentVersionID,
 		CurrentVersionNo: req.CurrentVersionNo,

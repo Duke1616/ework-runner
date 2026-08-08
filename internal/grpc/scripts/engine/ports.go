@@ -44,12 +44,16 @@ type WorkspaceFactory interface {
 type Input struct {
 	Args      string
 	Variables string
+	// Params 保存除 args、variables 外由适配器声明的语言专属参数。
+	Params map[string]string
 }
 
 // PreparedCommand 是语言适配器构造的待执行命令。
 type PreparedCommand struct {
 	Command     *exec.Cmd
 	Environment []string
+	// SecretMasks 保存适配器在执行期间读取到、需要从用户日志中隐藏的敏感值。
+	SecretMasks []string
 }
 
 // Adapter 封装一种脚本语言的元数据和命令构造差异。
@@ -58,6 +62,8 @@ type Adapter interface {
 	Name() string
 	// Description 返回 handler 描述。
 	Description() string
+	// ProgramKinds 返回当前适配器支持的程序来源类型。
+	ProgramKinds() []executor.ProgramKind
 	// Extension 返回脚本文件扩展名。
 	Extension() string
 	// Metadata 返回任务参数元数据。

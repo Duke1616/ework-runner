@@ -38,6 +38,11 @@ func (a *Adapter) Description() string {
 	return "执行 Shell 脚本命令的基础处理器"
 }
 
+// ProgramKinds 返回 Shell 支持的程序来源类型。
+func (a *Adapter) ProgramKinds() []executor.ProgramKind {
+	return []executor.ProgramKind{executor.ProgramKindInline, executor.ProgramKindProject}
+}
+
 // Extension 返回 Shell 文件扩展名。
 func (a *Adapter) Extension() string {
 	return ".sh"

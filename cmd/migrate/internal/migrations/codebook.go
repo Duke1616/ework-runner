@@ -73,14 +73,17 @@ func (codebookVersionMigrator) CollectionName() string {
 
 func (codebookVersionMigrator) Convert(src mongoCodebook) dao.CodebookVersion {
 	return dao.CodebookVersion{
-		ID:        src.ID,
-		NodeID:    src.ID,
-		TenantID:  DefaultTenantID,
-		Scope:     domain.CodebookScopeTenant.String(),
-		VersionNo: 1,
-		Code:      src.Code,
-		Hash:      hashCodebookCode(src.Code),
-		CTime:     src.CTime,
+		ID:          src.ID,
+		NodeID:      src.ID,
+		TenantID:    DefaultTenantID,
+		Scope:       domain.CodebookScopeTenant.String(),
+		VersionNo:   1,
+		Code:        src.Code,
+		StorageType: domain.CodebookContentInline.String(),
+		Size:        int64(len(src.Code)),
+		ContentType: "text/plain; charset=utf-8",
+		Hash:        hashCodebookCode(src.Code),
+		CTime:       src.CTime,
 	}
 }
 

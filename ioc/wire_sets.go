@@ -68,6 +68,8 @@ var (
 		dao.NewGORMCodebookProjectDAO,
 		repository.NewCodebookRepository,
 		codebookSvc.NewService,
+		wire.Bind(new(codebookSvc.ProjectFileRepository), new(repository.ICodebookRepository)),
+		codebookSvc.NewProjectFileService,
 		wire.Bind(new(programSvc.CodebookReader), new(codebookSvc.Service)),
 		codebookSvc.NewWorkspaceService,
 		wire.Bind(new(codebookSvc.WorkspaceSourceReader), new(repository.ICodebookRepository)),

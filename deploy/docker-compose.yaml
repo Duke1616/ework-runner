@@ -17,6 +17,9 @@ services:
       EXECUTOR_NODE_ID: ${EXECUTOR_NODE_ID:-}
     volumes:
       - ./prod.yaml:/app/config/prod.yaml:ro
+      # 启用 Agent 本地 SSH 凭据后，取消注释并确保宿主机凭据文件权限为 0600。
+      # - ./secrets/ansible:/run/credentials/etask-ansible:ro
+      # - ./ssh/known_hosts:/etc/etask/ssh/known_hosts:ro
       # 启用 Local 制品仓库或 Executor 制品缓存时需要持久化该目录。
       - etask-artifacts:/var/lib/etask
 

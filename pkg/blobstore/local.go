@@ -31,7 +31,7 @@ func NewLocal(root string) (*Local, error) {
 	return &Local{root: abs}, nil
 }
 
-func (l *Local) Put(ctx context.Context, key string, src io.Reader, size int64, checksum string) error {
+func (l *Local) Put(ctx context.Context, key string, src io.Reader, options PutOptions) error {
 	path, err := l.resolve(key)
 	if err != nil {
 		return err
@@ -55,12 +55,12 @@ func (l *Local) Put(ctx context.Context, key string, src io.Reader, size int64, 
 	if copyErr != nil {
 		return fmt.Errorf("写入本地制品临时文件失败: %w", copyErr)
 	}
-	if size >= 0 && written != size {
-		return fmt.Errorf("制品大小不一致: 预期=%d 实际=%d", size, written)
+	if options.Size >= 0 && written != options.Size {
+		return fmt.Errorf("Blob 大小不一致: 预期=%d 实际=%d", options.Size, written)
 	}
 	actual := hex.EncodeToString(h.Sum(nil))
-	if checksum != "" && !strings.EqualFold(actual, checksum) {
-		return fmt.Errorf("制品校验和不一致: 预期=%s 实际=%s", checksum, actual)
+	if options.Checksum != "" && !strings.EqualFold(actual, options.Checksum) {
+		return fmt.Errorf("Blob 校验和不一致: 预期=%s 实际=%s", options.Checksum, actual)
 	}
 	if err = tmp.Sync(); err != nil {
 		return fmt.Errorf("同步本地制品临时文件失败: %w", err)
@@ -74,6 +74,17 @@ func (l *Local) Put(ctx context.Context, key string, src io.Reader, size int64, 
 	// 同目录 rename 保证读者只能看到完整文件。内容寻址对象允许相同 key 的幂等覆盖。
 	if err = os.Rename(tmpName, path); err != nil {
 		return fmt.Errorf("提交本地制品对象失败: %w", err)
+	}
+	return nil
+}
+
+func (l *Local) Delete(_ context.Context, key string) error {
+	path, err := l.resolve(key)
+	if err != nil {
+		return err
+	}
+	if err = os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("删除本地 Blob 对象失败: %w", err)
 	}
 	return nil
 }
