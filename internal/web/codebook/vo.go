@@ -53,8 +53,14 @@ type ListReq struct {
 
 type ListProjectsReq struct {
 	Page
-	Status string `json:"status,omitempty"`
-	Scope  string `json:"scope,omitempty"`
+	Keyword string `json:"keyword,omitempty"`
+	Status  string `json:"status,omitempty"`
+	Scope   string `json:"scope,omitempty"`
+}
+
+type ListReferenceProjectsReq struct {
+	Page
+	Keyword string `json:"keyword,omitempty"`
 }
 
 type ProjectDeleteReq struct {

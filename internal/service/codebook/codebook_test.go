@@ -38,16 +38,21 @@ func TestCodebookNameConflict(t *testing.T) {
 
 type projectRepositoryStub struct {
 	repository.ICodebookRepository
-	projects        []domain.CodebookProject
-	total           int64
-	listQuery       domain.CodebookProjectListQuery
-	countQuery      domain.CodebookProjectListQuery
-	archivedID      int64
-	restoredID      int64
-	archiveAffected int64
-	restoreAffected int64
-	node            domain.Codebook
-	project         domain.CodebookProject
+	projects          []domain.CodebookProject
+	total             int64
+	listQuery         domain.CodebookProjectListQuery
+	countQuery        domain.CodebookProjectListQuery
+	archivedID        int64
+	restoredID        int64
+	archiveAffected   int64
+	restoreAffected   int64
+	referenceProjects []domain.CodebookProject
+	referenceTotal    int64
+	referenceKeyword  string
+	referenceOffset   int64
+	referenceLimit    int64
+	node              domain.Codebook
+	project           domain.CodebookProject
 }
 
 func (s *projectRepositoryStub) ListProjects(_ context.Context,
@@ -60,6 +65,18 @@ func (s *projectRepositoryStub) CountProjects(_ context.Context,
 	query domain.CodebookProjectListQuery) (int64, error) {
 	s.countQuery = query
 	return s.total, nil
+}
+
+func (s *projectRepositoryStub) ListReferenceProjects(_ context.Context, keyword string,
+	offset, limit int64) ([]domain.CodebookProject, error) {
+	s.referenceKeyword = keyword
+	s.referenceOffset = offset
+	s.referenceLimit = limit
+	return s.referenceProjects, nil
+}
+
+func (s *projectRepositoryStub) CountReferenceProjects(_ context.Context, _ string) (int64, error) {
+	return s.referenceTotal, nil
 }
 
 func (s *projectRepositoryStub) ArchiveProject(_ context.Context, id int64) (int64, error) {
@@ -139,6 +156,23 @@ func TestListProjectsAcceptsSystemScope(t *testing.T) {
 		Scope: domain.CodebookScopeSystem, Status: domain.CodebookProjectStatusNormal,
 		Offset: 1, Limit: 10,
 	}, repo.countQuery)
+}
+
+func TestListReferenceProjectsTrimsKeywordAndForwardsPage(t *testing.T) {
+	repo := &projectRepositoryStub{
+		referenceProjects: []domain.CodebookProject{{ID: 9, Status: domain.CodebookProjectStatusArchived}},
+		referenceTotal:    12,
+	}
+	svc := NewService(repo)
+
+	projects, total, err := svc.ListReferenceProjects(t.Context(), "  deploy  ", 20, 10)
+
+	require.NoError(t, err)
+	require.Equal(t, repo.referenceProjects, projects)
+	require.Equal(t, int64(12), total)
+	require.Equal(t, "deploy", repo.referenceKeyword)
+	require.Equal(t, int64(20), repo.referenceOffset)
+	require.Equal(t, int64(10), repo.referenceLimit)
 }
 
 func TestSystemChildrenRejectsParentFromAnotherSystemProject(t *testing.T) {

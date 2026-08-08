@@ -115,13 +115,17 @@ type CodebookProjectDAO interface {
 	// GetByID 根据主键 ID 查询代码资源项目，包括已归档项目。
 	GetByID(ctx context.Context, id int64) (CodebookProject, error)
 	// List 按状态分页查询代码资源项目。
-	List(ctx context.Context, status string, offset, limit int64) ([]CodebookProject, error)
+	List(ctx context.Context, status, keyword string, offset, limit int64) ([]CodebookProject, error)
 	// ListArtifactProjects 查询当前租户下全部可作为依赖使用的制品库项目。
 	ListArtifactProjects(ctx context.Context) ([]CodebookProject, error)
 	// ArtifactNamespaceExists 判断当前租户是否存在同名制品导入命名空间。
 	ArtifactNamespaceExists(ctx context.Context, namespace string, excludeID int64) (bool, error)
 	// Count 按状态统计代码资源项目总数。
-	Count(ctx context.Context, status string) (int64, error)
+	Count(ctx context.Context, status, keyword string) (int64, error)
+	// ListReferenceProjects 分页查询当前租户可引用的正常和归档项目。
+	ListReferenceProjects(ctx context.Context, keyword string, offset, limit int64) ([]CodebookProject, error)
+	// CountReferenceProjects 统计当前租户可引用的正常和归档项目数量。
+	CountReferenceProjects(ctx context.Context, keyword string) (int64, error)
 	// GetMaxSortNo 查询当前租户项目最大的排序号。
 	GetMaxSortNo(ctx context.Context) (int64, error)
 	// Update 更新代码资源项目。
@@ -157,9 +161,9 @@ type CodebookDAO interface {
 	// ListChildrenBySpace 查询指定空间和父节点下的子节点。
 	ListChildrenBySpace(ctx context.Context, projectID, parentID int64, scope string) ([]Codebook, error)
 	// ListRootDirectoriesByScope 分页查询指定作用域的根目录。
-	ListRootDirectoriesByScope(ctx context.Context, scope string, offset, limit int64) ([]Codebook, error)
+	ListRootDirectoriesByScope(ctx context.Context, scope, keyword string, offset, limit int64) ([]Codebook, error)
 	// CountRootDirectoriesByScope 统计指定作用域的根目录数量。
-	CountRootDirectoriesByScope(ctx context.Context, scope string) (int64, error)
+	CountRootDirectoriesByScope(ctx context.Context, scope, keyword string) (int64, error)
 	// Tree 查询指定项目下的全部源码节点。
 	Tree(ctx context.Context, projectID int64) ([]Codebook, error)
 	// TreeByRoot 查询指定作用域根节点及其整棵子树。
@@ -228,11 +232,15 @@ func (g *GORMCodebookProjectDAO) GetByID(ctx context.Context, id int64) (Codeboo
 }
 
 // List 按状态分页查询代码资源项目。
-func (g *GORMCodebookProjectDAO) List(ctx context.Context, status string,
+func (g *GORMCodebookProjectDAO) List(ctx context.Context, status, keyword string,
 	offset, limit int64) ([]CodebookProject, error) {
 	var res []CodebookProject
-	err := g.db.WithContext(ctx).
-		Where("status = ?", status).
+	db := g.db.WithContext(ctx).Where("status = ?", status)
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		db = db.Where("name LIKE ? OR description LIKE ?", like, like)
+	}
+	err := db.
 		Order("sort_no ASC, id ASC").
 		Offset(int(offset)).
 		Limit(int(limit)).
@@ -263,13 +271,47 @@ func (g *GORMCodebookProjectDAO) ArtifactNamespaceExists(ctx context.Context, na
 }
 
 // Count 按状态统计代码资源项目总数。
-func (g *GORMCodebookProjectDAO) Count(ctx context.Context, status string) (int64, error) {
+func (g *GORMCodebookProjectDAO) Count(ctx context.Context, status, keyword string) (int64, error) {
 	var count int64
-	err := g.db.WithContext(ctx).
-		Model(&CodebookProject{}).
-		Where("status = ?", status).
+	db := g.db.WithContext(ctx).Model(&CodebookProject{}).Where("status = ?", status)
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		db = db.Where("name LIKE ? OR description LIKE ?", like, like)
+	}
+	err := db.
 		Count(&count).Error
 	return count, err
+}
+
+func (g *GORMCodebookProjectDAO) ListReferenceProjects(ctx context.Context, keyword string,
+	offset, limit int64) ([]CodebookProject, error) {
+	var projects []CodebookProject
+	db := g.db.WithContext(ctx).Where("scope = ? AND status IN ?", domain.CodebookScopeTenant.String(), []string{
+		domain.CodebookProjectStatusNormal.String(),
+		domain.CodebookProjectStatusArchived.String(),
+	})
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		db = db.Where("name LIKE ? OR description LIKE ?", like, like)
+	}
+	err := db.Order("sort_no ASC, name ASC, id ASC").
+		Offset(int(offset)).Limit(int(limit)).Find(&projects).Error
+	return projects, err
+}
+
+func (g *GORMCodebookProjectDAO) CountReferenceProjects(ctx context.Context, keyword string) (int64, error) {
+	var total int64
+	db := g.db.WithContext(ctx).Model(&CodebookProject{}).
+		Where("scope = ? AND status IN ?", domain.CodebookScopeTenant.String(), []string{
+			domain.CodebookProjectStatusNormal.String(),
+			domain.CodebookProjectStatusArchived.String(),
+		})
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		db = db.Where("name LIKE ? OR description LIKE ?", like, like)
+	}
+	err := db.Count(&total).Error
+	return total, err
 }
 
 // GetMaxSortNo 查询当前租户项目最大的排序号。
@@ -473,12 +515,15 @@ func (g *GORMCodebookDAO) ListChildrenBySpace(ctx context.Context, projectID, pa
 }
 
 // ListRootDirectoriesByScope 分页查询指定作用域的根目录。
-func (g *GORMCodebookDAO) ListRootDirectoriesByScope(ctx context.Context, scope string,
+func (g *GORMCodebookDAO) ListRootDirectoriesByScope(ctx context.Context, scope, keyword string,
 	offset, limit int64) ([]Codebook, error) {
 	var res []Codebook
-	err := g.dbWithContext(ctx).
-		Where("scope = ? AND project_id = 0 AND parent_id = 0 AND kind = ?", scope,
-			domain.CodebookKindDirectory.String()).
+	db := g.dbWithContext(ctx).Where("scope = ? AND project_id = 0 AND parent_id = 0 AND kind = ?", scope,
+		domain.CodebookKindDirectory.String())
+	if keyword != "" {
+		db = db.Where("name LIKE ?", "%"+keyword+"%")
+	}
+	err := db.
 		Order("sort_no ASC, id ASC").
 		Offset(int(offset)).
 		Limit(int(limit)).
@@ -487,11 +532,14 @@ func (g *GORMCodebookDAO) ListRootDirectoriesByScope(ctx context.Context, scope 
 }
 
 // CountRootDirectoriesByScope 统计指定作用域的根目录数量。
-func (g *GORMCodebookDAO) CountRootDirectoriesByScope(ctx context.Context, scope string) (int64, error) {
+func (g *GORMCodebookDAO) CountRootDirectoriesByScope(ctx context.Context, scope, keyword string) (int64, error) {
 	var count int64
-	err := g.dbWithContext(ctx).Model(&Codebook{}).
-		Where("scope = ? AND project_id = 0 AND parent_id = 0 AND kind = ?", scope,
-			domain.CodebookKindDirectory.String()).
+	db := g.dbWithContext(ctx).Model(&Codebook{}).Where("scope = ? AND project_id = 0 AND parent_id = 0 AND kind = ?", scope,
+		domain.CodebookKindDirectory.String())
+	if keyword != "" {
+		db = db.Where("name LIKE ?", "%"+keyword+"%")
+	}
+	err := db.
 		Count(&count).Error
 	return count, err
 }

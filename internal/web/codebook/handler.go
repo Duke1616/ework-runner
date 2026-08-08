@@ -103,6 +103,9 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 	pg.POST("/list", project("项目列表", "view_project").
 		Handle(ginx.B[ListProjectsReq](h.ListProject)),
 	)
+	pg.POST("/references", project("可引用项目列表", "view_project").
+		Handle(ginx.B[ListReferenceProjectsReq](h.ListReferenceProjects)),
+	)
 	pg.POST("/update", project("更新项目", "edit_project").
 		Handle(ginx.B[UpdateProjectReq](h.UpdateProject)),
 	)
@@ -167,7 +170,11 @@ func (h *Handler) Tree(ctx *ginx.Context) (ginx.Result, error) {
 	if err != nil {
 		return invalidProjectIDError, err
 	}
-	scope := domain.CodebookScope(ctx.Query("scope").StringOrDefault(domain.CodebookScopeTenant.String()))
+	scope := domain.CodebookScopeTenant
+	scopeValue := ctx.Query("scope").StringOrDefault("")
+	if scopeValue != "" {
+		scope = domain.CodebookScope(scopeValue)
+	}
 	if !scope.Valid() {
 		err = fmt.Errorf("%w: 作用域非法", errs.ErrInvalidParameter)
 		return invalidParameterResult(err), err
@@ -268,8 +275,16 @@ func (h *Handler) CreateProject(ctx *ginx.Context, req CreateProjectReq) (ginx.R
 func (h *Handler) ListProject(ctx *ginx.Context, req ListProjectsReq) (ginx.Result, error) {
 	ps, total, err := h.svc.ListProjects(ctx, domain.CodebookProjectListQuery{
 		Scope: domain.CodebookScope(req.Scope), Status: domain.CodebookProjectStatus(req.Status),
-		Offset: req.Offset, Limit: req.Limit,
+		Keyword: req.Keyword, Offset: req.Offset, Limit: req.Limit,
 	})
+	if err != nil {
+		return h.translateError(err), err
+	}
+	return ginx.Result{Msg: "success", Data: h.toProjectListResp(ps, total)}, nil
+}
+
+func (h *Handler) ListReferenceProjects(ctx *ginx.Context, req ListReferenceProjectsReq) (ginx.Result, error) {
+	ps, total, err := h.svc.ListReferenceProjects(ctx, req.Keyword, req.Offset, req.Limit)
 	if err != nil {
 		return h.translateError(err), err
 	}

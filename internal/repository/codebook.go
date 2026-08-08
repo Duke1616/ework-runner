@@ -64,6 +64,10 @@ type ICodebookRepository interface {
 	ListProjects(ctx context.Context, query domain.CodebookProjectListQuery) ([]domain.CodebookProject, error)
 	// CountProjects 按查询条件统计租户项目或公共库数量。
 	CountProjects(ctx context.Context, query domain.CodebookProjectListQuery) (int64, error)
+	// ListReferenceProjects 分页查询当前租户可引用的正常和归档项目。
+	ListReferenceProjects(ctx context.Context, keyword string, offset, limit int64) ([]domain.CodebookProject, error)
+	// CountReferenceProjects 统计当前租户可引用的正常和归档项目数量。
+	CountReferenceProjects(ctx context.Context, keyword string) (int64, error)
 	// GetProjectMaxSortNo 查询当前租户项目最大的排序号。
 	GetProjectMaxSortNo(ctx context.Context) (int64, error)
 	// UpdateProject 更新代码资源项目。
@@ -463,7 +467,7 @@ func (repo *codebookRepository) GetProjectByID(ctx context.Context, id int64) (d
 func (repo *codebookRepository) ListProjects(ctx context.Context,
 	query domain.CodebookProjectListQuery) ([]domain.CodebookProject, error) {
 	if query.Scope == domain.CodebookScopeSystem {
-		roots, err := repo.dao.ListRootDirectoriesByScope(ctx, query.Scope.String(), query.Offset, query.Limit)
+		roots, err := repo.dao.ListRootDirectoriesByScope(ctx, query.Scope.String(), query.Keyword, query.Offset, query.Limit)
 		if err != nil {
 			return nil, err
 		}
@@ -475,7 +479,7 @@ func (repo *codebookRepository) ListProjects(ctx context.Context,
 			}
 		}), nil
 	}
-	ps, err := repo.projectDao.List(ctx, query.Status.String(), query.Offset, query.Limit)
+	ps, err := repo.projectDao.List(ctx, query.Status.String(), query.Keyword, query.Offset, query.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -506,9 +510,24 @@ func (repo *codebookRepository) SystemTree(ctx context.Context, rootID int64) ([
 func (repo *codebookRepository) CountProjects(ctx context.Context,
 	query domain.CodebookProjectListQuery) (int64, error) {
 	if query.Scope == domain.CodebookScopeSystem {
-		return repo.dao.CountRootDirectoriesByScope(ctx, query.Scope.String())
+		return repo.dao.CountRootDirectoriesByScope(ctx, query.Scope.String(), query.Keyword)
 	}
-	return repo.projectDao.Count(ctx, query.Status.String())
+	return repo.projectDao.Count(ctx, query.Status.String(), query.Keyword)
+}
+
+func (repo *codebookRepository) ListReferenceProjects(ctx context.Context, keyword string,
+	offset, limit int64) ([]domain.CodebookProject, error) {
+	projects, err := repo.projectDao.ListReferenceProjects(ctx, keyword, offset, limit)
+	if err != nil {
+		return nil, err
+	}
+	return lo.Map(projects, func(project dao.CodebookProject, _ int) domain.CodebookProject {
+		return repo.toProjectDomain(project)
+	}), nil
+}
+
+func (repo *codebookRepository) CountReferenceProjects(ctx context.Context, keyword string) (int64, error) {
+	return repo.projectDao.CountReferenceProjects(ctx, keyword)
 }
 
 func (repo *codebookRepository) GetProjectMaxSortNo(ctx context.Context) (int64, error) {

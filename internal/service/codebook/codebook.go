@@ -48,6 +48,8 @@ type Service interface {
 	GetProjectByID(ctx context.Context, id int64) (domain.CodebookProject, error)
 	// ListProjects 按查询条件分页获取租户项目或公共库。
 	ListProjects(ctx context.Context, query domain.CodebookProjectListQuery) ([]domain.CodebookProject, int64, error)
+	// ListReferenceProjects 分页获取当前租户可引用的正常和归档项目。
+	ListReferenceProjects(ctx context.Context, keyword string, offset, limit int64) ([]domain.CodebookProject, int64, error)
 	// SystemChildren 获取 SYSTEM 项目下的只读子节点。
 	SystemChildren(ctx context.Context, rootID, parentID int64) ([]domain.Codebook, error)
 	// UpdateProject 校验并更新脚本项目。
@@ -389,6 +391,7 @@ func (s *service) GetProjectByID(ctx context.Context, id int64) (domain.Codebook
 
 func (s *service) ListProjects(ctx context.Context,
 	query domain.CodebookProjectListQuery) ([]domain.CodebookProject, int64, error) {
+	query.Keyword = strings.TrimSpace(query.Keyword)
 	if query.Scope == "" {
 		query.Scope = domain.CodebookScopeTenant
 	}
@@ -426,6 +429,38 @@ func (s *service) ListProjects(ctx context.Context,
 		return nil, 0, err
 	}
 	return res, total, nil
+}
+
+func (s *service) ListReferenceProjects(ctx context.Context, keyword string, offset, limit int64) ([]domain.CodebookProject, int64, error) {
+	if offset < 0 || limit < 0 {
+		return nil, 0, fmt.Errorf("%w: 分页参数非法", errs.ErrInvalidParameter)
+	}
+	if limit == 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	keyword = strings.TrimSpace(keyword)
+	var (
+		eg       errgroup.Group
+		projects []domain.CodebookProject
+		total    int64
+	)
+	eg.Go(func() error {
+		var err error
+		projects, err = s.repo.ListReferenceProjects(ctx, keyword, offset, limit)
+		return err
+	})
+	eg.Go(func() error {
+		var err error
+		total, err = s.repo.CountReferenceProjects(ctx, keyword)
+		return err
+	})
+	if err := eg.Wait(); err != nil {
+		return nil, 0, err
+	}
+	return projects, total, nil
 }
 
 func (s *service) SystemChildren(ctx context.Context, rootID, parentID int64) ([]domain.Codebook, error) {

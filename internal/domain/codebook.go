@@ -101,10 +101,11 @@ type CodebookProject struct {
 
 // CodebookProjectListQuery 描述项目列表的作用域、状态和分页条件。
 type CodebookProjectListQuery struct {
-	Scope  CodebookScope
-	Status CodebookProjectStatus
-	Offset int64
-	Limit  int64
+	Scope   CodebookScope
+	Status  CodebookProjectStatus
+	Keyword string
+	Offset  int64
+	Limit   int64
 }
 
 // ProjectDeleteImpact 描述删除项目会影响的数据范围。

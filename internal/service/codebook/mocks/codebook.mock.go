@@ -472,6 +472,46 @@ func (c *MockServiceListProjectsCall) DoAndReturn(f func(context.Context, domain
 	return c
 }
 
+// ListReferenceProjects mocks base method.
+func (m *MockService) ListReferenceProjects(ctx context.Context, keyword string, offset, limit int64) ([]domain.CodebookProject, int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListReferenceProjects", ctx, keyword, offset, limit)
+	ret0, _ := ret[0].([]domain.CodebookProject)
+	ret1, _ := ret[1].(int64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ListReferenceProjects indicates an expected call of ListReferenceProjects.
+func (mr *MockServiceMockRecorder) ListReferenceProjects(ctx, keyword, offset, limit any) *MockServiceListReferenceProjectsCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListReferenceProjects", reflect.TypeOf((*MockService)(nil).ListReferenceProjects), ctx, keyword, offset, limit)
+	return &MockServiceListReferenceProjectsCall{Call: call}
+}
+
+// MockServiceListReferenceProjectsCall wrap *gomock.Call
+type MockServiceListReferenceProjectsCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockServiceListReferenceProjectsCall) Return(arg0 []domain.CodebookProject, arg1 int64, arg2 error) *MockServiceListReferenceProjectsCall {
+	c.Call = c.Call.Return(arg0, arg1, arg2)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockServiceListReferenceProjectsCall) Do(f func(context.Context, string, int64, int64) ([]domain.CodebookProject, int64, error)) *MockServiceListReferenceProjectsCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockServiceListReferenceProjectsCall) DoAndReturn(f func(context.Context, string, int64, int64) ([]domain.CodebookProject, int64, error)) *MockServiceListReferenceProjectsCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // ListVersions mocks base method.
 func (m *MockService) ListVersions(ctx context.Context, nodeID int64) ([]domain.CodebookVersion, error) {
 	m.ctrl.T.Helper()
