@@ -1,0 +1,10 @@
+---
+- name: 加载输入校验任务
+  ansible.builtin.import_tasks: validate.yml
+  tags:
+    - validate
+
+- name: 加载渲染验证任务
+  ansible.builtin.import_tasks: render.yml
+  tags:
+    - render

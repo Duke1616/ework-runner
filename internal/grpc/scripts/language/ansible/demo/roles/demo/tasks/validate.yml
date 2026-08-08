@@ -1,0 +1,14 @@
+---
+- name: 校验 Demo 变量
+  ansible.builtin.assert:
+    that:
+      - demo_environment | string | length > 0
+      - demo_message | string | length > 0
+    fail_msg: Demo 变量不能为空
+    success_msg: Demo 变量校验通过
+
+- name: 展示 ETask 传入的变量
+  ansible.builtin.debug:
+    msg:
+      environment: "{{ demo_environment }}"
+      message: "{{ demo_message }}"

@@ -1,0 +1,5 @@
+---
+- name: 输出 Demo Handler 结果
+  ansible.builtin.debug:
+    msg: "Handler 已触发：{{ demo_environment }}"
+  listen: Demo 执行完成

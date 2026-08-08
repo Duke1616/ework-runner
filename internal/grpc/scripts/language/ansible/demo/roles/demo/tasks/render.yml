@@ -1,0 +1,17 @@
+---
+- name: 读取 Role files 内容
+  ansible.builtin.set_fact:
+    demo_static_content: "{{ lookup('ansible.builtin.file', role_path + '/files/sample.txt') | trim }}"
+
+- name: 渲染 Role template
+  ansible.builtin.set_fact:
+    demo_summary: "{{ lookup('ansible.builtin.template', role_path + '/templates/summary.j2') | trim }}"
+
+- name: 输出渲染结果并触发 Handler
+  ansible.builtin.debug:
+    var: demo_summary
+  changed_when: true
+  notify: Demo 执行完成
+
+- name: 立即执行 Demo Handler
+  ansible.builtin.meta: flush_handlers
