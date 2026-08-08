@@ -116,7 +116,14 @@ ansible-playbook --extra-vars @"$ETASK_WORKSPACE_ROOT/ansible-extra-vars.json" p
 
 ```yaml
 runtime:
+  shell:
+    enabled: true
+    binary: /bin/bash
+  python:
+    enabled: true
+    binary: python
   ansible:
+    enabled: true
     binary: ansible-playbook
     sshpass_binary: sshpass
     credential_root: /run/credentials/etask-ansible
@@ -156,7 +163,7 @@ all:
 
 当前逐主机引用解析范围是所选静态 YAML/INI inventory 文件本身；外部 `group_vars`、`host_vars` 和动态 inventory 中的 `etask_credential_ref` 暂不参与解析。未使用 etask 凭据引用时，原有 Ansible inventory 变量行为保持不变。
 
-Ansible 默认关闭 retry 文件，临时目录和用户目录都位于本次可写工作区；PROJECT 项目挂载仍保持只读。Ansible Handler 始终注册，`runtime.ansible.binary` 可以覆盖命令路径；启动阶段不检查本地命令，缺少运行依赖时由具体任务返回执行错误。
+Ansible 默认关闭 retry 文件，临时目录和用户目录都位于本次可写工作区；PROJECT 项目挂载仍保持只读。Shell、Python 和 Ansible 只有在 `enabled: true` 时才会注册对应 Handler；关闭后也不会校验该语言的本地命令或专属配置。服务启动时会校验所有已启用语言的命令路径。
 
 ## 制品路径
 

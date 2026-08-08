@@ -10,12 +10,16 @@ import (
 	"testing"
 
 	"github.com/Duke1616/etask/internal/grpc/scripts/engine"
+	"github.com/Duke1616/etask/internal/grpc/scripts/language/ansible"
+	"github.com/Duke1616/etask/internal/grpc/scripts/language/ansible/connection"
+	"github.com/Duke1616/etask/internal/grpc/scripts/language/python"
+	"github.com/Duke1616/etask/internal/grpc/scripts/language/shell"
 	"github.com/Duke1616/etask/sdk/executor"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRuntimeHandlersExecuteProjectSource(t *testing.T) {
-	python, err := exec.LookPath("python3")
+	pythonBinary, err := exec.LookPath("python3")
 	if err != nil {
 		t.Skip("当前环境未安装 python3")
 	}
@@ -27,8 +31,10 @@ func TestRuntimeHandlersExecuteProjectSource(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(project, "helper.py"), []byte("VALUE = 'ok'\n"), 0o440))
 	disabled := false
 	runtime, err := NewRuntime(RuntimeConfig{
-		WorkspaceDir: t.TempDir(), ShellBinary: "/bin/sh", PythonBinary: python,
-		Archive: ArchiveConfig{Enabled: &disabled},
+		WorkspaceDir: t.TempDir(),
+		Shell:        shell.Config{Enabled: true, Binary: "/bin/sh"},
+		Python:       python.Config{Enabled: true, Binary: pythonBinary},
+		Archive:      ArchiveConfig{Enabled: &disabled},
 	})
 	require.NoError(t, err)
 	handlers := make(map[string]executor.TaskHandler)
@@ -76,9 +82,10 @@ grep -q '"environment":"staging"' "$extra_vars"
 `), 0o700))
 	disabled := false
 	runtime, err := NewRuntime(RuntimeConfig{
-		WorkspaceDir: t.TempDir(), ShellBinary: "/bin/sh", PythonBinary: "/bin/sh",
-		Sandbox: SandboxConfig{Mode: SandboxModeOff},
-		Ansible: AnsibleConfig{Binary: binary}, Archive: ArchiveConfig{Enabled: &disabled},
+		WorkspaceDir: t.TempDir(),
+		Sandbox:      SandboxConfig{Mode: SandboxModeOff},
+		Ansible:      ansible.Config{Enabled: true, Binary: binary},
+		Archive:      ArchiveConfig{Enabled: &disabled},
 	})
 	require.NoError(t, err)
 	require.NoError(t, runtime.Initialize())
@@ -118,9 +125,24 @@ func TestNewRuntime(t *testing.T) {
 		config       RuntimeConfig
 		wantHandlers []string
 	}{
-		{name: "默认配置创建三个处理器", wantHandlers: []string{"shell", "python", "ansible"}},
-		{name: "允许自定义运行目录", config: RuntimeConfig{WorkspaceDir: t.TempDir()},
-			wantHandlers: []string{"shell", "python", "ansible"}},
+		{name: "默认配置不注册处理器"},
+		{
+			name: "注册全部显式开启的处理器",
+			config: RuntimeConfig{
+				WorkspaceDir: t.TempDir(),
+				Shell:        shell.Config{Enabled: true},
+				Python:       python.Config{Enabled: true},
+				Ansible:      ansible.Config{Enabled: true},
+			},
+			wantHandlers: []string{"shell", "python", "ansible"},
+		},
+		{
+			name: "只注册显式开启的处理器",
+			config: RuntimeConfig{
+				Python: python.Config{Enabled: true},
+			},
+			wantHandlers: []string{"python"},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -137,16 +159,30 @@ func TestNewRuntime(t *testing.T) {
 				require.True(t, ok)
 				require.Equal(t, []executor.ProgramKind{executor.ProgramKindProject}, programHandler.ProgramKinds())
 			}
-			handlers[0] = nil
-			require.NotNil(t, runtime.Handlers()[0], "Handlers 应返回副本")
+			if len(handlers) > 0 {
+				handlers[0] = nil
+				require.NotNil(t, runtime.Handlers()[0], "Handlers 应返回副本")
+			}
 		})
 	}
 }
 
-func TestNewRuntimeRejectsUnsafeAnsibleCredentialConfig(t *testing.T) {
-	_, err := NewRuntime(RuntimeConfig{Ansible: AnsibleConfig{
+func TestNewRuntimeIgnoresDisabledAnsibleConfig(t *testing.T) {
+	runtime, err := NewRuntime(RuntimeConfig{Ansible: ansible.Config{
 		CredentialRoot: "relative/credentials",
-		Credentials: map[string]AnsibleCredentialConfig{
+		Credentials: map[string]connection.CredentialConfig{
+			"production": {Username: "deploy", PrivateKeyFile: "production-key"},
+		},
+	}})
+	require.NoError(t, err)
+	require.Empty(t, runtime.Handlers())
+}
+
+func TestNewRuntimeRejectsUnsafeAnsibleCredentialConfig(t *testing.T) {
+	_, err := NewRuntime(RuntimeConfig{Ansible: ansible.Config{
+		Enabled:        true,
+		CredentialRoot: "relative/credentials",
+		Credentials: map[string]connection.CredentialConfig{
 			"production": {Username: "deploy", PrivateKeyFile: "production-key"},
 		},
 	}})

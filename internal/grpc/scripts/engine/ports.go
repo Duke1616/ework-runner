@@ -74,6 +74,12 @@ type Adapter interface {
 	Validate() error
 }
 
+// AdapterFactory 描述一种可按配置开关和构造的语言 Adapter。
+type AdapterFactory interface {
+	IsEnabled() bool
+	Build() (Adapter, error)
+}
+
 // ArchiveRecord 描述需要归档的执行现场。
 type ArchiveRecord struct {
 	ExecutionID int64

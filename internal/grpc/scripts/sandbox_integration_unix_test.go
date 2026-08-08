@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/Duke1616/etask/internal/grpc/scripts/language/shell"
 	"github.com/Duke1616/etask/sdk/executor"
 	"github.com/stretchr/testify/require"
 )
@@ -27,7 +28,7 @@ func TestRuntimeSandboxExecutesTaskAsRequestedIdentity(t *testing.T) {
 	archiveEnabled := false
 	runtime, err := NewRuntime(RuntimeConfig{
 		WorkspaceDir: filepath.Join(workspaceParent, "runs"),
-		ShellBinary:  "/bin/sh",
+		Shell:        shell.Config{Enabled: true, Binary: "/bin/sh"},
 		Sandbox: SandboxConfig{
 			Mode: SandboxModeRequired, UID: 65534, GID: 65534,
 		},

@@ -27,8 +27,14 @@ runtime:
   workspace_dir: "/tmp/etask/runs"
   # 历史工作目录保留时间
   workspace_max_age: 24h
-  # Ansible Handler 始终注册；可覆盖 ansible-playbook 命令路径。
+  shell:
+    enabled: true
+    binary: "/bin/bash"
+  python:
+    enabled: true
+    binary: "python"
   ansible:
+    enabled: true
     binary: "ansible-playbook"
     # 密码凭据依赖该命令；默认值为 sshpass。
     # sshpass_binary: "sshpass"

@@ -18,7 +18,14 @@ artifact_cache:
 runtime:
   workspace_dir: "/tmp/etask/runs"
   workspace_max_age: 24h
+  shell:
+    enabled: true
+    binary: "/bin/bash"
+  python:
+    enabled: true
+    binary: "python"
   ansible:
+    enabled: true
     binary: "ansible-playbook"
     # 密码凭据依赖该命令；默认值为 sshpass。
     # sshpass_binary: "sshpass"

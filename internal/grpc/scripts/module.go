@@ -5,10 +5,6 @@ import (
 	"sync"
 
 	"github.com/Duke1616/etask/internal/grpc/scripts/engine"
-	"github.com/Duke1616/etask/internal/grpc/scripts/language/ansible"
-	ansibleconnection "github.com/Duke1616/etask/internal/grpc/scripts/language/ansible/connection"
-	"github.com/Duke1616/etask/internal/grpc/scripts/language/python"
-	"github.com/Duke1616/etask/internal/grpc/scripts/language/shell"
 	"github.com/Duke1616/etask/internal/grpc/scripts/runtimefs"
 	"github.com/Duke1616/etask/sdk/executor"
 )
@@ -38,28 +34,19 @@ func NewRuntime(config RuntimeConfig) (*Runtime, error) {
 	if err != nil {
 		return nil, err
 	}
-	credentials := make(map[string]ansibleconnection.CredentialConfig, len(config.Ansible.Credentials))
-	for reference, credential := range config.Ansible.Credentials {
-		credentials[reference] = ansibleconnection.CredentialConfig{
-			Type: credential.Type, Username: credential.Username,
-			PrivateKeyFile: credential.PrivateKeyFile, PasswordFile: credential.PasswordFile,
+	adapters := make([]engine.Adapter, 0, 3)
+	for _, factory := range config.adapterFactories() {
+		if !factory.IsEnabled() {
+			continue
 		}
-	}
-	credentialProvider, err := ansibleconnection.NewLocalCredentialProvider(config.Ansible.CredentialRoot, credentials)
-	if err != nil {
-		return nil, err
-	}
-	hostKeyProvider, err := ansibleconnection.NewFileHostKeyProvider(config.Ansible.KnownHostsFile)
-	if err != nil {
-		return nil, err
-	}
-	connections := ansibleconnection.NewSSHPreparer(
-		credentialProvider, hostKeyProvider, ansibleconnection.WithSSHPassBinary(config.Ansible.SSHPassBinary),
-	)
-	adapters := []engine.Adapter{
-		shell.New(config.ShellBinary),
-		python.New(config.PythonBinary),
-		ansible.New(config.Ansible.Binary, ansible.WithSSHConnectionPreparer(connections)),
+		adapter, buildErr := factory.Build()
+		if buildErr != nil {
+			return nil, buildErr
+		}
+		if adapter == nil {
+			return nil, fmt.Errorf("已启用的脚本 Adapter 不能为空")
+		}
+		adapters = append(adapters, adapter)
 	}
 	// 每种语言复用同一套执行编排，仅替换命令和参数适配逻辑。
 	handlers := make([]executor.TaskHandler, 0, len(adapters))
