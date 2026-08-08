@@ -98,4 +98,11 @@ func TestServiceRejectsUnauthorizedArtifactWrite(t *testing.T) {
 	repo.EXPECT().Activate(gomock.Any(), projectTarget, int64(1)).Return(nil)
 	err = svc.Activate(ctxutil.WithTenantID(context.Background(), 10), projectTarget, 1)
 	require.NoError(t, err)
+
+	repo.EXPECT().GetProject(gomock.Any(), int64(7)).Return(domain.CodebookProject{
+		ID: 7, Status: domain.CodebookProjectStatusArchived,
+		ArtifactEnabled: true, ArtifactNamespace: "ops_common",
+	}, nil)
+	err = svc.Activate(ctxutil.WithTenantID(context.Background(), 10), projectTarget, 1)
+	require.ErrorContains(t, err, "项目已归档")
 }

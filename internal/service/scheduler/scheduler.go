@@ -183,7 +183,7 @@ func (s *Scheduler) stopTaskWithUnavailableProgram(ctx context.Context, schedule
 			elog.FieldErr(err))
 		return
 	}
-	s.logger.Warn("程序来源不存在或已归档，任务已自动停用",
+	s.logger.Warn("程序来源不存在，任务已自动停用",
 		elog.Int64("taskID", scheduled.ID), elog.String("taskName", scheduled.Name))
 }
 

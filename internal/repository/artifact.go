@@ -131,7 +131,8 @@ func (r *artifactRepository) GetProject(ctx context.Context, projectID int64) (d
 	}
 	return domain.CodebookProject{
 		ID: project.ID, TenantID: project.TenantID, Scope: domain.CodebookScope(project.Scope),
-		Name: project.Name, ArtifactEnabled: project.ArtifactEnabled,
+		Name: project.Name, Status: domain.CodebookProjectStatus(project.Status),
+		ArtifactEnabled:   project.ArtifactEnabled,
 		ArtifactNamespace: artifactNamespace(project), SourceRevision: project.SourceRevision,
 	}, nil
 }

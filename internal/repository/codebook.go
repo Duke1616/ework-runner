@@ -2,8 +2,10 @@ package repository
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/Duke1616/etask/internal/domain"
+	"github.com/Duke1616/etask/internal/errs"
 	"github.com/Duke1616/etask/internal/repository/dao"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
@@ -33,6 +35,8 @@ type ICodebookRepository interface {
 	ListChildrenByScope(ctx context.Context, projectID, parentID int64, scope domain.CodebookScope) ([]domain.Codebook, error)
 	// Tree 查询指定项目下的全部源码节点。
 	Tree(ctx context.Context, projectID int64) ([]domain.Codebook, error)
+	// SystemTree 查询 SYSTEM 根项目及其整棵源码树。
+	SystemTree(ctx context.Context, rootID int64) ([]domain.Codebook, error)
 	// Total 统计代码资源总数。
 	Total(ctx context.Context) (int64, error)
 	// GetMaxSortNo 查询指定租户项目、作用域和父节点下最大的排序号。
@@ -54,13 +58,12 @@ type ICodebookRepository interface {
 
 	// CreateProject 插入一个代码资源项目。
 	CreateProject(ctx context.Context, req domain.CodebookProject) (int64, error)
-	// GetProjectByID 根据主键 ID 查询代码资源项目。
+	// GetProjectByID 根据主键 ID 查询代码资源项目，包括已归档项目。
 	GetProjectByID(ctx context.Context, id int64) (domain.CodebookProject, error)
-	// ListProjects 按状态分页查询代码资源项目。
-	ListProjects(ctx context.Context, status domain.CodebookProjectStatus,
-		offset, limit int64) ([]domain.CodebookProject, error)
-	// TotalProjects 按状态统计代码资源项目总数。
-	TotalProjects(ctx context.Context, status domain.CodebookProjectStatus) (int64, error)
+	// ListProjects 按查询条件分页查询租户项目或公共库。
+	ListProjects(ctx context.Context, query domain.CodebookProjectListQuery) ([]domain.CodebookProject, error)
+	// CountProjects 按查询条件统计租户项目或公共库数量。
+	CountProjects(ctx context.Context, query domain.CodebookProjectListQuery) (int64, error)
 	// GetProjectMaxSortNo 查询当前租户项目最大的排序号。
 	GetProjectMaxSortNo(ctx context.Context) (int64, error)
 	// UpdateProject 更新代码资源项目。
@@ -169,8 +172,10 @@ func (repo *codebookRepository) ListChildrenByScope(ctx context.Context, project
 		if err != nil {
 			return nil, err
 		}
+		if parent.Scope != scope.String() {
+			return nil, fmt.Errorf("%w: 父节点作用域不匹配", errs.ErrInvalidParameter)
+		}
 		projectID = parent.ProjectID
-		scope = domain.CodebookScope(parent.Scope)
 	}
 	cs, err := repo.dao.ListChildrenBySpace(ctx, projectID, parentID, scope.String())
 	if err != nil {
@@ -455,9 +460,22 @@ func (repo *codebookRepository) GetProjectByID(ctx context.Context, id int64) (d
 	return repo.toProjectDomain(p), nil
 }
 
-func (repo *codebookRepository) ListProjects(ctx context.Context, status domain.CodebookProjectStatus,
-	offset, limit int64) ([]domain.CodebookProject, error) {
-	ps, err := repo.projectDao.List(ctx, status.String(), offset, limit)
+func (repo *codebookRepository) ListProjects(ctx context.Context,
+	query domain.CodebookProjectListQuery) ([]domain.CodebookProject, error) {
+	if query.Scope == domain.CodebookScopeSystem {
+		roots, err := repo.dao.ListRootDirectoriesByScope(ctx, query.Scope.String(), query.Offset, query.Limit)
+		if err != nil {
+			return nil, err
+		}
+		return lo.Map(roots, func(root dao.Codebook, _ int) domain.CodebookProject {
+			return domain.CodebookProject{
+				ID: root.ID, TenantID: root.TenantID, Scope: domain.CodebookScopeSystem,
+				Name: root.Name, Desc: "公共库只读项目", SortNo: root.SortNo,
+				Status: domain.CodebookProjectStatusNormal, CTime: root.CTime, UTime: root.UTime,
+			}
+		}), nil
+	}
+	ps, err := repo.projectDao.List(ctx, query.Status.String(), query.Offset, query.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -466,9 +484,31 @@ func (repo *codebookRepository) ListProjects(ctx context.Context, status domain.
 	}), nil
 }
 
-func (repo *codebookRepository) TotalProjects(ctx context.Context,
-	status domain.CodebookProjectStatus) (int64, error) {
-	return repo.projectDao.Count(ctx, status.String())
+// SystemTree 查询 SYSTEM 根项目及其整棵源码树。
+func (repo *codebookRepository) SystemTree(ctx context.Context, rootID int64) ([]domain.Codebook, error) {
+	root, err := repo.dao.GetByID(ctx, rootID)
+	if err != nil {
+		return nil, err
+	}
+	if root.Scope != domain.CodebookScopeSystem.String() || root.ParentID != 0 ||
+		root.Kind != domain.CodebookKindDirectory.String() {
+		return nil, fmt.Errorf("%w: SYSTEM 项目根节点非法: %d", errs.ErrInvalidParameter, rootID)
+	}
+	cs, err := repo.dao.TreeByRoot(ctx, domain.CodebookScopeSystem.String(), rootID)
+	if err != nil {
+		return nil, err
+	}
+	return repo.fillCurrentVersionNo(ctx, lo.Map(cs, func(src dao.Codebook, _ int) domain.Codebook {
+		return repo.toDomain(src)
+	}))
+}
+
+func (repo *codebookRepository) CountProjects(ctx context.Context,
+	query domain.CodebookProjectListQuery) (int64, error) {
+	if query.Scope == domain.CodebookScopeSystem {
+		return repo.dao.CountRootDirectoriesByScope(ctx, query.Scope.String())
+	}
+	return repo.projectDao.Count(ctx, query.Status.String())
 }
 
 func (repo *codebookRepository) GetProjectMaxSortNo(ctx context.Context) (int64, error) {

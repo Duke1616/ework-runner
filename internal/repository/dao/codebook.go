@@ -112,11 +112,11 @@ type CodebookDeleteResult struct {
 type CodebookProjectDAO interface {
 	// Create 插入一个代码资源项目。
 	Create(ctx context.Context, p CodebookProject) (int64, error)
-	// GetByID 根据主键 ID 查询代码资源项目。
+	// GetByID 根据主键 ID 查询代码资源项目，包括已归档项目。
 	GetByID(ctx context.Context, id int64) (CodebookProject, error)
 	// List 按状态分页查询代码资源项目。
 	List(ctx context.Context, status string, offset, limit int64) ([]CodebookProject, error)
-	// ListArtifactProjects 查询当前租户下全部正常状态的制品库项目。
+	// ListArtifactProjects 查询当前租户下全部可作为依赖使用的制品库项目。
 	ListArtifactProjects(ctx context.Context) ([]CodebookProject, error)
 	// ArtifactNamespaceExists 判断当前租户是否存在同名制品导入命名空间。
 	ArtifactNamespaceExists(ctx context.Context, namespace string, excludeID int64) (bool, error)
@@ -126,7 +126,7 @@ type CodebookProjectDAO interface {
 	GetMaxSortNo(ctx context.Context) (int64, error)
 	// Update 更新代码资源项目。
 	Update(ctx context.Context, p CodebookProject) (int64, error)
-	// Archive 归档代码资源项目。
+	// Archive 归档代码资源项目，但不影响已有任务和执行能力。
 	Archive(ctx context.Context, id int64) (int64, error)
 	// Restore 恢复已归档的代码资源项目。
 	Restore(ctx context.Context, id int64) (int64, error)
@@ -156,8 +156,14 @@ type CodebookDAO interface {
 	ListChildren(ctx context.Context, projectID, parentID int64) ([]Codebook, error)
 	// ListChildrenBySpace 查询指定空间和父节点下的子节点。
 	ListChildrenBySpace(ctx context.Context, projectID, parentID int64, scope string) ([]Codebook, error)
+	// ListRootDirectoriesByScope 分页查询指定作用域的根目录。
+	ListRootDirectoriesByScope(ctx context.Context, scope string, offset, limit int64) ([]Codebook, error)
+	// CountRootDirectoriesByScope 统计指定作用域的根目录数量。
+	CountRootDirectoriesByScope(ctx context.Context, scope string) (int64, error)
 	// Tree 查询指定项目下的全部源码节点。
 	Tree(ctx context.Context, projectID int64) ([]Codebook, error)
+	// TreeByRoot 查询指定作用域根节点及其整棵子树。
+	TreeByRoot(ctx context.Context, scope string, rootID int64) ([]Codebook, error)
 	// Count 统计代码节点总数。
 	Count(ctx context.Context) (int64, error)
 	// GetMaxSortNo 查询指定空间和父节点下最大的排序号。
@@ -212,11 +218,11 @@ func (g *GORMCodebookProjectDAO) Create(ctx context.Context, p CodebookProject) 
 	return p.ID, err
 }
 
-// GetByID 根据主键 ID 查询代码资源项目。
+// GetByID 根据主键 ID 查询代码资源项目，包括已归档项目。
 func (g *GORMCodebookProjectDAO) GetByID(ctx context.Context, id int64) (CodebookProject, error) {
 	var res CodebookProject
 	err := g.db.WithContext(ctx).
-		Where("id = ? AND status = ?", id, domain.CodebookProjectStatusNormal.String()).
+		Where("id = ?", id).
 		First(&res).Error
 	return res, err
 }
@@ -234,12 +240,11 @@ func (g *GORMCodebookProjectDAO) List(ctx context.Context, status string,
 	return res, err
 }
 
-// ListArtifactProjects 查询当前租户下全部正常状态的制品库项目。
+// ListArtifactProjects 查询当前租户下全部可作为依赖使用的制品库项目。
 func (g *GORMCodebookProjectDAO) ListArtifactProjects(ctx context.Context) ([]CodebookProject, error) {
 	var res []CodebookProject
 	err := g.db.WithContext(ctx).
-		Where("scope = ? AND status = ? AND artifact_enabled = ?",
-			domain.CodebookScopeTenant.String(), domain.CodebookProjectStatusNormal.String(), true).
+		Where("scope = ? AND artifact_enabled = ?", domain.CodebookScopeTenant.String(), true).
 		Order("sort_no ASC, id ASC").
 		Find(&res).Error
 	return res, err
@@ -293,7 +298,7 @@ func (g *GORMCodebookProjectDAO) Update(ctx context.Context, p CodebookProject) 
 	return res.RowsAffected, res.Error
 }
 
-// Archive 归档代码资源项目。
+// Archive 归档代码资源项目，但不影响已有任务和执行能力。
 func (g *GORMCodebookProjectDAO) Archive(ctx context.Context, id int64) (int64, error) {
 	res := g.db.WithContext(ctx).Model(&CodebookProject{}).
 		Where("id = ? AND status = ?", id, domain.CodebookProjectStatusNormal.String()).
@@ -467,11 +472,46 @@ func (g *GORMCodebookDAO) ListChildrenBySpace(ctx context.Context, projectID, pa
 	return res, err
 }
 
+// ListRootDirectoriesByScope 分页查询指定作用域的根目录。
+func (g *GORMCodebookDAO) ListRootDirectoriesByScope(ctx context.Context, scope string,
+	offset, limit int64) ([]Codebook, error) {
+	var res []Codebook
+	err := g.dbWithContext(ctx).
+		Where("scope = ? AND project_id = 0 AND parent_id = 0 AND kind = ?", scope,
+			domain.CodebookKindDirectory.String()).
+		Order("sort_no ASC, id ASC").
+		Offset(int(offset)).
+		Limit(int(limit)).
+		Find(&res).Error
+	return res, err
+}
+
+// CountRootDirectoriesByScope 统计指定作用域的根目录数量。
+func (g *GORMCodebookDAO) CountRootDirectoriesByScope(ctx context.Context, scope string) (int64, error) {
+	var count int64
+	err := g.dbWithContext(ctx).Model(&Codebook{}).
+		Where("scope = ? AND project_id = 0 AND parent_id = 0 AND kind = ?", scope,
+			domain.CodebookKindDirectory.String()).
+		Count(&count).Error
+	return count, err
+}
+
 // Tree 查询指定项目下的全部源码节点。
 func (g *GORMCodebookDAO) Tree(ctx context.Context, projectID int64) ([]Codebook, error) {
 	var res []Codebook
 	err := g.dbWithContext(ctx).
 		Where("project_id = ?", projectID).
+		Order("path_ids ASC, sort_no ASC, kind ASC, name ASC, id ASC").
+		Find(&res).Error
+	return res, err
+}
+
+// TreeByRoot 查询指定作用域根节点及其整棵子树。
+func (g *GORMCodebookDAO) TreeByRoot(ctx context.Context, scope string, rootID int64) ([]Codebook, error) {
+	var res []Codebook
+	subtreePath := fmt.Sprintf("%%/%d/%%", rootID)
+	err := g.dbWithContext(ctx).
+		Where("scope = ? AND (id = ? OR path_ids LIKE ?)", scope, rootID, subtreePath).
 		Order("path_ids ASC, sort_no ASC, kind ASC, name ASC, id ASC").
 		Find(&res).Error
 	return res, err

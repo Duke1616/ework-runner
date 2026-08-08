@@ -49,7 +49,8 @@ func TestResolveProject(t *testing.T) {
 	repo := repositorymocks.NewMockProjectSourceRepository(ctrl)
 	store := blobstoremocks.NewMockStore(ctrl)
 	repo.EXPECT().GetProject(gomock.Any(), int64(9)).Return(domain.CodebookProject{
-		ID: 9, Scope: domain.CodebookScopeTenant, SourceRevision: 4,
+		ID: 9, Scope: domain.CodebookScopeTenant, Status: domain.CodebookProjectStatusArchived,
+		SourceRevision: 4,
 	}, nil)
 	source := domain.ProjectSource{ID: 21, ProjectID: 9, SourceRevision: 4,
 		Digest: strings.Repeat("a", 64), BlobChecksum: strings.Repeat("b", 64),
@@ -83,7 +84,7 @@ func TestResolveProjectRequiresSource(t *testing.T) {
 	require.ErrorContains(t, err, "read failed")
 }
 
-func TestResolveProjectReportsArchivedProjectAsUnavailable(t *testing.T) {
+func TestResolveProjectReportsMissingProjectAsUnavailable(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	repo := repositorymocks.NewMockProjectSourceRepository(ctrl)
 	repo.EXPECT().GetProject(gomock.Any(), int64(9)).Return(domain.CodebookProject{}, gorm.ErrRecordNotFound)
@@ -97,5 +98,5 @@ func TestResolveProjectReportsArchivedProjectAsUnavailable(t *testing.T) {
 	})
 
 	require.ErrorIs(t, err, errs.ErrProgramSourceUnavailable)
-	require.ErrorContains(t, err, "不存在或已归档")
+	require.ErrorContains(t, err, "不存在")
 }

@@ -78,7 +78,11 @@ func (s *service) validateWriteTarget(ctx context.Context,
 		return 0, err
 	}
 	if target.Scope == domain.CodebookScopeTenant {
-		if _, err := s.artifactProject(ctx, target.ProjectID); err != nil {
+		project, err := s.artifactProject(ctx, target.ProjectID)
+		if err != nil {
+			return 0, err
+		}
+		if err = project.ValidateWritable(); err != nil {
 			return 0, err
 		}
 	}

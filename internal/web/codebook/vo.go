@@ -54,11 +54,31 @@ type ListReq struct {
 type ListProjectsReq struct {
 	Page
 	Status string `json:"status,omitempty"`
+	Scope  string `json:"scope,omitempty"`
+}
+
+type ProjectDeleteReq struct {
+	ProjectName string `json:"project_name"`
+}
+
+type ProjectDeleteImpact struct {
+	TaskCount                    int64 `json:"task_count"`
+	ActiveTaskCount              int64 `json:"active_task_count"`
+	CodebookNodeCount            int64 `json:"codebook_node_count"`
+	CodebookVersionCount         int64 `json:"codebook_version_count"`
+	ArtifactReleaseCount         int64 `json:"artifact_release_count"`
+	ArtifactReleaseBytes         int64 `json:"artifact_release_bytes"`
+	RetainedArtifactReleaseCount int64 `json:"retained_artifact_release_count"`
+	ProjectSourceCount           int64 `json:"project_source_count"`
+	ProjectSourceBytes           int64 `json:"project_source_bytes"`
+	RetainedProjectSourceCount   int64 `json:"retained_project_source_count"`
+	AIConversationCount          int64 `json:"ai_conversation_count"`
 }
 
 type ChildrenReq struct {
-	ProjectID int64 `json:"project_id"`
-	ParentID  int64 `json:"parent_id"`
+	ProjectID int64  `json:"project_id"`
+	ParentID  int64  `json:"parent_id"`
+	Scope     string `json:"scope,omitempty"`
 }
 
 type WorkspaceFileReq struct {

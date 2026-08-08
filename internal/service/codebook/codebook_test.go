@@ -40,23 +40,25 @@ type projectRepositoryStub struct {
 	repository.ICodebookRepository
 	projects        []domain.CodebookProject
 	total           int64
-	listStatus      domain.CodebookProjectStatus
-	totalStatus     domain.CodebookProjectStatus
+	listQuery       domain.CodebookProjectListQuery
+	countQuery      domain.CodebookProjectListQuery
 	archivedID      int64
 	restoredID      int64
 	archiveAffected int64
 	restoreAffected int64
+	node            domain.Codebook
+	project         domain.CodebookProject
 }
 
-func (s *projectRepositoryStub) ListProjects(_ context.Context, status domain.CodebookProjectStatus,
-	_, _ int64) ([]domain.CodebookProject, error) {
-	s.listStatus = status
+func (s *projectRepositoryStub) ListProjects(_ context.Context,
+	query domain.CodebookProjectListQuery) ([]domain.CodebookProject, error) {
+	s.listQuery = query
 	return s.projects, nil
 }
 
-func (s *projectRepositoryStub) TotalProjects(_ context.Context,
-	status domain.CodebookProjectStatus) (int64, error) {
-	s.totalStatus = status
+func (s *projectRepositoryStub) CountProjects(_ context.Context,
+	query domain.CodebookProjectListQuery) (int64, error) {
+	s.countQuery = query
 	return s.total, nil
 }
 
@@ -70,6 +72,14 @@ func (s *projectRepositoryStub) RestoreProject(_ context.Context, id int64) (int
 	return s.restoreAffected, nil
 }
 
+func (s *projectRepositoryStub) GetNodeByID(context.Context, int64) (domain.Codebook, error) {
+	return s.node, nil
+}
+
+func (s *projectRepositoryStub) GetProjectByID(context.Context, int64) (domain.CodebookProject, error) {
+	return s.project, nil
+}
+
 func TestListProjectsDefaultsToNormalStatus(t *testing.T) {
 	repo := &projectRepositoryStub{
 		projects: []domain.CodebookProject{{ID: 1, Status: domain.CodebookProjectStatusNormal}},
@@ -77,30 +87,66 @@ func TestListProjectsDefaultsToNormalStatus(t *testing.T) {
 	}
 	svc := NewService(repo)
 
-	projects, total, err := svc.ListProjects(t.Context(), "", 0, 20)
+	projects, total, err := svc.ListProjects(t.Context(), domain.CodebookProjectListQuery{Limit: 20})
 
 	require.NoError(t, err)
 	require.Len(t, projects, 1)
 	require.Equal(t, int64(1), total)
-	require.Equal(t, domain.CodebookProjectStatusNormal, repo.listStatus)
-	require.Equal(t, domain.CodebookProjectStatusNormal, repo.totalStatus)
+	require.Equal(t, domain.CodebookScopeTenant, repo.listQuery.Scope)
+	require.Equal(t, domain.CodebookProjectStatusNormal, repo.listQuery.Status)
+	require.Equal(t, repo.listQuery, repo.countQuery)
 }
 
 func TestListProjectsAcceptsArchivedStatus(t *testing.T) {
 	repo := &projectRepositoryStub{}
 	svc := NewService(repo)
 
-	_, _, err := svc.ListProjects(t.Context(), domain.CodebookProjectStatusArchived, 0, 20)
+	_, _, err := svc.ListProjects(t.Context(), domain.CodebookProjectListQuery{
+		Status: domain.CodebookProjectStatusArchived, Limit: 20,
+	})
 
 	require.NoError(t, err)
-	require.Equal(t, domain.CodebookProjectStatusArchived, repo.listStatus)
-	require.Equal(t, domain.CodebookProjectStatusArchived, repo.totalStatus)
+	require.Equal(t, domain.CodebookProjectStatusArchived, repo.listQuery.Status)
+	require.Equal(t, repo.listQuery, repo.countQuery)
 }
 
 func TestListProjectsRejectsInvalidStatus(t *testing.T) {
 	svc := NewService(&projectRepositoryStub{})
 
-	_, _, err := svc.ListProjects(t.Context(), domain.CodebookProjectStatus("DELETED"), 0, 20)
+	_, _, err := svc.ListProjects(t.Context(), domain.CodebookProjectListQuery{
+		Status: domain.CodebookProjectStatus("DELETED"), Limit: 20,
+	})
+
+	require.ErrorIs(t, err, errs.ErrInvalidParameter)
+}
+
+func TestListProjectsAcceptsSystemScope(t *testing.T) {
+	repo := &projectRepositoryStub{
+		projects: []domain.CodebookProject{{ID: 12, Scope: domain.CodebookScopeSystem, Name: "ansible"}},
+		total:    1,
+	}
+	svc := NewService(repo)
+
+	projects, total, err := svc.ListProjects(t.Context(), domain.CodebookProjectListQuery{
+		Scope: domain.CodebookScopeSystem, Offset: 1, Limit: 10,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(1), total)
+	require.Equal(t, repo.projects, projects)
+	require.Equal(t, domain.CodebookProjectStatusNormal, repo.listQuery.Status)
+	require.Equal(t, domain.CodebookProjectListQuery{
+		Scope: domain.CodebookScopeSystem, Status: domain.CodebookProjectStatusNormal,
+		Offset: 1, Limit: 10,
+	}, repo.countQuery)
+}
+
+func TestSystemChildrenRejectsParentFromAnotherSystemProject(t *testing.T) {
+	svc := NewService(&projectRepositoryStub{node: domain.Codebook{
+		ID: 21, Scope: domain.CodebookScopeSystem, PathIDs: "/20/",
+	}})
+
+	_, err := svc.SystemChildren(t.Context(), 10, 21)
 
 	require.ErrorIs(t, err, errs.ErrInvalidParameter)
 }
@@ -118,4 +164,15 @@ func TestArchiveAndRestoreProject(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(1), restored)
 	require.Equal(t, int64(7), repo.restoredID)
+}
+
+func TestUpdateArchivedProjectIsRejected(t *testing.T) {
+	svc := NewService(&projectRepositoryStub{project: domain.CodebookProject{
+		ID: 7, Status: domain.CodebookProjectStatusArchived,
+	}})
+
+	_, err := svc.UpdateProject(t.Context(), domain.CodebookProject{ID: 7, Name: "剧本"})
+
+	require.ErrorIs(t, err, errs.ErrInvalidParameter)
+	require.ErrorContains(t, err, "只读不可修改")
 }

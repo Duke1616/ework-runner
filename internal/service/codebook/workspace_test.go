@@ -16,6 +16,10 @@ func (s workspaceSourceStub) Tree(context.Context, int64) ([]domain.Codebook, er
 	return s.nodes, nil
 }
 
+func (s workspaceSourceStub) SystemTree(context.Context, int64) ([]domain.Codebook, error) {
+	return s.nodes, nil
+}
+
 type workspaceArtifactStub struct {
 	contents []domain.ArtifactContent
 	code     string
@@ -105,6 +109,25 @@ func TestWorkspaceServiceTree(t *testing.T) {
 			testCase.assert(t, nodes, err)
 		})
 	}
+}
+
+func TestWorkspaceServiceSystemTree(t *testing.T) {
+	service := NewWorkspaceService(workspaceSourceStub{nodes: []domain.Codebook{
+		{ID: 10, Name: "ansible", Kind: domain.CodebookKindDirectory, Scope: domain.CodebookScopeSystem},
+		{ID: 11, ParentID: 10, Name: "playbooks", Kind: domain.CodebookKindDirectory, Scope: domain.CodebookScopeSystem},
+		{ID: 12, ParentID: 11, Name: "deploy.yml", Kind: domain.CodebookKindFile, Scope: domain.CodebookScopeSystem},
+	}}, workspaceArtifactStub{})
+
+	nodes, err := service.SystemTree(t.Context(), 10)
+
+	require.NoError(t, err)
+	require.Len(t, nodes, 1)
+	require.Equal(t, "ansible", nodes[0].Name)
+	require.Equal(t, domain.CodebookScopeSystem, nodes[0].Scope)
+	require.True(t, nodes[0].Readonly)
+	require.Equal(t, int64(0), nodes[0].Children[0].ParentID)
+	require.True(t, nodes[0].Children[0].Children[0].Readonly)
+	require.Equal(t, "playbooks/deploy.yml", nodes[0].Children[0].Children[0].RuntimePath)
 }
 
 func TestWorkspaceServiceReadArtifactFile(t *testing.T) {

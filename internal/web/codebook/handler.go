@@ -2,6 +2,7 @@ package codebook
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/Duke1616/eiam/pkg/web/capability"
 	"github.com/Duke1616/etask/internal/domain"
@@ -18,15 +19,17 @@ type Handler struct {
 	svc       codebookSvc.Service
 	workspace codebookSvc.WorkspaceService
 	files     codebookSvc.ProjectFileService
+	deletion  codebookSvc.ProjectDeletionService
 	capability.IRegistry
 }
 
 func NewHandler(svc codebookSvc.Service, workspace codebookSvc.WorkspaceService,
-	files codebookSvc.ProjectFileService) *Handler {
+	files codebookSvc.ProjectFileService, deletion codebookSvc.ProjectDeletionService) *Handler {
 	return &Handler{
 		svc:       svc,
 		workspace: workspace,
 		files:     files,
+		deletion:  deletion,
 		IRegistry: capability.NewRegistry("task", "codebook", "脚本引擎"),
 	}
 }
@@ -109,10 +112,11 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 	pg.POST("/restore/:id", project("恢复项目", "restore_project").
 		Handle(ginx.W(h.RestoreProject)),
 	)
-	// 兼容旧版前端；新客户端统一使用 /archive/:id。
-	pg.DELETE("/delete/:id", project("归档项目兼容入口", "archive_project_compat").
-		NoSync().Needs("task:codebook:delete_project").
-		Handle(ginx.W(h.ArchiveProject)),
+	pg.GET("/delete-impact/:id", project("项目删除影响", "purge_project").
+		Handle(ginx.W(h.ProjectDeleteImpact)),
+	)
+	pg.DELETE("/delete/:id", project("删除项目", "purge_project").
+		Handle(ginx.B[ProjectDeleteReq](h.DeleteProject)),
 	)
 }
 
@@ -140,7 +144,18 @@ func (h *Handler) Detail(ctx *ginx.Context) (ginx.Result, error) {
 }
 
 func (h *Handler) Children(ctx *ginx.Context, req ChildrenReq) (ginx.Result, error) {
-	cs, err := h.svc.Children(ctx, req.ProjectID, req.ParentID)
+	scope := domain.CodebookScope(req.Scope)
+	if req.Scope != "" && !scope.Valid() {
+		err := fmt.Errorf("%w: 作用域非法", errs.ErrInvalidParameter)
+		return invalidParameterResult(err), err
+	}
+	var cs []domain.Codebook
+	var err error
+	if scope == domain.CodebookScopeSystem {
+		cs, err = h.svc.SystemChildren(ctx, req.ProjectID, req.ParentID)
+	} else {
+		cs, err = h.svc.Children(ctx, req.ProjectID, req.ParentID)
+	}
 	if err != nil {
 		return h.translateError(err), err
 	}
@@ -152,8 +167,17 @@ func (h *Handler) Tree(ctx *ginx.Context) (ginx.Result, error) {
 	if err != nil {
 		return invalidProjectIDError, err
 	}
-
-	nodes, err := h.workspace.Tree(ctx, projectID)
+	scope := domain.CodebookScope(ctx.Query("scope").StringOrDefault(domain.CodebookScopeTenant.String()))
+	if !scope.Valid() {
+		err = fmt.Errorf("%w: 作用域非法", errs.ErrInvalidParameter)
+		return invalidParameterResult(err), err
+	}
+	var nodes []domain.WorkspaceNode
+	if scope == domain.CodebookScopeSystem {
+		nodes, err = h.workspace.SystemTree(ctx, projectID)
+	} else {
+		nodes, err = h.workspace.Tree(ctx, projectID)
+	}
 	if err != nil {
 		return h.translateError(err), err
 	}
@@ -242,8 +266,10 @@ func (h *Handler) CreateProject(ctx *ginx.Context, req CreateProjectReq) (ginx.R
 }
 
 func (h *Handler) ListProject(ctx *ginx.Context, req ListProjectsReq) (ginx.Result, error) {
-	ps, total, err := h.svc.ListProjects(ctx, domain.CodebookProjectStatus(req.Status),
-		req.Offset, req.Limit)
+	ps, total, err := h.svc.ListProjects(ctx, domain.CodebookProjectListQuery{
+		Scope: domain.CodebookScope(req.Scope), Status: domain.CodebookProjectStatus(req.Status),
+		Offset: req.Offset, Limit: req.Limit,
+	})
 	if err != nil {
 		return h.translateError(err), err
 	}
@@ -281,6 +307,30 @@ func (h *Handler) RestoreProject(ctx *ginx.Context) (ginx.Result, error) {
 		return h.translateError(err), err
 	}
 	return ginx.Result{Data: count, Msg: "success"}, nil
+}
+
+func (h *Handler) ProjectDeleteImpact(ctx *ginx.Context) (ginx.Result, error) {
+	id, err := ctx.Param("id").AsInt64()
+	if err != nil {
+		return invalidProjectIDError, err
+	}
+	impact, err := h.deletion.Preview(ctx, id)
+	if err != nil {
+		return h.translateError(err), err
+	}
+	return ginx.Result{Msg: "success", Data: h.toProjectDeleteImpactVO(impact)}, nil
+}
+
+func (h *Handler) DeleteProject(ctx *ginx.Context, req ProjectDeleteReq) (ginx.Result, error) {
+	id, err := ctx.Param("id").AsInt64()
+	if err != nil {
+		return invalidProjectIDError, err
+	}
+	err = h.deletion.Delete(ctx, id, req.ProjectName)
+	if err != nil {
+		return h.translateError(err), err
+	}
+	return ginx.Result{Msg: "项目已删除", Data: id}, nil
 }
 
 func (h *Handler) translateError(err error) ginx.Result {
@@ -439,5 +489,16 @@ func (h *Handler) toProjectVO(req domain.CodebookProject) Project {
 		SourceRevision:    req.SourceRevision,
 		CTime:             req.CTime,
 		UTime:             req.UTime,
+	}
+}
+
+func (h *Handler) toProjectDeleteImpactVO(req domain.ProjectDeleteImpact) ProjectDeleteImpact {
+	return ProjectDeleteImpact{
+		TaskCount: req.TaskCount, ActiveTaskCount: req.ActiveTaskCount,
+		CodebookNodeCount: req.CodebookNodeCount, CodebookVersionCount: req.CodebookVersionCount,
+		ArtifactReleaseCount: req.ArtifactReleaseCount,
+		ArtifactReleaseBytes: req.ArtifactReleaseBytes, RetainedArtifactReleaseCount: req.RetainedArtifactReleaseCount,
+		ProjectSourceCount: req.ProjectSourceCount, ProjectSourceBytes: req.ProjectSourceBytes,
+		RetainedProjectSourceCount: req.RetainedProjectSourceCount, AIConversationCount: req.AIConversationCount,
 	}
 }

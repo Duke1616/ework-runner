@@ -91,7 +91,10 @@ func TestProjectFileServiceDeletesSubtreeBlobs(t *testing.T) {
 	store := blobstoremocks.NewMockStore(ctrl)
 	ctx := ctxutil.WithTenantID(context.Background(), 7)
 	repo.EXPECT().GetNodeByID(gomock.Any(), int64(10)).Return(domain.Codebook{
-		ID: 10, Scope: domain.CodebookScopeTenant, Kind: domain.CodebookKindDirectory,
+		ID: 10, ProjectID: 3, Scope: domain.CodebookScopeTenant, Kind: domain.CodebookKindDirectory,
+	}, nil)
+	repo.EXPECT().GetProjectByID(gomock.Any(), int64(3)).Return(domain.CodebookProject{
+		ID: 3, Status: domain.CodebookProjectStatusNormal,
 	}, nil)
 	repo.EXPECT().Delete(gomock.Any(), int64(10)).Return(domain.CodebookDeleteResult{
 		NodeCount: 3,
@@ -116,7 +119,10 @@ func TestProjectFileServiceReportsBlobDeleteFailure(t *testing.T) {
 	store := blobstoremocks.NewMockStore(ctrl)
 	ctx := ctxutil.WithTenantID(context.Background(), 7)
 	repo.EXPECT().GetNodeByID(gomock.Any(), int64(10)).Return(domain.Codebook{
-		ID: 10, Scope: domain.CodebookScopeTenant, Kind: domain.CodebookKindFile,
+		ID: 10, ProjectID: 3, Scope: domain.CodebookScopeTenant, Kind: domain.CodebookKindFile,
+	}, nil)
+	repo.EXPECT().GetProjectByID(gomock.Any(), int64(3)).Return(domain.CodebookProject{
+		ID: 3, Status: domain.CodebookProjectStatusNormal,
 	}, nil)
 	repo.EXPECT().Delete(gomock.Any(), int64(10)).Return(domain.CodebookDeleteResult{
 		NodeCount: 1, ObjectKeys: []string{"codebook-content/7/first"},

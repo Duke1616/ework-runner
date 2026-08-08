@@ -433,9 +433,9 @@ func (c *MockServiceListCall) DoAndReturn(f func(context.Context, int64, int64) 
 }
 
 // ListProjects mocks base method.
-func (m *MockService) ListProjects(ctx context.Context, status domain.CodebookProjectStatus, offset, limit int64) ([]domain.CodebookProject, int64, error) {
+func (m *MockService) ListProjects(ctx context.Context, query domain.CodebookProjectListQuery) ([]domain.CodebookProject, int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListProjects", ctx, status, offset, limit)
+	ret := m.ctrl.Call(m, "ListProjects", ctx, query)
 	ret0, _ := ret[0].([]domain.CodebookProject)
 	ret1, _ := ret[1].(int64)
 	ret2, _ := ret[2].(error)
@@ -443,9 +443,9 @@ func (m *MockService) ListProjects(ctx context.Context, status domain.CodebookPr
 }
 
 // ListProjects indicates an expected call of ListProjects.
-func (mr *MockServiceMockRecorder) ListProjects(ctx, status, offset, limit any) *MockServiceListProjectsCall {
+func (mr *MockServiceMockRecorder) ListProjects(ctx, query any) *MockServiceListProjectsCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListProjects", reflect.TypeOf((*MockService)(nil).ListProjects), ctx, status, offset, limit)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListProjects", reflect.TypeOf((*MockService)(nil).ListProjects), ctx, query)
 	return &MockServiceListProjectsCall{Call: call}
 }
 
@@ -461,13 +461,13 @@ func (c *MockServiceListProjectsCall) Return(arg0 []domain.CodebookProject, arg1
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockServiceListProjectsCall) Do(f func(context.Context, domain.CodebookProjectStatus, int64, int64) ([]domain.CodebookProject, int64, error)) *MockServiceListProjectsCall {
+func (c *MockServiceListProjectsCall) Do(f func(context.Context, domain.CodebookProjectListQuery) ([]domain.CodebookProject, int64, error)) *MockServiceListProjectsCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockServiceListProjectsCall) DoAndReturn(f func(context.Context, domain.CodebookProjectStatus, int64, int64) ([]domain.CodebookProject, int64, error)) *MockServiceListProjectsCall {
+func (c *MockServiceListProjectsCall) DoAndReturn(f func(context.Context, domain.CodebookProjectListQuery) ([]domain.CodebookProject, int64, error)) *MockServiceListProjectsCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -584,6 +584,45 @@ func (c *MockServiceSortCall) Do(f func(context.Context, int64, int64, int64) er
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockServiceSortCall) DoAndReturn(f func(context.Context, int64, int64, int64) error) *MockServiceSortCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// SystemChildren mocks base method.
+func (m *MockService) SystemChildren(ctx context.Context, rootID, parentID int64) ([]domain.Codebook, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SystemChildren", ctx, rootID, parentID)
+	ret0, _ := ret[0].([]domain.Codebook)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SystemChildren indicates an expected call of SystemChildren.
+func (mr *MockServiceMockRecorder) SystemChildren(ctx, rootID, parentID any) *MockServiceSystemChildrenCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SystemChildren", reflect.TypeOf((*MockService)(nil).SystemChildren), ctx, rootID, parentID)
+	return &MockServiceSystemChildrenCall{Call: call}
+}
+
+// MockServiceSystemChildrenCall wrap *gomock.Call
+type MockServiceSystemChildrenCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockServiceSystemChildrenCall) Return(arg0 []domain.Codebook, arg1 error) *MockServiceSystemChildrenCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockServiceSystemChildrenCall) Do(f func(context.Context, int64, int64) ([]domain.Codebook, error)) *MockServiceSystemChildrenCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockServiceSystemChildrenCall) DoAndReturn(f func(context.Context, int64, int64) ([]domain.Codebook, error)) *MockServiceSystemChildrenCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

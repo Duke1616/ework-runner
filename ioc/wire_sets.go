@@ -66,8 +66,11 @@ var (
 	CodebookSet = wire.NewSet(
 		dao.NewGORMCodebookDAO,
 		dao.NewGORMCodebookProjectDAO,
+		dao.NewGORMProjectDeletionDAO,
 		repository.NewCodebookRepository,
+		repository.NewProjectDeletionRepository,
 		codebookSvc.NewService,
+		codebookSvc.NewProjectDeletionService,
 		wire.Bind(new(codebookSvc.ProjectFileRepository), new(repository.ICodebookRepository)),
 		codebookSvc.NewProjectFileService,
 		wire.Bind(new(programSvc.CodebookReader), new(codebookSvc.Service)),

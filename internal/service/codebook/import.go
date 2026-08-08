@@ -97,6 +97,9 @@ func (s *projectFileService) Import(ctx context.Context,
 	if project.Scope != domain.CodebookScopeTenant {
 		return domain.CodebookImportResult{}, fmt.Errorf("%w: 只能向租户项目导入文件", errs.ErrInvalidParameter)
 	}
+	if err = project.ValidateWritable(); err != nil {
+		return domain.CodebookImportResult{}, err
+	}
 	if err = validateCodebookWriteScope(ctx, project.Scope); err != nil {
 		return domain.CodebookImportResult{}, err
 	}
@@ -249,6 +252,15 @@ func (s *projectFileService) Delete(ctx context.Context, nodeID int64) (int64, e
 	}
 	if err = validateCodebookWriteScope(ctx, node.Scope); err != nil {
 		return 0, err
+	}
+	if node.Scope == domain.CodebookScopeTenant {
+		project, projectErr := s.repo.GetProjectByID(ctx, node.ProjectID)
+		if projectErr != nil {
+			return 0, projectErr
+		}
+		if projectErr = project.ValidateWritable(); projectErr != nil {
+			return 0, projectErr
+		}
 	}
 	result, err := s.repo.Delete(ctx, nodeID)
 	if err != nil {

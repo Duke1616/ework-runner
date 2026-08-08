@@ -99,6 +99,34 @@ type CodebookProject struct {
 	UTime             int64
 }
 
+// CodebookProjectListQuery 描述项目列表的作用域、状态和分页条件。
+type CodebookProjectListQuery struct {
+	Scope  CodebookScope
+	Status CodebookProjectStatus
+	Offset int64
+	Limit  int64
+}
+
+// ProjectDeleteImpact 描述删除项目会影响的数据范围。
+type ProjectDeleteImpact struct {
+	TaskCount                    int64
+	ActiveTaskCount              int64
+	CodebookNodeCount            int64
+	CodebookVersionCount         int64
+	ArtifactReleaseCount         int64
+	ArtifactReleaseBytes         int64
+	RetainedArtifactReleaseCount int64
+	ProjectSourceCount           int64
+	ProjectSourceBytes           int64
+	RetainedProjectSourceCount   int64
+	AIConversationCount          int64
+}
+
+// ProjectDeleteCleanup 描述项目数据删除后需要清理的外部对象。
+type ProjectDeleteCleanup struct {
+	ObjectKeys []string
+}
+
 // Codebook 表示 etask 负责维护的代码节点，目录和文件统一建模。
 type Codebook struct {
 	ID               int64
@@ -235,6 +263,14 @@ func (p *CodebookProject) Validate() error {
 	}
 	if p.ArtifactNamespace == "etask" {
 		return fmt.Errorf("%w: etask 是 SYSTEM 组件库保留命名空间", errs.ErrInvalidParameter)
+	}
+	return nil
+}
+
+// ValidateWritable 校验项目是否允许修改。
+func (p CodebookProject) ValidateWritable() error {
+	if p.Status == CodebookProjectStatusArchived {
+		return fmt.Errorf("%w: 项目已归档，只读不可修改", errs.ErrInvalidParameter)
 	}
 	return nil
 }

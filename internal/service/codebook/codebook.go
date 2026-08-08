@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/Duke1616/eiam/pkg/ctxutil"
 	"github.com/Duke1616/etask/internal/domain"
@@ -43,11 +44,12 @@ type Service interface {
 
 	// CreateProject 校验并创建脚本项目。
 	CreateProject(ctx context.Context, req domain.CodebookProject) (int64, error)
-	// GetProjectByID 根据主键 ID 获取脚本项目。
+	// GetProjectByID 根据主键 ID 获取脚本项目，包括已归档项目。
 	GetProjectByID(ctx context.Context, id int64) (domain.CodebookProject, error)
-	// ListProjects 按状态分页获取脚本项目列表和总数。
-	ListProjects(ctx context.Context, status domain.CodebookProjectStatus,
-		offset, limit int64) ([]domain.CodebookProject, int64, error)
+	// ListProjects 按查询条件分页获取租户项目或公共库。
+	ListProjects(ctx context.Context, query domain.CodebookProjectListQuery) ([]domain.CodebookProject, int64, error)
+	// SystemChildren 获取 SYSTEM 项目下的只读子节点。
+	SystemChildren(ctx context.Context, rootID, parentID int64) ([]domain.Codebook, error)
 	// UpdateProject 校验并更新脚本项目。
 	UpdateProject(ctx context.Context, req domain.CodebookProject) (int64, error)
 	// ArchiveProject 根据主键 ID 归档脚本项目。
@@ -84,6 +86,11 @@ func (s *service) Create(ctx context.Context, req domain.Codebook) (int64, error
 	}
 	if err := validateCodebookWriteScope(ctx, req.Scope); err != nil {
 		return 0, err
+	}
+	if req.Scope == domain.CodebookScopeTenant {
+		if err := s.validateProjectWrite(ctx, req.ProjectID); err != nil {
+			return 0, err
+		}
 	}
 	if err := s.prepareSortNo(ctx, &req); err != nil {
 		return 0, err
@@ -163,6 +170,11 @@ func (s *service) Update(ctx context.Context, req domain.Codebook) (int64, error
 	if err != nil {
 		return 0, err
 	}
+	if old.Scope == domain.CodebookScopeTenant {
+		if err := s.validateProjectWrite(ctx, old.ProjectID); err != nil {
+			return 0, err
+		}
+	}
 	if req.Scope != "" && req.Scope != old.Scope {
 		return 0, fmt.Errorf("%w: 代码资源作用域不能修改", errs.ErrInvalidParameter)
 	}
@@ -203,6 +215,11 @@ func (s *service) CreateVersion(ctx context.Context, req domain.CodebookVersionC
 	if err = validateCodebookWriteScope(ctx, node.Scope); err != nil {
 		return 0, err
 	}
+	if node.Scope == domain.CodebookScopeTenant {
+		if err := s.validateProjectWrite(ctx, node.ProjectID); err != nil {
+			return 0, err
+		}
+	}
 	return s.repo.CreateVersion(ctx, req)
 }
 
@@ -221,6 +238,11 @@ func (s *service) UseVersion(ctx context.Context, nodeID, versionID int64) (int6
 	if err = validateCodebookWriteScope(ctx, node.Scope); err != nil {
 		return 0, err
 	}
+	if node.Scope == domain.CodebookScopeTenant {
+		if err := s.validateProjectWrite(ctx, node.ProjectID); err != nil {
+			return 0, err
+		}
+	}
 	return s.repo.UseVersion(ctx, nodeID, versionID)
 }
 
@@ -238,6 +260,11 @@ func (s *service) Sort(ctx context.Context, id, targetParentID, targetPosition i
 	}
 	if err = validateCodebookWriteScope(ctx, dragged.Scope); err != nil {
 		return err
+	}
+	if dragged.Scope == domain.CodebookScopeTenant {
+		if err := s.validateProjectWrite(ctx, dragged.ProjectID); err != nil {
+			return err
+		}
 	}
 	draggedItem, err := s.resolveTarget(ctx, dragged, targetParentID)
 	if err != nil {
@@ -275,6 +302,11 @@ func (s *service) Delete(ctx context.Context, id int64) (int64, error) {
 	}
 	if err = validateCodebookWriteScope(ctx, node.Scope); err != nil {
 		return 0, err
+	}
+	if node.Scope == domain.CodebookScopeTenant {
+		if err := s.validateProjectWrite(ctx, node.ProjectID); err != nil {
+			return 0, err
+		}
 	}
 	result, err := s.repo.Delete(ctx, id)
 	return result.NodeCount, err
@@ -355,13 +387,25 @@ func (s *service) GetProjectByID(ctx context.Context, id int64) (domain.Codebook
 	return s.repo.GetProjectByID(ctx, id)
 }
 
-func (s *service) ListProjects(ctx context.Context, status domain.CodebookProjectStatus,
-	offset, limit int64) ([]domain.CodebookProject, int64, error) {
-	if status == "" {
-		status = domain.CodebookProjectStatusNormal
+func (s *service) ListProjects(ctx context.Context,
+	query domain.CodebookProjectListQuery) ([]domain.CodebookProject, int64, error) {
+	if query.Scope == "" {
+		query.Scope = domain.CodebookScopeTenant
 	}
-	if !status.Valid() {
-		return nil, 0, fmt.Errorf("%w: 项目状态非法: %s", errs.ErrInvalidParameter, status)
+	if !query.Scope.Valid() {
+		return nil, 0, fmt.Errorf("%w: 项目作用域非法: %s", errs.ErrInvalidParameter, query.Scope)
+	}
+	if query.Status == "" {
+		query.Status = domain.CodebookProjectStatusNormal
+	}
+	if !query.Status.Valid() {
+		return nil, 0, fmt.Errorf("%w: 项目状态非法: %s", errs.ErrInvalidParameter, query.Status)
+	}
+	if query.Scope == domain.CodebookScopeSystem && query.Status != domain.CodebookProjectStatusNormal {
+		return nil, 0, fmt.Errorf("%w: 公共库不支持归档状态", errs.ErrInvalidParameter)
+	}
+	if query.Offset < 0 || query.Limit < 0 {
+		return nil, 0, fmt.Errorf("%w: 分页参数非法", errs.ErrInvalidParameter)
 	}
 	var (
 		eg    errgroup.Group
@@ -370,12 +414,12 @@ func (s *service) ListProjects(ctx context.Context, status domain.CodebookProjec
 	)
 	eg.Go(func() error {
 		var err error
-		res, err = s.repo.ListProjects(ctx, status, offset, limit)
+		res, err = s.repo.ListProjects(ctx, query)
 		return err
 	})
 	eg.Go(func() error {
 		var err error
-		total, err = s.repo.TotalProjects(ctx, status)
+		total, err = s.repo.CountProjects(ctx, query)
 		return err
 	})
 	if err := eg.Wait(); err != nil {
@@ -384,12 +428,43 @@ func (s *service) ListProjects(ctx context.Context, status domain.CodebookProjec
 	return res, total, nil
 }
 
+func (s *service) SystemChildren(ctx context.Context, rootID, parentID int64) ([]domain.Codebook, error) {
+	if rootID <= 0 || parentID < 0 {
+		return nil, fmt.Errorf("%w: SYSTEM 项目目录参数非法", errs.ErrInvalidParameter)
+	}
+	actualParentID := parentID
+	if parentID == 0 {
+		root, err := s.repo.GetByID(ctx, rootID)
+		if err != nil {
+			return nil, err
+		}
+		if root.Scope != domain.CodebookScopeSystem || !root.IsDirectory() || root.ParentID != 0 {
+			return nil, fmt.Errorf("%w: SYSTEM 项目根节点非法: %d", errs.ErrInvalidParameter, rootID)
+		}
+		actualParentID = rootID
+	} else {
+		parent, err := s.repo.GetNodeByID(ctx, parentID)
+		if err != nil {
+			return nil, err
+		}
+		rootPath := fmt.Sprintf("/%d/", rootID)
+		if parent.Scope != domain.CodebookScopeSystem ||
+			(parent.ID != rootID && !strings.Contains(parent.PathIDs, rootPath)) {
+			return nil, fmt.Errorf("%w: SYSTEM 项目目录不属于当前项目", errs.ErrInvalidParameter)
+		}
+	}
+	return s.repo.ListChildrenByScope(ctx, 0, actualParentID, domain.CodebookScopeSystem)
+}
+
 func (s *service) UpdateProject(ctx context.Context, req domain.CodebookProject) (int64, error) {
 	if req.ID <= 0 {
 		return 0, fmt.Errorf("%w: 项目 ID 非法: %d", errs.ErrInvalidParameter, req.ID)
 	}
 	old, err := s.repo.GetProjectByID(ctx, req.ID)
 	if err != nil {
+		return 0, err
+	}
+	if err = old.ValidateWritable(); err != nil {
 		return 0, err
 	}
 	if old.ArtifactNamespace != "" && req.ArtifactNamespace != "" && req.ArtifactNamespace != old.ArtifactNamespace {
@@ -420,6 +495,14 @@ func (s *service) validateArtifactNamespace(ctx context.Context, namespace strin
 		return fmt.Errorf("%w: 制品库导入命名空间 %s 已存在", errs.ErrInvalidParameter, namespace)
 	}
 	return nil
+}
+
+func (s *service) validateProjectWrite(ctx context.Context, projectID int64) error {
+	project, err := s.repo.GetProjectByID(ctx, projectID)
+	if err != nil {
+		return err
+	}
+	return project.ValidateWritable()
 }
 
 func (s *service) ArchiveProject(ctx context.Context, id int64) (int64, error) {

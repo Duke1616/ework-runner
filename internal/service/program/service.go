@@ -173,7 +173,7 @@ func (s *service) prepareSource(ctx context.Context, projectID int64) (domain.Pr
 	}
 	project, err := s.repo.GetProject(ctx, projectID)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return domain.ProjectSource{}, fmt.Errorf("%w: 代码项目 %d 不存在或已归档",
+		return domain.ProjectSource{}, fmt.Errorf("%w: 代码项目 %d 不存在",
 			errs.ErrProgramSourceUnavailable, projectID)
 	}
 	if err != nil {

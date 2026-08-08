@@ -15,6 +15,8 @@ import (
 type WorkspaceSourceReader interface {
 	// Tree 查询指定项目下的全部源码节点。
 	Tree(ctx context.Context, projectID int64) ([]domain.Codebook, error)
+	// SystemTree 查询指定 SYSTEM 根项目及其源码节点。
+	SystemTree(ctx context.Context, rootID int64) ([]domain.Codebook, error)
 }
 
 // WorkspaceArtifactReader 提供工作区展示所需的不可变制品内容。
@@ -29,6 +31,8 @@ type WorkspaceArtifactReader interface {
 type WorkspaceService interface {
 	// Tree 查询当前项目源码和实际激活制品组成的工作区树。
 	Tree(ctx context.Context, projectID int64) ([]domain.WorkspaceNode, error)
+	// SystemTree 查询 SYSTEM 项目工作区树。
+	SystemTree(ctx context.Context, rootID int64) ([]domain.WorkspaceNode, error)
 	// ReadArtifactFile 读取工作区中不可变制品文件的内容。
 	ReadArtifactFile(ctx context.Context, projectID, releaseID int64, digest, filePath string) (string, error)
 }
@@ -91,6 +95,42 @@ func (s *workspaceService) Tree(ctx context.Context, projectID int64) ([]domain.
 		return dependencies.Children[i].Name < dependencies.Children[j].Name
 	})
 	return []domain.WorkspaceNode{project, system, dependencies}, nil
+}
+
+func (s *workspaceService) SystemTree(ctx context.Context, rootID int64) ([]domain.WorkspaceNode, error) {
+	if rootID <= 0 {
+		return nil, fmt.Errorf("%w: SYSTEM 项目 ID 非法: %d", errs.ErrInvalidParameter, rootID)
+	}
+	source, err := s.repo.SystemTree(ctx, rootID)
+	if err != nil {
+		return nil, fmt.Errorf("查询 SYSTEM 项目源码树失败: %w", err)
+	}
+	var root *domain.Codebook
+	filtered := make([]domain.Codebook, 0, len(source))
+	for i := range source {
+		if source[i].ID == rootID {
+			root = &source[i]
+			continue
+		}
+		node := source[i]
+		if node.ParentID == rootID {
+			node.ParentID = 0
+		}
+		filtered = append(filtered, node)
+	}
+	if root == nil || !root.IsDirectory() || root.Scope != domain.CodebookScopeSystem {
+		return nil, fmt.Errorf("%w: SYSTEM 项目根节点非法: %d", errs.ErrInvalidParameter, rootID)
+	}
+	children, err := buildProjectNodes(filtered, rootID)
+	if err != nil {
+		return nil, err
+	}
+	project := workspaceRoot("system-project:"+fmt.Sprint(rootID), root.Name, domain.WorkspaceLayerProject, true)
+	project.Scope = domain.CodebookScopeSystem
+	project.ProjectID = rootID
+	project.RuntimePath = ""
+	project.Children = children
+	return []domain.WorkspaceNode{project}, nil
 }
 
 // ReadArtifactFile 读取工作区中不可变制品文件的内容。
@@ -168,6 +208,7 @@ func buildProjectNodes(source []domain.Codebook, projectID int64) ([]domain.Work
 				Key: fmt.Sprintf("project:%d", node.ID), SourceID: node.ID,
 				Name: node.Name, Owner: node.Owner, Kind: node.Kind, Scope: node.Scope,
 				Layer: domain.WorkspaceLayerProject, RuntimePath: runtimePath,
+				Readonly:  node.Scope == domain.CodebookScopeSystem,
 				ProjectID: projectID, ParentID: node.ParentID, SortNo: node.SortNo,
 				DownloadOnly: node.StorageType == domain.CodebookContentBlob, Size: node.Size,
 				Children: make([]domain.WorkspaceNode, 0),
