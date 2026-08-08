@@ -9,6 +9,7 @@ import (
 	"github.com/Duke1616/eiam/pkg/ctxutil"
 	artifactarchive "github.com/Duke1616/etask/internal/artifact/archive"
 	"github.com/Duke1616/etask/internal/domain"
+	"github.com/Duke1616/etask/internal/errs"
 	repositorymocks "github.com/Duke1616/etask/internal/repository/mocks"
 	program "github.com/Duke1616/etask/internal/service/program"
 	blobstoremocks "github.com/Duke1616/etask/pkg/blobstore/mocks"
@@ -80,4 +81,21 @@ func TestResolveProjectRequiresSource(t *testing.T) {
 	_, err := svc.Resolve(ctxutil.WithTenantID(t.Context(), 10), &domain.ProgramSpec{Kind: domain.ProgramProject,
 		Project: &domain.ProjectProgramSpec{EntryCodebookID: 11}})
 	require.ErrorContains(t, err, "read failed")
+}
+
+func TestResolveProjectReportsArchivedProjectAsUnavailable(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	repo := repositorymocks.NewMockProjectSourceRepository(ctrl)
+	repo.EXPECT().GetProject(gomock.Any(), int64(9)).Return(domain.CodebookProject{}, gorm.ErrRecordNotFound)
+	svc := program.NewService(codebooks{values: map[int64]domain.Codebook{
+		11: {ID: 11, ProjectID: 9, Name: "main.yml", Kind: domain.CodebookKindFile,
+			Scope: domain.CodebookScopeTenant},
+	}}, repo, blobstoremocks.NewMockStore(ctrl), artifactarchive.New(""))
+
+	_, err := svc.Resolve(ctxutil.WithTenantID(t.Context(), 10), &domain.ProgramSpec{
+		Kind: domain.ProgramProject, Project: &domain.ProjectProgramSpec{EntryCodebookID: 11},
+	})
+
+	require.ErrorIs(t, err, errs.ErrProgramSourceUnavailable)
+	require.ErrorContains(t, err, "不存在或已归档")
 }

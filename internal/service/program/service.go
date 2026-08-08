@@ -13,6 +13,7 @@ import (
 	"github.com/Duke1616/eiam/pkg/ctxutil"
 	artifactarchive "github.com/Duke1616/etask/internal/artifact/archive"
 	"github.com/Duke1616/etask/internal/domain"
+	"github.com/Duke1616/etask/internal/errs"
 	"github.com/Duke1616/etask/internal/repository"
 	"github.com/Duke1616/etask/pkg/blobstore"
 	"gorm.io/gorm"
@@ -171,6 +172,10 @@ func (s *service) prepareSource(ctx context.Context, projectID int64) (domain.Pr
 		return domain.ProjectSource{}, err
 	}
 	project, err := s.repo.GetProject(ctx, projectID)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return domain.ProjectSource{}, fmt.Errorf("%w: 代码项目 %d 不存在或已归档",
+			errs.ErrProgramSourceUnavailable, projectID)
+	}
 	if err != nil {
 		return domain.ProjectSource{}, fmt.Errorf("查询代码项目失败: %w", err)
 	}

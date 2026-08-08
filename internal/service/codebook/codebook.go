@@ -45,12 +45,15 @@ type Service interface {
 	CreateProject(ctx context.Context, req domain.CodebookProject) (int64, error)
 	// GetProjectByID 根据主键 ID 获取脚本项目。
 	GetProjectByID(ctx context.Context, id int64) (domain.CodebookProject, error)
-	// ListProjects 分页获取脚本项目列表和总数。
-	ListProjects(ctx context.Context, offset, limit int64) ([]domain.CodebookProject, int64, error)
+	// ListProjects 按状态分页获取脚本项目列表和总数。
+	ListProjects(ctx context.Context, status domain.CodebookProjectStatus,
+		offset, limit int64) ([]domain.CodebookProject, int64, error)
 	// UpdateProject 校验并更新脚本项目。
 	UpdateProject(ctx context.Context, req domain.CodebookProject) (int64, error)
-	// DeleteProject 根据主键 ID 删除脚本项目。
-	DeleteProject(ctx context.Context, id int64) (int64, error)
+	// ArchiveProject 根据主键 ID 归档脚本项目。
+	ArchiveProject(ctx context.Context, id int64) (int64, error)
+	// RestoreProject 根据主键 ID 恢复已归档的脚本项目。
+	RestoreProject(ctx context.Context, id int64) (int64, error)
 }
 
 type service struct {
@@ -352,7 +355,14 @@ func (s *service) GetProjectByID(ctx context.Context, id int64) (domain.Codebook
 	return s.repo.GetProjectByID(ctx, id)
 }
 
-func (s *service) ListProjects(ctx context.Context, offset, limit int64) ([]domain.CodebookProject, int64, error) {
+func (s *service) ListProjects(ctx context.Context, status domain.CodebookProjectStatus,
+	offset, limit int64) ([]domain.CodebookProject, int64, error) {
+	if status == "" {
+		status = domain.CodebookProjectStatusNormal
+	}
+	if !status.Valid() {
+		return nil, 0, fmt.Errorf("%w: 项目状态非法: %s", errs.ErrInvalidParameter, status)
+	}
 	var (
 		eg    errgroup.Group
 		res   []domain.CodebookProject
@@ -360,12 +370,12 @@ func (s *service) ListProjects(ctx context.Context, offset, limit int64) ([]doma
 	)
 	eg.Go(func() error {
 		var err error
-		res, err = s.repo.ListProjects(ctx, offset, limit)
+		res, err = s.repo.ListProjects(ctx, status, offset, limit)
 		return err
 	})
 	eg.Go(func() error {
 		var err error
-		total, err = s.repo.TotalProjects(ctx)
+		total, err = s.repo.TotalProjects(ctx, status)
 		return err
 	})
 	if err := eg.Wait(); err != nil {
@@ -412,9 +422,16 @@ func (s *service) validateArtifactNamespace(ctx context.Context, namespace strin
 	return nil
 }
 
-func (s *service) DeleteProject(ctx context.Context, id int64) (int64, error) {
+func (s *service) ArchiveProject(ctx context.Context, id int64) (int64, error) {
 	if id <= 0 {
 		return 0, fmt.Errorf("%w: 项目 ID 非法: %d", errs.ErrInvalidParameter, id)
 	}
-	return s.repo.DeleteProject(ctx, id)
+	return s.repo.ArchiveProject(ctx, id)
+}
+
+func (s *service) RestoreProject(ctx context.Context, id int64) (int64, error) {
+	if id <= 0 {
+		return 0, fmt.Errorf("%w: 项目 ID 非法: %d", errs.ErrInvalidParameter, id)
+	}
+	return s.repo.RestoreProject(ctx, id)
 }

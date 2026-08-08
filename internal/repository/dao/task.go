@@ -393,20 +393,7 @@ func (g *GORMTaskDAO) Update(ctx context.Context, task Task) error {
 	res := g.db.WithContext(ctx).
 		Model(&Task{}).
 		Where("id = ?", task.ID).
-		Updates(map[string]any{
-			"name":                  task.Name,
-			"type":                  task.Type,
-			"cron_expr":             task.CronExpr,
-			"grpc_config":           task.GrpcConfig,
-			"http_config":           task.HTTPConfig,
-			"retry_config":          task.RetryConfig,
-			"schedule_params":       task.ScheduleParams,
-			"max_execution_seconds": task.MaxExecutionSeconds,
-			"next_time":             task.NextTime,
-			"version":               gorm.Expr("version + 1"),
-			"utime":                 time.Now().UnixMilli(),
-			"metadata":              task.Metadata,
-		})
+		Updates(taskUpdateFields(task))
 
 	if res.Error != nil {
 		return res.Error
@@ -417,6 +404,24 @@ func (g *GORMTaskDAO) Update(ctx context.Context, task Task) error {
 	}
 
 	return nil
+}
+
+func taskUpdateFields(task Task) map[string]any {
+	return map[string]any{
+		"name":                  task.Name,
+		"type":                  task.Type,
+		"cron_expr":             task.CronExpr,
+		"grpc_config":           task.GrpcConfig,
+		"program":               task.Program,
+		"http_config":           task.HTTPConfig,
+		"retry_config":          task.RetryConfig,
+		"schedule_params":       task.ScheduleParams,
+		"max_execution_seconds": task.MaxExecutionSeconds,
+		"next_time":             task.NextTime,
+		"version":               gorm.Expr("version + 1"),
+		"utime":                 time.Now().UnixMilli(),
+		"metadata":              task.Metadata,
+	}
 }
 
 func (g *GORMTaskDAO) Delete(ctx context.Context, id int64) error {

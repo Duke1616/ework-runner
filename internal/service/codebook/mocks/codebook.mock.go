@@ -41,6 +41,45 @@ func (m *MockService) EXPECT() *MockServiceMockRecorder {
 	return m.recorder
 }
 
+// ArchiveProject mocks base method.
+func (m *MockService) ArchiveProject(ctx context.Context, id int64) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ArchiveProject", ctx, id)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ArchiveProject indicates an expected call of ArchiveProject.
+func (mr *MockServiceMockRecorder) ArchiveProject(ctx, id any) *MockServiceArchiveProjectCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ArchiveProject", reflect.TypeOf((*MockService)(nil).ArchiveProject), ctx, id)
+	return &MockServiceArchiveProjectCall{Call: call}
+}
+
+// MockServiceArchiveProjectCall wrap *gomock.Call
+type MockServiceArchiveProjectCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockServiceArchiveProjectCall) Return(arg0 int64, arg1 error) *MockServiceArchiveProjectCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockServiceArchiveProjectCall) Do(f func(context.Context, int64) (int64, error)) *MockServiceArchiveProjectCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockServiceArchiveProjectCall) DoAndReturn(f func(context.Context, int64) (int64, error)) *MockServiceArchiveProjectCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // Children mocks base method.
 func (m *MockService) Children(ctx context.Context, projectID, parentID int64) ([]domain.Codebook, error) {
 	m.ctrl.T.Helper()
@@ -236,45 +275,6 @@ func (c *MockServiceDeleteCall) DoAndReturn(f func(context.Context, int64) (int6
 	return c
 }
 
-// DeleteProject mocks base method.
-func (m *MockService) DeleteProject(ctx context.Context, id int64) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteProject", ctx, id)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// DeleteProject indicates an expected call of DeleteProject.
-func (mr *MockServiceMockRecorder) DeleteProject(ctx, id any) *MockServiceDeleteProjectCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteProject", reflect.TypeOf((*MockService)(nil).DeleteProject), ctx, id)
-	return &MockServiceDeleteProjectCall{Call: call}
-}
-
-// MockServiceDeleteProjectCall wrap *gomock.Call
-type MockServiceDeleteProjectCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockServiceDeleteProjectCall) Return(arg0 int64, arg1 error) *MockServiceDeleteProjectCall {
-	c.Call = c.Call.Return(arg0, arg1)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockServiceDeleteProjectCall) Do(f func(context.Context, int64) (int64, error)) *MockServiceDeleteProjectCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockServiceDeleteProjectCall) DoAndReturn(f func(context.Context, int64) (int64, error)) *MockServiceDeleteProjectCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // GetByID mocks base method.
 func (m *MockService) GetByID(ctx context.Context, id int64) (domain.Codebook, error) {
 	m.ctrl.T.Helper()
@@ -433,9 +433,9 @@ func (c *MockServiceListCall) DoAndReturn(f func(context.Context, int64, int64) 
 }
 
 // ListProjects mocks base method.
-func (m *MockService) ListProjects(ctx context.Context, offset, limit int64) ([]domain.CodebookProject, int64, error) {
+func (m *MockService) ListProjects(ctx context.Context, status domain.CodebookProjectStatus, offset, limit int64) ([]domain.CodebookProject, int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListProjects", ctx, offset, limit)
+	ret := m.ctrl.Call(m, "ListProjects", ctx, status, offset, limit)
 	ret0, _ := ret[0].([]domain.CodebookProject)
 	ret1, _ := ret[1].(int64)
 	ret2, _ := ret[2].(error)
@@ -443,9 +443,9 @@ func (m *MockService) ListProjects(ctx context.Context, offset, limit int64) ([]
 }
 
 // ListProjects indicates an expected call of ListProjects.
-func (mr *MockServiceMockRecorder) ListProjects(ctx, offset, limit any) *MockServiceListProjectsCall {
+func (mr *MockServiceMockRecorder) ListProjects(ctx, status, offset, limit any) *MockServiceListProjectsCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListProjects", reflect.TypeOf((*MockService)(nil).ListProjects), ctx, offset, limit)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListProjects", reflect.TypeOf((*MockService)(nil).ListProjects), ctx, status, offset, limit)
 	return &MockServiceListProjectsCall{Call: call}
 }
 
@@ -461,13 +461,13 @@ func (c *MockServiceListProjectsCall) Return(arg0 []domain.CodebookProject, arg1
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockServiceListProjectsCall) Do(f func(context.Context, int64, int64) ([]domain.CodebookProject, int64, error)) *MockServiceListProjectsCall {
+func (c *MockServiceListProjectsCall) Do(f func(context.Context, domain.CodebookProjectStatus, int64, int64) ([]domain.CodebookProject, int64, error)) *MockServiceListProjectsCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockServiceListProjectsCall) DoAndReturn(f func(context.Context, int64, int64) ([]domain.CodebookProject, int64, error)) *MockServiceListProjectsCall {
+func (c *MockServiceListProjectsCall) DoAndReturn(f func(context.Context, domain.CodebookProjectStatus, int64, int64) ([]domain.CodebookProject, int64, error)) *MockServiceListProjectsCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -507,6 +507,45 @@ func (c *MockServiceListVersionsCall) Do(f func(context.Context, int64) ([]domai
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockServiceListVersionsCall) DoAndReturn(f func(context.Context, int64) ([]domain.CodebookVersion, error)) *MockServiceListVersionsCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// RestoreProject mocks base method.
+func (m *MockService) RestoreProject(ctx context.Context, id int64) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RestoreProject", ctx, id)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RestoreProject indicates an expected call of RestoreProject.
+func (mr *MockServiceMockRecorder) RestoreProject(ctx, id any) *MockServiceRestoreProjectCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RestoreProject", reflect.TypeOf((*MockService)(nil).RestoreProject), ctx, id)
+	return &MockServiceRestoreProjectCall{Call: call}
+}
+
+// MockServiceRestoreProjectCall wrap *gomock.Call
+type MockServiceRestoreProjectCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockServiceRestoreProjectCall) Return(arg0 int64, arg1 error) *MockServiceRestoreProjectCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockServiceRestoreProjectCall) Do(f func(context.Context, int64) (int64, error)) *MockServiceRestoreProjectCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockServiceRestoreProjectCall) DoAndReturn(f func(context.Context, int64) (int64, error)) *MockServiceRestoreProjectCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

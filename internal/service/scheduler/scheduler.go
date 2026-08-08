@@ -2,11 +2,14 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/Duke1616/eiam/pkg/ctxutil"
 	"github.com/Duke1616/etask/internal/domain"
+	"github.com/Duke1616/etask/internal/errs"
 	"github.com/Duke1616/etask/internal/service/acquirer"
 	"github.com/Duke1616/etask/internal/service/dispatcher"
 	"github.com/Duke1616/etask/internal/service/task"
@@ -109,15 +112,10 @@ func (s *Scheduler) scheduleLoop() {
 		// 没有可以调度的任务就睡一会
 		if len(tasks) == 0 {
 			s.logger.Debug("没有可调度的任务")
-			timer := time.NewTimer(s.config.ScheduleInterval)
-			select {
-			case <-s.ctx.Done():
-				timer.Stop()
-				s.logger.Info("调度循环结束")
+			if !s.waitScheduleInterval() {
 				return
-			case <-timer.C:
-				continue
 			}
+			continue
 		}
 
 		s.logger.Info("发现可调度任务", elog.Int("count", len(tasks)))
@@ -137,13 +135,56 @@ func (s *Scheduler) scheduleLoop() {
 			elog.Int("success", successCount),
 			elog.Int("total", len(tasks)))
 
+		// 整批任务均派发失败时进行退避，避免永久性配置错误形成热循环。
+		if successCount == 0 && !s.waitScheduleInterval() {
+			return
+		}
+	}
+}
+
+func (s *Scheduler) waitScheduleInterval() bool {
+	timer := time.NewTimer(s.config.ScheduleInterval)
+	defer timer.Stop()
+	select {
+	case <-s.ctx.Done():
+		s.logger.Info("调度循环结束")
+		return false
+	case <-timer.C:
+		return true
 	}
 }
 
 // scheduleOnce 调度单个任务
 func (s *Scheduler) scheduleOnce(task domain.Task) error {
 	ctx := taskContext(s.ctx, task.TenantID)
-	return s.dispatcher.Run(ctx, task)
+	err := s.dispatcher.Run(ctx, task)
+	if errors.Is(err, errs.ErrProgramSourceUnavailable) {
+		s.stopTaskWithUnavailableProgram(ctx, task)
+	}
+	return err
+}
+
+// stopTaskWithUnavailableProgram 停用仍指向同一失效程序来源的任务。
+// 再次读取并比较程序配置，避免并发编辑已经修复任务后被旧调度结果误停用。
+func (s *Scheduler) stopTaskWithUnavailableProgram(ctx context.Context, scheduled domain.Task) {
+	current, err := s.taskSvc.GetByID(ctx, scheduled.ID)
+	if err != nil {
+		s.logger.Error("查询程序来源失效任务失败",
+			elog.Int64("taskID", scheduled.ID), elog.FieldErr(err))
+		return
+	}
+	if current.Status == domain.TaskStatusInactive || current.Status == domain.TaskStatusCompleted ||
+		!reflect.DeepEqual(current.Program, scheduled.Program) {
+		return
+	}
+	if err = s.taskSvc.Stop(ctx, scheduled.ID); err != nil {
+		s.logger.Error("自动停用程序来源失效任务失败",
+			elog.Int64("taskID", scheduled.ID), elog.String("taskName", scheduled.Name),
+			elog.FieldErr(err))
+		return
+	}
+	s.logger.Warn("程序来源不存在或已归档，任务已自动停用",
+		elog.Int64("taskID", scheduled.ID), elog.String("taskName", scheduled.Name))
 }
 
 // taskContext 注入租户及原始租户，供后续 GORM 租户插件使用。

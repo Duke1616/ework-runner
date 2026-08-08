@@ -79,6 +79,10 @@ func (s CodebookProjectStatus) String() string {
 	return string(s)
 }
 
+func (s CodebookProjectStatus) Valid() bool {
+	return s == CodebookProjectStatusNormal || s == CodebookProjectStatusArchived
+}
+
 // CodebookProject 表示租户级代码资源项目，系统组件库不归属具体项目。
 type CodebookProject struct {
 	ID                int64

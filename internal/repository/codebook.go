@@ -56,18 +56,21 @@ type ICodebookRepository interface {
 	CreateProject(ctx context.Context, req domain.CodebookProject) (int64, error)
 	// GetProjectByID 根据主键 ID 查询代码资源项目。
 	GetProjectByID(ctx context.Context, id int64) (domain.CodebookProject, error)
-	// ListProjects 分页查询代码资源项目。
-	ListProjects(ctx context.Context, offset, limit int64) ([]domain.CodebookProject, error)
-	// TotalProjects 统计代码资源项目总数。
-	TotalProjects(ctx context.Context) (int64, error)
+	// ListProjects 按状态分页查询代码资源项目。
+	ListProjects(ctx context.Context, status domain.CodebookProjectStatus,
+		offset, limit int64) ([]domain.CodebookProject, error)
+	// TotalProjects 按状态统计代码资源项目总数。
+	TotalProjects(ctx context.Context, status domain.CodebookProjectStatus) (int64, error)
 	// GetProjectMaxSortNo 查询当前租户项目最大的排序号。
 	GetProjectMaxSortNo(ctx context.Context) (int64, error)
 	// UpdateProject 更新代码资源项目。
 	UpdateProject(ctx context.Context, req domain.CodebookProject) (int64, error)
 	// ArtifactNamespaceExists 判断当前租户是否存在同名制品导入命名空间。
 	ArtifactNamespaceExists(ctx context.Context, namespace string, excludeID int64) (bool, error)
-	// DeleteProject 归档代码资源项目。
-	DeleteProject(ctx context.Context, id int64) (int64, error)
+	// ArchiveProject 归档代码资源项目。
+	ArchiveProject(ctx context.Context, id int64) (int64, error)
+	// RestoreProject 恢复已归档的代码资源项目。
+	RestoreProject(ctx context.Context, id int64) (int64, error)
 }
 
 type codebookRepository struct {
@@ -452,8 +455,9 @@ func (repo *codebookRepository) GetProjectByID(ctx context.Context, id int64) (d
 	return repo.toProjectDomain(p), nil
 }
 
-func (repo *codebookRepository) ListProjects(ctx context.Context, offset, limit int64) ([]domain.CodebookProject, error) {
-	ps, err := repo.projectDao.List(ctx, offset, limit)
+func (repo *codebookRepository) ListProjects(ctx context.Context, status domain.CodebookProjectStatus,
+	offset, limit int64) ([]domain.CodebookProject, error) {
+	ps, err := repo.projectDao.List(ctx, status.String(), offset, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -462,8 +466,9 @@ func (repo *codebookRepository) ListProjects(ctx context.Context, offset, limit 
 	}), nil
 }
 
-func (repo *codebookRepository) TotalProjects(ctx context.Context) (int64, error) {
-	return repo.projectDao.Count(ctx)
+func (repo *codebookRepository) TotalProjects(ctx context.Context,
+	status domain.CodebookProjectStatus) (int64, error) {
+	return repo.projectDao.Count(ctx, status.String())
 }
 
 func (repo *codebookRepository) GetProjectMaxSortNo(ctx context.Context) (int64, error) {
@@ -478,8 +483,12 @@ func (repo *codebookRepository) ArtifactNamespaceExists(ctx context.Context, nam
 	return repo.projectDao.ArtifactNamespaceExists(ctx, namespace, excludeID)
 }
 
-func (repo *codebookRepository) DeleteProject(ctx context.Context, id int64) (int64, error) {
-	return repo.projectDao.Delete(ctx, id)
+func (repo *codebookRepository) ArchiveProject(ctx context.Context, id int64) (int64, error) {
+	return repo.projectDao.Archive(ctx, id)
+}
+
+func (repo *codebookRepository) RestoreProject(ctx context.Context, id int64) (int64, error) {
+	return repo.projectDao.Restore(ctx, id)
 }
 
 func (repo *codebookRepository) toProjectEntity(p domain.CodebookProject) dao.CodebookProject {

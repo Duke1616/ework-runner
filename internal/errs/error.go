@@ -38,7 +38,8 @@ var (
 	ErrCodebookNameConflict    = errors.New("同级目录下已存在同名文件或目录")
 	ErrCodebookVersionConflict = errors.New("Codebook current version changed")
 
-	ErrExecutionPoolNotAllowed = errors.New("未授权使用执行资源池")
+	ErrExecutionPoolNotAllowed  = errors.New("未授权使用执行资源池")
+	ErrProgramSourceUnavailable = errors.New("程序来源不可用")
 
 	ErrAIConversationBusy   = errors.New("AI conversation is busy")
 	ErrAISuggestionConflict = errors.New("AI suggestion is stale or already applied")

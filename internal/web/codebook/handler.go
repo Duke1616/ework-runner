@@ -98,13 +98,21 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 		Handle(ginx.B[CreateProjectReq](h.CreateProject)),
 	)
 	pg.POST("/list", project("项目列表", "view_project").
-		Handle(ginx.B[ListReq](h.ListProject)),
+		Handle(ginx.B[ListProjectsReq](h.ListProject)),
 	)
 	pg.POST("/update", project("更新项目", "edit_project").
 		Handle(ginx.B[UpdateProjectReq](h.UpdateProject)),
 	)
-	pg.DELETE("/delete/:id", project("删除项目", "delete_project").
-		Handle(ginx.W(h.DeleteProject)),
+	pg.POST("/archive/:id", project("归档项目", "delete_project").
+		Handle(ginx.W(h.ArchiveProject)),
+	)
+	pg.POST("/restore/:id", project("恢复项目", "restore_project").
+		Handle(ginx.W(h.RestoreProject)),
+	)
+	// 兼容旧版前端；新客户端统一使用 /archive/:id。
+	pg.DELETE("/delete/:id", project("归档项目兼容入口", "archive_project_compat").
+		NoSync().Needs("task:codebook:delete_project").
+		Handle(ginx.W(h.ArchiveProject)),
 	)
 }
 
@@ -233,10 +241,11 @@ func (h *Handler) CreateProject(ctx *ginx.Context, req CreateProjectReq) (ginx.R
 	return ginx.Result{Data: id, Msg: "success"}, nil
 }
 
-func (h *Handler) ListProject(ctx *ginx.Context, req ListReq) (ginx.Result, error) {
-	ps, total, err := h.svc.ListProjects(ctx, req.Offset, req.Limit)
+func (h *Handler) ListProject(ctx *ginx.Context, req ListProjectsReq) (ginx.Result, error) {
+	ps, total, err := h.svc.ListProjects(ctx, domain.CodebookProjectStatus(req.Status),
+		req.Offset, req.Limit)
 	if err != nil {
-		return systemErrorResult, err
+		return h.translateError(err), err
 	}
 	return ginx.Result{Msg: "success", Data: h.toProjectListResp(ps, total)}, nil
 }
@@ -250,12 +259,24 @@ func (h *Handler) UpdateProject(ctx *ginx.Context, req UpdateProjectReq) (ginx.R
 	return ginx.Result{Data: count, Msg: "success"}, nil
 }
 
-func (h *Handler) DeleteProject(ctx *ginx.Context) (ginx.Result, error) {
+func (h *Handler) ArchiveProject(ctx *ginx.Context) (ginx.Result, error) {
 	id, err := ctx.Param("id").AsInt64()
 	if err != nil {
 		return invalidProjectIDError, err
 	}
-	count, err := h.svc.DeleteProject(ctx, id)
+	count, err := h.svc.ArchiveProject(ctx, id)
+	if err != nil {
+		return h.translateError(err), err
+	}
+	return ginx.Result{Data: count, Msg: "success"}, nil
+}
+
+func (h *Handler) RestoreProject(ctx *ginx.Context) (ginx.Result, error) {
+	id, err := ctx.Param("id").AsInt64()
+	if err != nil {
+		return invalidProjectIDError, err
+	}
+	count, err := h.svc.RestoreProject(ctx, id)
 	if err != nil {
 		return h.translateError(err), err
 	}

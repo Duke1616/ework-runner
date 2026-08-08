@@ -51,6 +51,11 @@ type ListReq struct {
 	Page
 }
 
+type ListProjectsReq struct {
+	Page
+	Status string `json:"status,omitempty"`
+}
+
 type ChildrenReq struct {
 	ProjectID int64 `json:"project_id"`
 	ParentID  int64 `json:"parent_id"`

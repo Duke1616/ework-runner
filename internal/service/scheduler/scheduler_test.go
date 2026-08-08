@@ -2,11 +2,13 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/Duke1616/eiam/pkg/ctxutil"
 	"github.com/Duke1616/etask/internal/domain"
+	"github.com/Duke1616/etask/internal/errs"
 	"github.com/Duke1616/etask/internal/service/task"
 	"github.com/gotomicro/ego/core/elog"
 	"github.com/stretchr/testify/require"
@@ -52,13 +54,19 @@ type dispatcherStub struct {
 	calls          int
 	tenantID       int64
 	originTenantID int64
+	err            error
+	dispatched     chan<- struct{}
 }
 
 func (d *dispatcherStub) Run(ctx context.Context, _ domain.Task) error {
 	d.calls++
 	d.tenantID = ctxutil.GetTenantID(ctx).Int64()
 	d.originTenantID = ctxutil.GetOriginTenantID(ctx).Int64()
-	return nil
+	select {
+	case d.dispatched <- struct{}{}:
+	default:
+	}
+	return d.err
 }
 func (d *dispatcherStub) Retry(context.Context, domain.TaskExecution) error      { return nil }
 func (d *dispatcherStub) Reschedule(context.Context, domain.TaskExecution) error { return nil }
@@ -99,7 +107,9 @@ func TestSchedulerScheduleLoopStopsDuringIdleWait(t *testing.T) {
 
 type schedulerTaskServiceStub struct {
 	task.Service
-	queried chan<- struct{}
+	queried   chan<- struct{}
+	current   domain.Task
+	stoppedID int64
 }
 
 func (s *schedulerTaskServiceStub) SchedulableTasks(context.Context, int64, int) ([]domain.Task, error) {
@@ -108,4 +118,111 @@ func (s *schedulerTaskServiceStub) SchedulableTasks(context.Context, int64, int)
 	default:
 	}
 	return nil, nil
+}
+
+func (s *schedulerTaskServiceStub) GetByID(context.Context, int64) (domain.Task, error) {
+	return s.current, nil
+}
+
+func (s *schedulerTaskServiceStub) Stop(_ context.Context, id int64) error {
+	s.stoppedID = id
+	return nil
+}
+
+func TestSchedulerStopsTaskWhenProgramSourceIsUnavailable(t *testing.T) {
+	program := &domain.ProgramSpec{Kind: domain.ProgramProject,
+		Project: &domain.ProjectProgramSpec{EntryCodebookID: 11}}
+	scheduled := domain.Task{ID: 5, TenantID: 20, Name: "剧本", Status: domain.TaskStatusActive,
+		Program: program}
+	tasks := &schedulerTaskServiceStub{current: scheduled}
+	scheduler := &Scheduler{
+		dispatcher: &dispatcherStub{err: errs.ErrProgramSourceUnavailable},
+		taskSvc:    tasks,
+		ctx:        context.Background(),
+		logger:     elog.DefaultLogger.With(elog.FieldComponentName("scheduler.test")),
+	}
+
+	err := scheduler.scheduleOnce(scheduled)
+
+	require.ErrorIs(t, err, errs.ErrProgramSourceUnavailable)
+	require.Equal(t, scheduled.ID, tasks.stoppedID)
+}
+
+func TestSchedulerDoesNotStopTaskAfterProgramWasChanged(t *testing.T) {
+	scheduled := domain.Task{ID: 5, TenantID: 20, Name: "剧本", Status: domain.TaskStatusActive,
+		Program: &domain.ProgramSpec{Kind: domain.ProgramProject,
+			Project: &domain.ProjectProgramSpec{EntryCodebookID: 11}}}
+	current := scheduled
+	current.Program = &domain.ProgramSpec{Kind: domain.ProgramProject,
+		Project: &domain.ProjectProgramSpec{EntryCodebookID: 12}}
+	tasks := &schedulerTaskServiceStub{current: current}
+	scheduler := &Scheduler{
+		dispatcher: &dispatcherStub{err: errs.ErrProgramSourceUnavailable},
+		taskSvc:    tasks,
+		ctx:        context.Background(),
+		logger:     elog.DefaultLogger.With(elog.FieldComponentName("scheduler.test")),
+	}
+
+	err := scheduler.scheduleOnce(scheduled)
+
+	require.ErrorIs(t, err, errs.ErrProgramSourceUnavailable)
+	require.Zero(t, tasks.stoppedID)
+}
+
+type repeatingSchedulerTaskServiceStub struct {
+	task.Service
+	value   domain.Task
+	queried chan<- struct{}
+}
+
+func (s *repeatingSchedulerTaskServiceStub) SchedulableTasks(context.Context, int64, int) ([]domain.Task, error) {
+	select {
+	case s.queried <- struct{}{}:
+	default:
+	}
+	return []domain.Task{s.value}, nil
+}
+
+func TestSchedulerBacksOffWhenWholeBatchFails(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	queried := make(chan struct{}, 2)
+	dispatched := make(chan struct{}, 1)
+	scheduler := &Scheduler{
+		dispatcher: &dispatcherStub{err: errors.New("dispatch failed"), dispatched: dispatched},
+		taskSvc: &repeatingSchedulerTaskServiceStub{
+			value: domain.Task{ID: 5, Name: "剧本"}, queried: queried,
+		},
+		config: Config{BatchTimeout: time.Second, BatchSize: 1, ScheduleInterval: time.Hour},
+		ctx:    ctx,
+		cancel: cancel,
+		logger: elog.DefaultLogger.With(elog.FieldComponentName("scheduler.test")),
+	}
+	go func() {
+		defer close(done)
+		scheduler.scheduleLoop()
+	}()
+
+	select {
+	case <-queried:
+	case <-time.After(time.Second):
+		t.Fatal("调度循环未查询任务")
+	}
+	select {
+	case <-dispatched:
+	case <-time.After(time.Second):
+		t.Fatal("调度循环未派发任务")
+	}
+	select {
+	case <-queried:
+		t.Fatal("整批派发失败后未进行退避")
+	case <-time.After(50 * time.Millisecond):
+	}
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("调度循环未从失败退避中及时退出")
+	}
 }

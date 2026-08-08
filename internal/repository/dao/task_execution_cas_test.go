@@ -3,6 +3,8 @@ package dao
 import (
 	"testing"
 
+	"github.com/Duke1616/etask/internal/domain"
+	"github.com/Duke1616/etask/pkg/sqlx"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -25,4 +27,28 @@ func TestWithExecutionStatusCAS(t *testing.T) {
 	})
 
 	require.Contains(t, sql, "WHERE id = 42 AND status IN ('PREPARE','RUNNING')")
+}
+
+func TestTaskUpdateFieldsIncludesProgram(t *testing.T) {
+	program := sqlx.JSONColumn[domain.ProgramSpec]{
+		Valid: true,
+		Val: domain.ProgramSpec{
+			Kind: domain.ProgramProject,
+			Project: &domain.ProjectProgramSpec{
+				EntryCodebookID: 113,
+			},
+		},
+	}
+
+	fields := taskUpdateFields(Task{Program: program})
+
+	require.Equal(t, program, fields["program"])
+}
+
+func TestTaskUpdateFieldsCanClearProgram(t *testing.T) {
+	fields := taskUpdateFields(Task{})
+
+	program, exists := fields["program"]
+	require.True(t, exists)
+	require.Equal(t, sqlx.JSONColumn[domain.ProgramSpec]{}, program)
 }

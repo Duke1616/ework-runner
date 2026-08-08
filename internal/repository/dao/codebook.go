@@ -114,20 +114,22 @@ type CodebookProjectDAO interface {
 	Create(ctx context.Context, p CodebookProject) (int64, error)
 	// GetByID 根据主键 ID 查询代码资源项目。
 	GetByID(ctx context.Context, id int64) (CodebookProject, error)
-	// List 分页查询代码资源项目。
-	List(ctx context.Context, offset, limit int64) ([]CodebookProject, error)
+	// List 按状态分页查询代码资源项目。
+	List(ctx context.Context, status string, offset, limit int64) ([]CodebookProject, error)
 	// ListArtifactProjects 查询当前租户下全部正常状态的制品库项目。
 	ListArtifactProjects(ctx context.Context) ([]CodebookProject, error)
 	// ArtifactNamespaceExists 判断当前租户是否存在同名制品导入命名空间。
 	ArtifactNamespaceExists(ctx context.Context, namespace string, excludeID int64) (bool, error)
-	// Count 统计代码资源项目总数。
-	Count(ctx context.Context) (int64, error)
+	// Count 按状态统计代码资源项目总数。
+	Count(ctx context.Context, status string) (int64, error)
 	// GetMaxSortNo 查询当前租户项目最大的排序号。
 	GetMaxSortNo(ctx context.Context) (int64, error)
 	// Update 更新代码资源项目。
 	Update(ctx context.Context, p CodebookProject) (int64, error)
-	// Delete 归档代码资源项目。
-	Delete(ctx context.Context, id int64) (int64, error)
+	// Archive 归档代码资源项目。
+	Archive(ctx context.Context, id int64) (int64, error)
+	// Restore 恢复已归档的代码资源项目。
+	Restore(ctx context.Context, id int64) (int64, error)
 }
 
 // CodebookDAO 定义代码资源的数据访问操作。
@@ -219,11 +221,12 @@ func (g *GORMCodebookProjectDAO) GetByID(ctx context.Context, id int64) (Codeboo
 	return res, err
 }
 
-// List 分页查询代码资源项目。
-func (g *GORMCodebookProjectDAO) List(ctx context.Context, offset, limit int64) ([]CodebookProject, error) {
+// List 按状态分页查询代码资源项目。
+func (g *GORMCodebookProjectDAO) List(ctx context.Context, status string,
+	offset, limit int64) ([]CodebookProject, error) {
 	var res []CodebookProject
 	err := g.db.WithContext(ctx).
-		Where("status = ?", domain.CodebookProjectStatusNormal.String()).
+		Where("status = ?", status).
 		Order("sort_no ASC, id ASC").
 		Offset(int(offset)).
 		Limit(int(limit)).
@@ -254,12 +257,12 @@ func (g *GORMCodebookProjectDAO) ArtifactNamespaceExists(ctx context.Context, na
 	return count > 0, err
 }
 
-// Count 统计代码资源项目总数。
-func (g *GORMCodebookProjectDAO) Count(ctx context.Context) (int64, error) {
+// Count 按状态统计代码资源项目总数。
+func (g *GORMCodebookProjectDAO) Count(ctx context.Context, status string) (int64, error) {
 	var count int64
 	err := g.db.WithContext(ctx).
 		Model(&CodebookProject{}).
-		Where("status = ?", domain.CodebookProjectStatusNormal.String()).
+		Where("status = ?", status).
 		Count(&count).Error
 	return count, err
 }
@@ -290,12 +293,23 @@ func (g *GORMCodebookProjectDAO) Update(ctx context.Context, p CodebookProject) 
 	return res.RowsAffected, res.Error
 }
 
-// Delete 归档代码资源项目。
-func (g *GORMCodebookProjectDAO) Delete(ctx context.Context, id int64) (int64, error) {
+// Archive 归档代码资源项目。
+func (g *GORMCodebookProjectDAO) Archive(ctx context.Context, id int64) (int64, error) {
 	res := g.db.WithContext(ctx).Model(&CodebookProject{}).
-		Where("id = ?", id).
+		Where("id = ? AND status = ?", id, domain.CodebookProjectStatusNormal.String()).
 		Updates(map[string]any{
 			"status": domain.CodebookProjectStatusArchived.String(),
+			"utime":  time.Now().UnixMilli(),
+		})
+	return res.RowsAffected, res.Error
+}
+
+// Restore 恢复已归档的代码资源项目。
+func (g *GORMCodebookProjectDAO) Restore(ctx context.Context, id int64) (int64, error) {
+	res := g.db.WithContext(ctx).Model(&CodebookProject{}).
+		Where("id = ? AND status = ?", id, domain.CodebookProjectStatusArchived.String()).
+		Updates(map[string]any{
+			"status": domain.CodebookProjectStatusNormal.String(),
 			"utime":  time.Now().UnixMilli(),
 		})
 	return res.RowsAffected, res.Error
