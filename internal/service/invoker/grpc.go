@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -13,6 +14,8 @@ import (
 	"github.com/Duke1616/etask/pkg/grpc/balancer"
 	"github.com/Duke1616/etask/pkg/grpc/pool"
 	"github.com/gotomicro/ego/core/elog"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var _ Invoker = &GRPCInvoker{}
@@ -65,10 +68,29 @@ func (r *GRPCInvoker) Run(ctx context.Context, exec domain.TaskExecution) (domai
 	})
 
 	if err != nil {
-		return domain.ExecutionState{}, fmt.Errorf("发送gRPC请求失败: %w", err)
+		return domain.ExecutionState{}, grpcExecutionError(exec.Task.GrpcConfig.ServiceName, err)
 	}
 
 	return domain.ExecutionStateFromProto(resp.GetExecutionState()), nil
+}
+
+func grpcExecutionError(serviceName string, err error) error {
+	switch status.Code(err) {
+	case codes.DeadlineExceeded:
+		message := strings.ToLower(status.Convert(err).Message())
+		if strings.Contains(message, "waiting for connections to become ready") {
+			return fmt.Errorf(
+				"发送 gRPC 请求失败：执行器服务 %q 没有可用连接，在调用超时时间内未连接到任何 READY 节点；请检查服务注册、节点地址和网络连通性: %w",
+				serviceName, err)
+		}
+		return fmt.Errorf("发送 gRPC 请求失败：调用执行器服务 %q 超时: %w", serviceName, err)
+	case codes.Unavailable:
+		return fmt.Errorf(
+			"发送 gRPC 请求失败：执行器服务 %q 当前不可用；请检查节点健康状态、服务注册和网络连通性: %w",
+			serviceName, err)
+	default:
+		return fmt.Errorf("发送 gRPC 请求失败：执行器服务 %q 调用异常: %w", serviceName, err)
+	}
 }
 
 func (r *GRPCInvoker) Terminate(ctx context.Context, exec domain.TaskExecution, reason string) error {
