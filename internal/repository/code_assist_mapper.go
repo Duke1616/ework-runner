@@ -47,29 +47,26 @@ func toAIMessageDomain(source dao.AIMessage) domain.AIMessage {
 	}
 }
 
-func toAISuggestionEntity(source domain.AISuggestion) dao.AISuggestion {
-	return dao.AISuggestion{
+func toAIChangeSetEntity(source domain.AIChangeSet) dao.AIChangeSet {
+	return dao.AIChangeSet{
 		ID: source.ID, TenantID: source.TenantID, ConversationID: source.ConversationID,
-		MessageID: source.MessageID, ProjectID: source.ProjectID, NodeID: source.NodeID,
-		BaseVersionID: source.BaseVersionID, BaseHash: source.BaseHash,
-		RecipeID: source.RecipeID, RecipeVersion: source.RecipeVersion,
-		Language: source.Language, Code: source.Code, Summary: source.Summary,
-		Diagnostics: sqlx.JSONColumn[[]domain.AIDiagnostic]{
-			Val: source.Diagnostics, Valid: source.Diagnostics != nil,
-		},
-		Status: string(source.Status), AppliedVersionID: source.AppliedVersionID,
-		CTime: source.CTime, UTime: source.UTime,
+		MessageID: source.MessageID, ProjectID: source.ProjectID,
+		BaseRevision: source.BaseRevision, Summary: source.Summary,
+		Items:  changeItemsColumn(source.Items),
+		Status: string(source.Status), CTime: source.CTime, UTime: source.UTime,
 	}
 }
 
-func toAISuggestionDomain(source dao.AISuggestion) domain.AISuggestion {
-	return domain.AISuggestion{
+func toAIChangeSetDomain(source dao.AIChangeSet) domain.AIChangeSet {
+	return domain.AIChangeSet{
 		ID: source.ID, TenantID: source.TenantID, ConversationID: source.ConversationID,
-		MessageID: source.MessageID, ProjectID: source.ProjectID, NodeID: source.NodeID,
-		BaseVersionID: source.BaseVersionID, BaseHash: source.BaseHash,
-		RecipeID: source.RecipeID, RecipeVersion: source.RecipeVersion,
-		Language: source.Language, Code: source.Code, Summary: source.Summary,
-		Diagnostics: source.Diagnostics.Val, Status: domain.AISuggestionStatus(source.Status),
-		AppliedVersionID: source.AppliedVersionID, CTime: source.CTime, UTime: source.UTime,
+		MessageID: source.MessageID, ProjectID: source.ProjectID,
+		BaseRevision: source.BaseRevision, Summary: source.Summary, Items: source.Items.Val,
+		Status: domain.AIChangeSetStatus(source.Status),
+		CTime:  source.CTime, UTime: source.UTime,
 	}
+}
+
+func changeItemsColumn(items []domain.AIChangeItem) sqlx.JSONColumn[[]domain.AIChangeItem] {
+	return sqlx.JSONColumn[[]domain.AIChangeItem]{Val: items, Valid: true}
 }

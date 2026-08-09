@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/Duke1616/eiam/pkg/ctxutil"
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/errs"
 	"github.com/Duke1616/etask/internal/repository"
@@ -53,6 +54,41 @@ type projectRepositoryStub struct {
 	referenceLimit    int64
 	node              domain.Codebook
 	project           domain.CodebookProject
+	changeSet         domain.CodebookProjectChangeSet
+	changeResults     []domain.CodebookProjectChangeResult
+}
+
+func (s *projectRepositoryStub) ApplyProjectChangeSet(_ context.Context,
+	request domain.CodebookProjectChangeSet) ([]domain.CodebookProjectChangeResult, error) {
+	s.changeSet = request
+	return s.changeResults, nil
+}
+
+func TestApplyProjectChangeSetValidatesAndDelegatesAtomically(t *testing.T) {
+	repo := &projectRepositoryStub{
+		project: domain.CodebookProject{
+			ID: 3, Scope: domain.CodebookScopeTenant, Status: domain.CodebookProjectStatusNormal,
+		},
+		changeResults: []domain.CodebookProjectChangeResult{{
+			Path: "playbooks/site.yml", NodeID: 10, VersionID: 21,
+		}},
+	}
+	service := NewService(repo)
+	ctx := ctxutil.WithTenantID(t.Context(), 2)
+	request := domain.CodebookProjectChangeSet{
+		ProjectID: 3, BaseRevision: 7,
+		Changes: []domain.CodebookProjectChange{{
+			Operation: domain.CodebookChangeOperationUpdate, Path: "playbooks/site.yml",
+			NodeID: 10, ExpectedCurrentVersionID: 20, ExpectedHash: "hash",
+			Code: "---\n- hosts: all\n",
+		}},
+	}
+
+	result, err := service.ApplyProjectChangeSet(ctx, request)
+
+	require.NoError(t, err)
+	require.Equal(t, repo.changeResults, result)
+	require.Equal(t, request, repo.changeSet)
 }
 
 func (s *projectRepositoryStub) ListProjects(_ context.Context,

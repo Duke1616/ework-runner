@@ -28,18 +28,18 @@ type CodeAssistRepository interface {
 		status domain.AIMessageStatus, errorMessage string) error
 	// ListMessages 查询 AI 会话消息。
 	ListMessages(ctx context.Context, conversationID int64, limit int) ([]domain.AIMessage, error)
-	// CreateSuggestion 创建候选代码。
-	CreateSuggestion(ctx context.Context, suggestion domain.AISuggestion) (domain.AISuggestion, error)
-	// GetSuggestionByID 查询候选代码。
-	GetSuggestionByID(ctx context.Context, id int64) (domain.AISuggestion, error)
-	// ListSuggestions 查询会话中的候选代码。
-	ListSuggestions(ctx context.Context, conversationID int64) ([]domain.AISuggestion, error)
-	// ClaimSuggestion 原子占用待应用候选代码。
-	ClaimSuggestion(ctx context.Context, id int64) error
-	// ReleaseSuggestion 释放应用失败的候选代码。
-	ReleaseSuggestion(ctx context.Context, id int64, status domain.AISuggestionStatus) error
-	// MarkSuggestionApplied 原子记录候选代码应用结果。
-	MarkSuggestionApplied(ctx context.Context, id, versionID int64) error
+	// CreateChangeSet 保存完整候选变更。
+	CreateChangeSet(ctx context.Context, changeSet domain.AIChangeSet) (domain.AIChangeSet, error)
+	// ListChangeSets 查询会话中的项目级候选变更。
+	ListChangeSets(ctx context.Context, conversationID int64) ([]domain.AIChangeSet, error)
+	// GetChangeSetByID 查询一个项目级候选变更。
+	GetChangeSetByID(ctx context.Context, id int64) (domain.AIChangeSet, error)
+	// ClaimChangeSet 原子占用待应用的项目级候选变更。
+	ClaimChangeSet(ctx context.Context, id int64) error
+	// ReleaseChangeSet 释放应用失败的项目级候选变更。
+	ReleaseChangeSet(ctx context.Context, id int64) error
+	// MarkChangeSetApplied 原子记录变更集的文件应用结果。
+	MarkChangeSetApplied(ctx context.Context, id int64, items []domain.AIChangeItem) error
 }
 
 type codeAssistRepository struct{ dao *dao.GORMCodeAssistDAO }
@@ -106,37 +106,37 @@ func (r *codeAssistRepository) ListMessages(ctx context.Context, conversationID 
 	return result, err
 }
 
-func (r *codeAssistRepository) CreateSuggestion(ctx context.Context,
-	suggestion domain.AISuggestion) (domain.AISuggestion, error) {
-	created, err := r.dao.CreateSuggestion(ctx, toAISuggestionEntity(suggestion))
-	return toAISuggestionDomain(created), err
+func (r *codeAssistRepository) CreateChangeSet(ctx context.Context,
+	changeSet domain.AIChangeSet) (domain.AIChangeSet, error) {
+	created, err := r.dao.CreateChangeSet(ctx, toAIChangeSetEntity(changeSet))
+	return toAIChangeSetDomain(created), err
 }
 
-func (r *codeAssistRepository) GetSuggestionByID(ctx context.Context,
-	id int64) (domain.AISuggestion, error) {
-	suggestion, err := r.dao.GetSuggestionByID(ctx, id)
-	return toAISuggestionDomain(suggestion), err
-}
-
-func (r *codeAssistRepository) ListSuggestions(ctx context.Context,
-	conversationID int64) ([]domain.AISuggestion, error) {
-	entities, err := r.dao.ListSuggestions(ctx, conversationID)
-	result := make([]domain.AISuggestion, 0, len(entities))
-	for _, entity := range entities {
-		result = append(result, toAISuggestionDomain(entity))
+func (r *codeAssistRepository) ListChangeSets(ctx context.Context,
+	conversationID int64) ([]domain.AIChangeSet, error) {
+	sets, err := r.dao.ListChangeSets(ctx, conversationID)
+	result := make([]domain.AIChangeSet, 0, len(sets))
+	for _, changeSet := range sets {
+		result = append(result, toAIChangeSetDomain(changeSet))
 	}
 	return result, err
 }
 
-func (r *codeAssistRepository) ClaimSuggestion(ctx context.Context, id int64) error {
-	return r.dao.ClaimSuggestion(ctx, id)
+func (r *codeAssistRepository) GetChangeSetByID(ctx context.Context,
+	id int64) (domain.AIChangeSet, error) {
+	changeSet, err := r.dao.GetChangeSetByID(ctx, id)
+	return toAIChangeSetDomain(changeSet), err
 }
 
-func (r *codeAssistRepository) ReleaseSuggestion(ctx context.Context, id int64,
-	status domain.AISuggestionStatus) error {
-	return r.dao.ReleaseSuggestion(ctx, id, string(status))
+func (r *codeAssistRepository) ClaimChangeSet(ctx context.Context, id int64) error {
+	return r.dao.ClaimChangeSet(ctx, id)
 }
 
-func (r *codeAssistRepository) MarkSuggestionApplied(ctx context.Context, id, versionID int64) error {
-	return r.dao.MarkSuggestionApplied(ctx, id, versionID)
+func (r *codeAssistRepository) ReleaseChangeSet(ctx context.Context, id int64) error {
+	return r.dao.ReleaseChangeSet(ctx, id)
+}
+
+func (r *codeAssistRepository) MarkChangeSetApplied(ctx context.Context, id int64,
+	items []domain.AIChangeItem) error {
+	return r.dao.MarkChangeSetApplied(ctx, id, changeItemsColumn(items))
 }

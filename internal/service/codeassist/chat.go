@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/Duke1616/eiam/pkg/ctxutil"
-	"github.com/Duke1616/etask/internal/ai"
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/errs"
 	"github.com/google/uuid"
@@ -25,6 +24,7 @@ func (s *service) Chat(ctx context.Context, request domain.AIChatRequest, emit E
 	if err != nil {
 		return err
 	}
+	resolvedInstructions := instructionsFor(selectedRecipe)
 	conversation, err := s.userConversation(ctx, request.ConversationID)
 	if err != nil {
 		return err
@@ -85,87 +85,47 @@ func (s *service) Chat(ctx context.Context, request domain.AIChatRequest, emit E
 	if err = emit(StreamEvent{Type: StreamEventTypeStarted, MessageID: assistantMessage.ID}); err != nil {
 		return fail(err)
 	}
+	if selectedRecipe.UsesWorkspaceAgent {
+		result, agentErr := s.runWorkspaceAgent(ctx, conversation, assistantMessage.ID,
+			selectedRecipe, resolvedInstructions, history, request.Content, chatContext, emit)
+		if agentErr != nil {
+			return fail(agentErr)
+		}
+		content.WriteString(result.Text)
+		assistantMessage.Content = result.Text
+		assistantMessage.InputTokens = result.Usage.InputTokens
+		assistantMessage.OutputTokens = result.Usage.OutputTokens
+		assistantMessage.LatencyMillis = time.Since(startedAt).Milliseconds()
+		if strings.TrimSpace(result.Text) != "" {
+			if err = emit(StreamEvent{Type: StreamEventTypeDelta,
+				MessageID: assistantMessage.ID, Text: result.Text}); err != nil {
+				return fail(err)
+			}
+		}
+		if err = s.repo.CompleteMessage(ctx, assistantMessage); err != nil {
+			return fail(err)
+		}
+		return emit(StreamEvent{Type: StreamEventTypeCompleted,
+			MessageID: assistantMessage.ID, Usage: result.Usage})
+	}
 
-	modelRequest := ai.Request{
-		Instructions: buildInstructions(selectedRecipe.Instructions),
-		Input:        buildPrompt(history, request.Content, chatContext),
-		UserKey:      fmt.Sprintf("%d:%d", ctxutil.GetTenantID(ctx).Int64(), userID),
-	}
-	if chatContext.node.ID > 0 && selectedRecipe.AllowsCodeSuggestion {
-		modelRequest.Tools = []ai.Tool{proposalTool()}
-	}
-	stream, err := s.provider.Stream(ctx, modelRequest)
+	usage, err := s.runDirectChat(ctx, conversation, assistantMessage.ID, selectedRecipe,
+		resolvedInstructions, history, request.Content, chatContext, &content, emit)
+	assistantMessage.InputTokens = usage.InputTokens
+	assistantMessage.OutputTokens = usage.OutputTokens
 	if err != nil {
 		return fail(err)
 	}
-	defer stream.Close()
-
-	var finalEvent ai.Event
-	var proposal string
-	completed, proposalReceived := false, false
-	for stream.Next() {
-		event := stream.Current()
-		switch event.Type {
-		case ai.EventTypeTextDelta:
-			content.WriteString(event.Text)
-			if err = emit(StreamEvent{Type: StreamEventTypeDelta,
-				MessageID: assistantMessage.ID, Text: event.Text}); err != nil {
-				return fail(err)
-			}
-		case ai.EventTypeToolCallStarted:
-			if err = emit(StreamEvent{Type: StreamEventTypeProgress,
-				MessageID: assistantMessage.ID, Text: "正在生成候选代码"}); err != nil {
-				return fail(err)
-			}
-		case ai.EventTypeToolCall:
-			if event.ToolCall == nil || event.ToolCall.Name != proposeCodeToolName {
-				continue
-			}
-			if proposalReceived {
-				return fail(fmt.Errorf("AI response contains multiple code suggestions"))
-			}
-			proposal, proposalReceived = event.ToolCall.Arguments, true
-			if err = emit(StreamEvent{Type: StreamEventTypeProgress,
-				MessageID: assistantMessage.ID, Text: "正在校验候选代码"}); err != nil {
-				return fail(err)
-			}
-		case ai.EventTypeCompleted:
-			completed, finalEvent = true, event
-		case ai.EventTypeFailed:
-			if event.Err == nil {
-				event.Err = fmt.Errorf("AI response failed")
-			}
-			return fail(event.Err)
-		}
-	}
-	if err = stream.Err(); err != nil {
-		return fail(err)
-	}
-	if !completed {
-		return fail(fmt.Errorf("AI response ended without completion"))
-	}
-	assistantMessage.InputTokens = finalEvent.Usage.InputTokens
-	assistantMessage.OutputTokens = finalEvent.Usage.OutputTokens
-	if content.Len() == 0 && !proposalReceived {
-		return fail(fmt.Errorf("模型未返回可展示的文本或代码候选"))
-	}
-	if proposalReceived {
-		_, suggestionErr := s.createSuggestion(ctx, conversation,
-			assistantMessage.ID, chatContext, selectedRecipe, proposal)
-		if suggestionErr != nil {
-			return fail(suggestionErr)
-		}
-	}
 
 	assistantMessage.Content = content.String()
-	if assistantMessage.Content == "" && proposalReceived {
-		assistantMessage.Content = "已生成代码建议。"
+	if assistantMessage.Content == "" {
+		assistantMessage.Content = "已生成候选变更。"
 	}
 	assistantMessage.LatencyMillis = time.Since(startedAt).Milliseconds()
 	if err = s.repo.CompleteMessage(ctx, assistantMessage); err != nil {
 		return fail(err)
 	}
 	return emit(StreamEvent{
-		Type: StreamEventTypeCompleted, MessageID: assistantMessage.ID, Usage: finalEvent.Usage,
+		Type: StreamEventTypeCompleted, MessageID: assistantMessage.ID, Usage: usage,
 	})
 }

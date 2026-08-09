@@ -66,8 +66,8 @@ type StreamEventVO struct {
 	Error        string `json:"error,omitempty"`
 }
 
-// ApplySuggestionReq 应用候选代码。
-type ApplySuggestionReq struct {
+// ApplyChangeSetReq 应用候选变更。
+type ApplyChangeSetReq struct {
 	ID int64 `json:"id"`
 }
 
@@ -78,25 +78,43 @@ type DiagnosticVO struct {
 	Message  string `json:"message"`
 }
 
-// SuggestionVO 是前端使用的候选代码。
-type SuggestionVO struct {
-	ID               int64          `json:"id"`
-	MessageID        int64          `json:"message_id"`
+// ChangeItemVO 是候选变更中的一个文件操作。
+type ChangeItemVO struct {
+	Operation        string         `json:"operation"`
+	Path             string         `json:"path"`
 	NodeID           int64          `json:"node_id"`
+	BaseVersionID    int64          `json:"base_version_id"`
+	BaseHash         string         `json:"base_hash"`
+	Language         string         `json:"language"`
 	Code             string         `json:"code"`
-	Summary          string         `json:"summary"`
 	Diagnostics      []DiagnosticVO `json:"diagnostics"`
-	Status           string         `json:"status"`
 	AppliedVersionID int64          `json:"applied_version_id"`
 }
 
-// ConversationDetailResp 返回会话中的消息和候选代码。
-type ConversationDetailResp struct {
-	Messages    []MessageVO    `json:"messages"`
-	Suggestions []SuggestionVO `json:"suggestions"`
+// ChangeSetVO 是前端使用的候选变更。
+type ChangeSetVO struct {
+	ID           int64          `json:"id"`
+	MessageID    int64          `json:"message_id"`
+	BaseRevision int64          `json:"base_revision"`
+	Summary      string         `json:"summary"`
+	Status       string         `json:"status"`
+	Items        []ChangeItemVO `json:"items"`
 }
 
-// ApplySuggestionResp 返回候选代码创建的新版本。
-type ApplySuggestionResp struct {
-	VersionID int64 `json:"version_id"`
+// ConversationDetailResp 返回会话中的消息和候选变更。
+type ConversationDetailResp struct {
+	Messages   []MessageVO   `json:"messages"`
+	ChangeSets []ChangeSetVO `json:"change_sets"`
+}
+
+// AppliedChangeItemVO 是项目级候选变更应用后的文件版本。
+type AppliedChangeItemVO struct {
+	Path      string `json:"path"`
+	NodeID    int64  `json:"node_id"`
+	VersionID int64  `json:"version_id"`
+}
+
+// ApplyChangeSetResp 返回项目级候选变更的全部应用结果。
+type ApplyChangeSetResp struct {
+	Items []AppliedChangeItemVO `json:"items"`
 }

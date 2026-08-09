@@ -42,7 +42,7 @@ func (s *service) ListConversations(ctx context.Context, projectID int64) ([]dom
 }
 
 func (s *service) ConversationDetail(ctx context.Context,
-	conversationID int64) ([]domain.AIMessage, []domain.AISuggestion, error) {
+	conversationID int64) ([]domain.AIMessage, []domain.AIChangeSet, error) {
 	if _, err := s.userConversation(ctx, conversationID); err != nil {
 		return nil, nil, err
 	}
@@ -50,8 +50,8 @@ func (s *service) ConversationDetail(ctx context.Context,
 	if err != nil {
 		return nil, nil, err
 	}
-	suggestions, err := s.repo.ListSuggestions(ctx, conversationID)
-	return messages, suggestions, err
+	changeSets, err := s.repo.ListChangeSets(ctx, conversationID)
+	return messages, changeSets, err
 }
 
 func (s *service) userConversation(ctx context.Context, id int64) (domain.AIConversation, error) {

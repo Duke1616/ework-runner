@@ -324,7 +324,7 @@ func retainedProjectObjectKeys(snapshot projectDeletionSnapshot) map[string]stru
 
 func deleteProjectAI(tx *gorm.DB, projectID int64, conversationIDs []int64) error {
 	if err := tx.Where("project_id = ?", projectID).
-		Delete(&AISuggestion{}).Error; err != nil {
+		Delete(&AIChangeSet{}).Error; err != nil {
 		return err
 	}
 	if len(conversationIDs) == 0 {

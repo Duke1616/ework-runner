@@ -33,14 +33,22 @@ const (
 	AIMessageStatusCancelled AIMessageStatus = "CANCELLED"
 )
 
-// AISuggestionStatus 表示候选代码状态。
-type AISuggestionStatus string
+// AIChangeSetStatus 表示候选变更的状态。
+type AIChangeSetStatus string
 
 const (
-	AISuggestionStatusDraft     AISuggestionStatus = "DRAFT"
-	AISuggestionStatusValidated AISuggestionStatus = "VALIDATED"
-	AISuggestionStatusApplying  AISuggestionStatus = "APPLYING"
-	AISuggestionStatusApplied   AISuggestionStatus = "APPLIED"
+	AIChangeSetStatusDraft     AIChangeSetStatus = "DRAFT"
+	AIChangeSetStatusValidated AIChangeSetStatus = "VALIDATED"
+	AIChangeSetStatusApplying  AIChangeSetStatus = "APPLYING"
+	AIChangeSetStatusApplied   AIChangeSetStatus = "APPLIED"
+)
+
+// AIChangeOperation 表示项目文件变更类型。删除和移动暂不开放给模型。
+type AIChangeOperation string
+
+const (
+	AIChangeOperationCreate AIChangeOperation = "CREATE"
+	AIChangeOperationUpdate AIChangeOperation = "UPDATE"
 )
 
 // AIDiagnosticSeverity 表示候选代码诊断级别。
@@ -107,47 +115,71 @@ type AIDiagnostic struct {
 	Message  string               `json:"message"`
 }
 
-// AISuggestion 是模型针对一个 Codebook 文件生成的候选代码。
-type AISuggestion struct {
-	ID               int64
-	TenantID         int64
-	ConversationID   int64
-	MessageID        int64
-	ProjectID        int64
-	NodeID           int64
-	BaseVersionID    int64
-	BaseHash         string
-	RecipeID         string
-	RecipeVersion    string
-	Language         string
-	Code             string
-	Summary          string
-	Diagnostics      []AIDiagnostic
-	Status           AISuggestionStatus
-	AppliedVersionID int64
-	CTime            int64
-	UTime            int64
+// AIChangeSet 是模型针对一个或多个 Codebook 文件生成的候选变更。
+type AIChangeSet struct {
+	ID             int64
+	TenantID       int64
+	ConversationID int64
+	MessageID      int64
+	ProjectID      int64
+	BaseRevision   int64
+	Summary        string
+	Status         AIChangeSetStatus
+	Items          []AIChangeItem
+	CTime          int64
+	UTime          int64
 }
 
-// Prepare 规范化并校验候选代码。
-func (s *AISuggestion) Prepare() error {
-	s.Language = strings.ToLower(strings.TrimSpace(s.Language))
+// AIChangeItem 是候选变更中的一个文件操作，始终随 ChangeSet 整体持久化。
+type AIChangeItem struct {
+	Operation        AIChangeOperation `json:"operation"`
+	Path             string            `json:"path"`
+	NodeID           int64             `json:"node_id,omitempty"`
+	BaseVersionID    int64             `json:"base_version_id,omitempty"`
+	BaseHash         string            `json:"base_hash,omitempty"`
+	Language         string            `json:"language"`
+	Code             string            `json:"code"`
+	Diagnostics      []AIDiagnostic    `json:"diagnostics,omitempty"`
+	AppliedVersionID int64             `json:"applied_version_id,omitempty"`
+}
+
+// Prepare 规范化并校验项目级候选变更的持久化前置条件。
+func (s *AIChangeSet) Prepare() error {
 	s.Summary = strings.TrimSpace(s.Summary)
-	if s.ConversationID <= 0 || s.MessageID <= 0 || s.ProjectID <= 0 ||
-		s.NodeID <= 0 || s.BaseVersionID <= 0 {
-		return fmt.Errorf("invalid AI suggestion context")
+	if s.ConversationID <= 0 || s.MessageID <= 0 || s.ProjectID <= 0 || s.BaseRevision < 0 {
+		return fmt.Errorf("invalid AI change set context")
 	}
-	if strings.TrimSpace(s.Code) == "" {
-		return fmt.Errorf("AI suggestion code is empty")
-	}
-	if strings.TrimSpace(s.RecipeID) == "" || strings.TrimSpace(s.RecipeVersion) == "" {
-		return fmt.Errorf("AI suggestion recipe is missing")
-	}
-	if s.Language != "python" && s.Language != "shell" {
-		return fmt.Errorf("unsupported AI suggestion language: %s", s.Language)
+	if len(s.Items) == 0 {
+		return fmt.Errorf("AI change set is empty")
 	}
 	if s.Status == "" {
-		s.Status = AISuggestionStatusDraft
+		s.Status = AIChangeSetStatusDraft
+	}
+	seen := make(map[string]struct{}, len(s.Items))
+	for index := range s.Items {
+		item := &s.Items[index]
+		item.Path = strings.TrimSpace(item.Path)
+		item.Language = strings.ToLower(strings.TrimSpace(item.Language))
+		key := strings.ToLower(item.Path)
+		if item.Path == "" || strings.TrimSpace(item.Code) == "" {
+			return fmt.Errorf("AI change item path or code is empty")
+		}
+		if _, exists := seen[key]; exists {
+			return fmt.Errorf("AI change set contains duplicate path: %s", item.Path)
+		}
+		seen[key] = struct{}{}
+		switch item.Operation {
+		case AIChangeOperationCreate:
+			if item.NodeID != 0 || item.BaseVersionID != 0 || item.BaseHash != "" {
+				return fmt.Errorf("AI create item contains an existing file context: %s", item.Path)
+			}
+		case AIChangeOperationUpdate:
+			if item.NodeID <= 0 || item.BaseVersionID <= 0 || item.BaseHash == "" {
+				return fmt.Errorf("AI update item is missing its base version: %s", item.Path)
+			}
+		default:
+			return fmt.Errorf("unsupported AI change operation: %s", item.Operation)
+		}
 	}
 	return nil
 }

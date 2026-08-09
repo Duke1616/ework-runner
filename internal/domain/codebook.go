@@ -222,6 +222,42 @@ type CodebookImportResult struct {
 	DirectoryCount int
 }
 
+// CodebookChangeOperation 表示项目级文件创建或更新操作。
+type CodebookChangeOperation string
+
+const (
+	CodebookChangeOperationCreate CodebookChangeOperation = "CREATE"
+	CodebookChangeOperationUpdate CodebookChangeOperation = "UPDATE"
+)
+
+func (o CodebookChangeOperation) String() string { return string(o) }
+
+// CodebookProjectChange 描述一次项目级原子变更中的文件操作。
+type CodebookProjectChange struct {
+	Operation                CodebookChangeOperation
+	Path                     string
+	NodeID                   int64
+	ExpectedCurrentVersionID int64
+	ExpectedHash             string
+	Code                     string
+	Message                  string
+	SourceKey                string
+}
+
+// CodebookProjectChangeSet 描述基于一个项目源码修订号的原子多文件变更。
+type CodebookProjectChangeSet struct {
+	ProjectID    int64
+	BaseRevision int64
+	Changes      []CodebookProjectChange
+}
+
+// CodebookProjectChangeResult 描述一个文件应用后的节点和版本。
+type CodebookProjectChangeResult struct {
+	Path      string
+	NodeID    int64
+	VersionID int64
+}
+
 // CodebookDeleteResult 汇总节点删除结果及其待清理的外部内容对象。
 type CodebookDeleteResult struct {
 	NodeCount  int64

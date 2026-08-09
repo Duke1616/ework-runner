@@ -7,15 +7,19 @@ import (
 	"github.com/Duke1616/etask/internal/errs"
 )
 
-const GeneralID = "codebook.general"
+const (
+	GeneralID        = "codebook.general"
+	AnsibleProjectID = "codebook.ansible-project"
+)
 
 // Definition 描述一个内置代码助手场景。
 type Definition struct {
-	ID                   string
-	Version              string
-	RequiresFileContext  bool
-	AllowsCodeSuggestion bool
-	Instructions         string
+	ID                  string
+	Version             string
+	RequiresFileContext bool
+	AllowsChanges       bool
+	UsesWorkspaceAgent  bool
+	Instructions        string
 }
 
 // Catalog 保存当前进程可用的代码助手场景。
@@ -49,7 +53,7 @@ func (c *Catalog) Get(id string) (Definition, error) {
 func builtInDefinitions() []Definition {
 	return []Definition{
 		{
-			ID: GeneralID, Version: "1", AllowsCodeSuggestion: true,
+			ID: GeneralID, Version: "1", AllowsChanges: true,
 			Instructions: `根据用户的实际请求解释、审阅或修改 Codebook 脚本。
 只有用户明确要求生成、修改或修复代码时才提交完整候选文件。
 回答应说明结论、关键依据和需要用户确认的风险。`,
@@ -62,19 +66,29 @@ func builtInDefinitions() []Definition {
 		},
 		{
 			ID: "codebook.edit", Version: "1",
-			RequiresFileContext: true, AllowsCodeSuggestion: true,
+			RequiresFileContext: true, AllowsChanges: true,
 			Instructions: `理解用户的修改目标，在保持原业务行为的前提下生成完整候选文件。
 解释修改目标、关键变化和需要用户确认的风险。
 不要顺便重写与用户目标无关的代码。`,
 		},
 		{
 			ID: "codebook.legacy-migration", Version: "1",
-			RequiresFileContext: true, AllowsCodeSuggestion: true,
+			RequiresFileContext: true, AllowsChanges: true,
 			Instructions: `将旧脚本迁移到当前 etask 运行契约，并保持业务行为：
 - 将 Shell 的 $1、$2 和 Python 的 sys.argv[1]、sys.argv[2] 替换为文件环境变量。
 - 将旧 third_party 引用迁移到 SYSTEM 或 dependencies 的运行时路径。
 - 将旧 stdout JSON 返回迁移为 EWORK_RESULT_FD 结果协议。
 - 不重写与运行协议无关的业务逻辑。`,
+		},
+		{
+			ID: AnsibleProjectID, Version: "1", AllowsChanges: true, UsesWorkspaceAgent: true,
+			Instructions: `处理当前 Ansible 项目时遵循以下工作流：
+1. 先根据工作区路径判断需要读取哪些文件，再使用只读工具获取内容。
+2. 优先检查 ansible.cfg、入口 playbook、inventory，以及相关 role 的 tasks、defaults、handlers、templates 和 files。
+3. 遵循现有项目结构、FQCN 用法和命名风格；不得编造未读取的文件内容。
+4. 不在 inventory、变量或模板中写入密码、私钥等凭据；只使用 credential_ref 或 etask_credential_ref 引用。
+5. 解释和审阅任务可以直接回答；修改任务通过 propose_changeset 一次提交完整的 CREATE/UPDATE 文件集合。
+6. 不调用 Shell、不执行 playbook、不发布制品，也不直接修改项目。`,
 		},
 	}
 }

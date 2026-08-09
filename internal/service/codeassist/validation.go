@@ -1,13 +1,16 @@
 package codeassist
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os/exec"
 	"strings"
 	"time"
 
 	"github.com/Duke1616/etask/internal/domain"
+	"go.yaml.in/yaml/v3"
 )
 
 const validationTimeout = 5 * time.Second
@@ -25,14 +28,29 @@ func validateCandidate(ctx context.Context, language, code string) []domain.AIDi
 			"import ast,sys; ast.parse(sys.stdin.read())")
 	case "shell":
 		command = exec.CommandContext(validationCtx, "/bin/bash", "-n")
+	case "yaml":
+		if err := validateYAML(code); err != nil {
+			diagnostics = append(diagnostics, domain.AIDiagnostic{
+				Severity: domain.AIDiagnosticSeverityError, Code: "SYNTAX_ERROR",
+				Message: err.Error(),
+			})
+		}
+	case "jinja2", "ini", "text":
+		// 这些文件需要项目级工具才能可靠校验；此处只接受文本内容。
 	default:
 		return append(diagnostics, domain.AIDiagnostic{
 			Severity: domain.AIDiagnosticSeverityError, Code: "UNSUPPORTED_LANGUAGE",
 			Message: fmt.Sprintf("Unsupported script language: %s", language),
 		})
 	}
-	command.Stdin = strings.NewReader(code)
-	if output, err := command.CombinedOutput(); err != nil {
+	if command != nil {
+		command.Stdin = strings.NewReader(code)
+	}
+	if command != nil {
+		output, err := command.CombinedOutput()
+		if err == nil {
+			return appendLegacyDiagnostics(diagnostics, code)
+		}
 		message := strings.TrimSpace(string(output))
 		if message == "" {
 			message = err.Error()
@@ -41,7 +59,10 @@ func validateCandidate(ctx context.Context, language, code string) []domain.AIDi
 			Severity: domain.AIDiagnosticSeverityError, Code: "SYNTAX_ERROR", Message: message,
 		})
 	}
+	return appendLegacyDiagnostics(diagnostics, code)
+}
 
+func appendLegacyDiagnostics(diagnostics []domain.AIDiagnostic, code string) []domain.AIDiagnostic {
 	legacyPatterns := []struct {
 		code, pattern, message string
 	}{
@@ -59,6 +80,21 @@ func validateCandidate(ctx context.Context, language, code string) []domain.AIDi
 		}
 	}
 	return diagnostics
+}
+
+func validateYAML(content string) error {
+	decoder := yaml.NewDecoder(bytes.NewBufferString(content))
+	for {
+		var document any
+		err := decoder.Decode(&document)
+		if err == nil {
+			continue
+		}
+		if err == io.EOF {
+			return nil
+		}
+		return err
+	}
 }
 
 func hasDiagnosticErrors(diagnostics []domain.AIDiagnostic) bool {

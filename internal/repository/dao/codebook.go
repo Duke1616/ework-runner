@@ -184,6 +184,8 @@ type CodebookDAO interface {
 	BatchUpdateSort(ctx context.Context, items []CodebookSortItem) error
 	// Import 在一个事务中导入项目文件树。
 	Import(ctx context.Context, request CodebookImport) (CodebookImportResult, error)
+	// ApplyProjectChangeSet 在一个事务中创建和更新多个项目文件。
+	ApplyProjectChangeSet(ctx context.Context, request CodebookProjectChangeSet) ([]CodebookProjectChangeResult, error)
 	// Delete 根据主键 ID 删除代码节点。
 	Delete(ctx context.Context, id int64) (CodebookDeleteResult, error)
 }

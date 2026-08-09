@@ -35,6 +35,8 @@ func buildPrompt(history []domain.AIMessage, userContent string, prepared prepar
 			"name": prepared.node.Name, "node_id": prepared.node.ID,
 			"base_version_id": prepared.base.ID, "code": prepared.editorCode,
 		}
+	}
+	if len(prepared.workspaceTree) > 0 {
 		payload.WorkspacePath = workspacePaths(prepared.workspaceTree, 500)
 	}
 	encoded, err := json.Marshal(payload)

@@ -7,6 +7,7 @@ import (
 	"github.com/Duke1616/etask/internal/ai"
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/repository"
+	codeassistagent "github.com/Duke1616/etask/internal/service/codeassist/agent"
 	"github.com/Duke1616/etask/internal/service/codeassist/recipe"
 	codebookSvc "github.com/Duke1616/etask/internal/service/codebook"
 )
@@ -47,26 +48,46 @@ type Service interface {
 	CreateConversation(ctx context.Context, projectID int64, title string) (domain.AIConversation, error)
 	// ListConversations 查询当前用户在项目下的 AI 会话。
 	ListConversations(ctx context.Context, projectID int64) ([]domain.AIConversation, error)
-	// ConversationDetail 查询当前用户的会话消息和候选代码。
-	ConversationDetail(ctx context.Context, conversationID int64) ([]domain.AIMessage, []domain.AISuggestion, error)
+	// ConversationDetail 查询当前用户的会话消息和候选变更。
+	ConversationDetail(ctx context.Context, conversationID int64) ([]domain.AIMessage,
+		[]domain.AIChangeSet, error)
 	// Chat 执行一次流式对话。
 	Chat(ctx context.Context, request domain.AIChatRequest, emit EventEmitter) error
-	// ApplySuggestion 将候选代码保存为新的 Codebook 版本。
-	ApplySuggestion(ctx context.Context, id int64) (int64, error)
+	// ApplyChangeSet 原子应用一个或多个文件的候选变更。
+	ApplyChangeSet(ctx context.Context, id int64) ([]domain.CodebookProjectChangeResult, error)
 }
 
 type service struct {
-	repo      repository.CodeAssistRepository
-	codebooks codebookSvc.Service
-	workspace codebookSvc.WorkspaceService
-	provider  ai.Provider
-	recipes   *recipe.Catalog
+	repo           repository.CodeAssistRepository
+	codebooks      codebookSvc.Service
+	workspace      codebookSvc.WorkspaceService
+	provider       ai.Provider
+	workspaceAgent codeassistagent.Runner
+	recipes        *recipe.Catalog
+}
+
+// Option 配置 CodeAssist Harness 的可替换组件。
+type Option func(*service)
+
+// WithWorkspaceAgent 替换默认的 Eino 工作区 Agent，主要用于扩展和测试。
+func WithWorkspaceAgent(agent codeassistagent.Runner) Option {
+	return func(s *service) {
+		if agent != nil {
+			s.workspaceAgent = agent
+		}
+	}
 }
 
 // NewService 创建 AI 代码助手服务。
 func NewService(repo repository.CodeAssistRepository, codebooks codebookSvc.Service,
-	workspace codebookSvc.WorkspaceService, provider ai.Provider, recipes *recipe.Catalog) Service {
-	return &service{
+	workspace codebookSvc.WorkspaceService, provider ai.Provider, recipes *recipe.Catalog,
+	options ...Option) Service {
+	result := &service{
 		repo: repo, codebooks: codebooks, workspace: workspace, provider: provider, recipes: recipes,
 	}
+	result.workspaceAgent = codeassistagent.NewEinoRunner(provider)
+	for _, option := range options {
+		option(result)
+	}
+	return result
 }

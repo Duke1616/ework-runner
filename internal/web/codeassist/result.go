@@ -26,7 +26,7 @@ func translateError(err error) ginx.Result {
 	case errors.Is(err, errs.ErrInvalidParameter):
 		return invalidParameterResult(err)
 	case errors.Is(err, errs.ErrAIConversationBusy),
-		errors.Is(err, errs.ErrAISuggestionConflict),
+		errors.Is(err, errs.ErrAIChangeSetConflict),
 		errors.Is(err, errs.ErrCodebookVersionConflict):
 		return ginx.Result{Code: ConflictCode, Msg: err.Error()}
 	default:

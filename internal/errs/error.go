@@ -41,6 +41,6 @@ var (
 	ErrExecutionPoolNotAllowed  = errors.New("未授权使用执行资源池")
 	ErrProgramSourceUnavailable = errors.New("程序来源不可用")
 
-	ErrAIConversationBusy   = errors.New("AI conversation is busy")
-	ErrAISuggestionConflict = errors.New("AI suggestion is stale or already applied")
+	ErrAIConversationBusy  = errors.New("AI conversation is busy")
+	ErrAIChangeSetConflict = errors.New("AI change set is stale or already applied")
 )

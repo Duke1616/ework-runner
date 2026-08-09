@@ -19,6 +19,6 @@ func InitTables(db *gorm.DB) error {
 		&ProjectSource{},
 		&AIConversation{},
 		&AIMessage{},
-		&AISuggestion{},
+		&AIChangeSet{},
 	)
 }

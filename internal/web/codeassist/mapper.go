@@ -28,17 +28,32 @@ func toMessageVO(source domain.AIMessage) MessageVO {
 	}
 }
 
-func toSuggestionVO(source domain.AISuggestion) SuggestionVO {
-	diagnostics := make([]DiagnosticVO, 0, len(source.Diagnostics))
-	for _, diagnostic := range source.Diagnostics {
-		diagnostics = append(diagnostics, DiagnosticVO{
-			Severity: string(diagnostic.Severity), Code: diagnostic.Code, Message: diagnostic.Message,
+func toChangeSetVO(source domain.AIChangeSet) ChangeSetVO {
+	result := ChangeSetVO{
+		ID: source.ID, MessageID: source.MessageID, BaseRevision: source.BaseRevision,
+		Summary: source.Summary, Status: string(source.Status),
+		Items: make([]ChangeItemVO, 0, len(source.Items)),
+	}
+	for _, item := range source.Items {
+		result.Items = append(result.Items, ChangeItemVO{
+			Operation: string(item.Operation), Path: item.Path,
+			NodeID: item.NodeID, BaseVersionID: item.BaseVersionID,
+			BaseHash: item.BaseHash,
+			Language: item.Language, Code: item.Code,
+			Diagnostics:      toDiagnosticVOs(item.Diagnostics),
+			AppliedVersionID: item.AppliedVersionID,
 		})
 	}
-	return SuggestionVO{
-		ID: source.ID, MessageID: source.MessageID, NodeID: source.NodeID,
-		Code: source.Code, Summary: source.Summary,
-		Diagnostics: diagnostics, Status: string(source.Status),
-		AppliedVersionID: source.AppliedVersionID,
+	return result
+}
+
+func toDiagnosticVOs(source []domain.AIDiagnostic) []DiagnosticVO {
+	result := make([]DiagnosticVO, 0, len(source))
+	for _, diagnostic := range source {
+		result = append(result, DiagnosticVO{
+			Severity: string(diagnostic.Severity), Code: diagnostic.Code,
+			Message: diagnostic.Message,
+		})
 	}
+	return result
 }

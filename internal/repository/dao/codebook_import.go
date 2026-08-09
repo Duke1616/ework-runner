@@ -24,6 +24,8 @@ type CodebookImportFile struct {
 	Size        int64
 	ContentType string
 	Hash        string
+	Message     string
+	SourceKey   string
 }
 
 type CodebookImport struct {
@@ -73,11 +75,12 @@ func loadCodebookImportNodes(tx *gorm.DB, projectID int64) ([]Codebook, error) {
 }
 
 type codebookImportNode struct {
-	entity   Codebook
-	parent   *codebookImportNode
-	children map[string]*codebookImportNode
-	nextSort int64
-	file     *CodebookImportFile
+	entity    Codebook
+	parent    *codebookImportNode
+	children  map[string]*codebookImportNode
+	nextSort  int64
+	file      *CodebookImportFile
+	versionID int64
 }
 
 type codebookImportPlan struct {
@@ -208,7 +211,10 @@ func (p *codebookImportPlan) persist(tx *gorm.DB, authorUserID int64) error {
 			NodeID: node.entity.ID, Scope: node.entity.Scope, VersionNo: 1,
 			Code: file.Code, StorageType: file.StorageType, ObjectKey: file.ObjectKey,
 			Size: file.Size, ContentType: file.ContentType, Hash: file.Hash,
-			AuthorUserID: authorUserID, CTime: p.now,
+			Message: file.Message, AuthorUserID: authorUserID, CTime: p.now,
+		}
+		if file.SourceKey != "" {
+			versions[index].SourceKey = &file.SourceKey
 		}
 	}
 	if len(versions) == 0 {
@@ -216,6 +222,9 @@ func (p *codebookImportPlan) persist(tx *gorm.DB, authorUserID int64) error {
 	}
 	if err := tx.CreateInBatches(&versions, codebookImportBatchSize).Error; err != nil {
 		return err
+	}
+	for index := range p.files {
+		p.files[index].versionID = versions[index].ID
 	}
 	return updateCodebookImportVersions(tx, p.files, versions, p.now)
 }

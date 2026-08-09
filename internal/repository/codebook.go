@@ -53,6 +53,8 @@ type ICodebookRepository interface {
 	BatchUpdateSort(ctx context.Context, items []domain.CodebookSortItem) error
 	// Import 在一个事务中导入项目文件树。
 	Import(ctx context.Context, request domain.CodebookImport) (domain.CodebookImportResult, error)
+	// ApplyProjectChangeSet 在一个事务中创建和更新多个项目文件。
+	ApplyProjectChangeSet(ctx context.Context, request domain.CodebookProjectChangeSet) ([]domain.CodebookProjectChangeResult, error)
 	// Delete 根据主键 ID 删除代码资源。
 	Delete(ctx context.Context, id int64) (domain.CodebookDeleteResult, error)
 
@@ -274,6 +276,32 @@ func (repo *codebookRepository) Import(ctx context.Context,
 	return domain.CodebookImportResult{
 		FileCount: result.FileCount, DirectoryCount: result.DirectoryCount,
 	}, err
+}
+
+func (repo *codebookRepository) ApplyProjectChangeSet(ctx context.Context,
+	request domain.CodebookProjectChangeSet) ([]domain.CodebookProjectChangeResult, error) {
+	changes := make([]dao.CodebookProjectChange, 0, len(request.Changes))
+	for _, change := range request.Changes {
+		changes = append(changes, dao.CodebookProjectChange{
+			Operation: change.Operation.String(), Path: change.Path, NodeID: change.NodeID,
+			ExpectedCurrentVersionID: change.ExpectedCurrentVersionID,
+			ExpectedHash:             change.ExpectedHash, Code: change.Code, Message: change.Message,
+			SourceKey: change.SourceKey,
+		})
+	}
+	applied, err := repo.dao.ApplyProjectChangeSet(ctx, dao.CodebookProjectChangeSet{
+		ProjectID: request.ProjectID, BaseRevision: request.BaseRevision, Changes: changes,
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]domain.CodebookProjectChangeResult, 0, len(applied))
+	for _, item := range applied {
+		result = append(result, domain.CodebookProjectChangeResult{
+			Path: item.Path, NodeID: item.NodeID, VersionID: item.VersionID,
+		})
+	}
+	return result, nil
 }
 
 // Delete 根据主键 ID 删除代码资源。

@@ -7,18 +7,17 @@ import (
 
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/errs"
+	"github.com/Duke1616/etask/pkg/sqlx"
 	"gorm.io/gorm"
 )
 
 const (
 	aiConversationClaimTimeout = 10 * time.Minute
-	aiSuggestionClaimTimeout   = time.Minute
+	aiChangeSetClaimTimeout    = time.Minute
 )
 
-// GORMCodeAssistDAO 使用 GORM 持久化 AI 数据。
 type GORMCodeAssistDAO struct{ db *gorm.DB }
 
-// NewGORMCodeAssistDAO 创建 AI 持久化对象。
 func NewGORMCodeAssistDAO(db *gorm.DB) *GORMCodeAssistDAO { return &GORMCodeAssistDAO{db: db} }
 
 func (g *GORMCodeAssistDAO) CreateConversation(ctx context.Context,
@@ -130,64 +129,67 @@ func (g *GORMCodeAssistDAO) ListMessages(ctx context.Context, conversationID int
 	return messages, err
 }
 
-func (g *GORMCodeAssistDAO) CreateSuggestion(ctx context.Context,
-	suggestion AISuggestion) (AISuggestion, error) {
+func (g *GORMCodeAssistDAO) CreateChangeSet(ctx context.Context,
+	changeSet AIChangeSet) (AIChangeSet, error) {
 	now := time.Now().UnixMilli()
-	suggestion.CTime, suggestion.UTime = now, now
-	err := g.db.WithContext(ctx).Create(&suggestion).Error
-	return suggestion, err
+	changeSet.CTime, changeSet.UTime = now, now
+	err := g.db.WithContext(ctx).Create(&changeSet).Error
+	return changeSet, err
 }
 
-func (g *GORMCodeAssistDAO) GetSuggestionByID(ctx context.Context, id int64) (AISuggestion, error) {
-	var suggestion AISuggestion
-	err := g.db.WithContext(ctx).Where("id = ?", id).First(&suggestion).Error
-	return suggestion, err
-}
-
-func (g *GORMCodeAssistDAO) ListSuggestions(ctx context.Context,
-	conversationID int64) ([]AISuggestion, error) {
-	var suggestions []AISuggestion
+func (g *GORMCodeAssistDAO) ListChangeSets(ctx context.Context,
+	conversationID int64) ([]AIChangeSet, error) {
+	var changeSets []AIChangeSet
 	err := g.db.WithContext(ctx).Where("conversation_id = ?", conversationID).
-		Order("id ASC").Find(&suggestions).Error
-	return suggestions, err
+		Order("id ASC").Find(&changeSets).Error
+	return changeSets, err
 }
 
-func (g *GORMCodeAssistDAO) ClaimSuggestion(ctx context.Context, id int64) error {
+func (g *GORMCodeAssistDAO) GetChangeSetByID(ctx context.Context, id int64) (AIChangeSet, error) {
+	var changeSet AIChangeSet
+	err := g.db.WithContext(ctx).Where("id = ?", id).First(&changeSet).Error
+	return changeSet, err
+}
+
+func (g *GORMCodeAssistDAO) ClaimChangeSet(ctx context.Context, id int64) error {
 	now := time.Now()
-	result := g.db.WithContext(ctx).Model(&AISuggestion{}).
-		Where(`id = ? AND (status IN ? OR (status = ? AND utime < ?))`, id,
-			[]string{string(domain.AISuggestionStatusDraft), string(domain.AISuggestionStatusValidated)},
-			domain.AISuggestionStatusApplying, now.Add(-aiSuggestionClaimTimeout).UnixMilli()).
+	result := g.db.WithContext(ctx).Model(&AIChangeSet{}).
+		Where(`id = ? AND (status = ? OR (status = ? AND utime < ?))`, id,
+			domain.AIChangeSetStatusValidated, domain.AIChangeSetStatusApplying,
+			now.Add(-aiChangeSetClaimTimeout).UnixMilli()).
 		Updates(map[string]any{
-			"status": domain.AISuggestionStatusApplying, "utime": now.UnixMilli(),
+			"status": domain.AIChangeSetStatusApplying, "utime": now.UnixMilli(),
 		})
 	if result.Error != nil {
 		return result.Error
 	}
 	if result.RowsAffected == 0 {
-		return errs.ErrAISuggestionConflict
+		return errs.ErrAIChangeSetConflict
 	}
 	return nil
 }
 
-func (g *GORMCodeAssistDAO) ReleaseSuggestion(ctx context.Context, id int64, status string) error {
-	return g.db.WithContext(ctx).Model(&AISuggestion{}).
-		Where("id = ? AND status = ?", id, domain.AISuggestionStatusApplying).
-		Updates(map[string]any{"status": status, "utime": time.Now().UnixMilli()}).Error
+func (g *GORMCodeAssistDAO) ReleaseChangeSet(ctx context.Context, id int64) error {
+	return g.db.WithContext(ctx).Model(&AIChangeSet{}).
+		Where("id = ? AND status = ?", id, domain.AIChangeSetStatusApplying).
+		Updates(map[string]any{
+			"status": domain.AIChangeSetStatusValidated, "utime": time.Now().UnixMilli(),
+		}).Error
 }
 
-func (g *GORMCodeAssistDAO) MarkSuggestionApplied(ctx context.Context, id, versionID int64) error {
-	result := g.db.WithContext(ctx).Model(&AISuggestion{}).
-		Where("id = ? AND status = ?", id, domain.AISuggestionStatusApplying).
+func (g *GORMCodeAssistDAO) MarkChangeSetApplied(ctx context.Context, id int64,
+	items sqlx.JSONColumn[[]domain.AIChangeItem]) error {
+	result := g.db.WithContext(ctx).Model(&AIChangeSet{}).
+		Where("id = ? AND status = ?", id, domain.AIChangeSetStatusApplying).
 		Updates(map[string]any{
-			"status":             domain.AISuggestionStatusApplied,
-			"applied_version_id": versionID, "utime": time.Now().UnixMilli(),
+			"items": items, "status": domain.AIChangeSetStatusApplied,
+			"utime": time.Now().UnixMilli(),
 		})
 	if result.Error != nil {
 		return result.Error
 	}
 	if result.RowsAffected == 0 {
-		return errs.ErrAISuggestionConflict
+		return errs.ErrAIChangeSetConflict
 	}
 	return nil
 }

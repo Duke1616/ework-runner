@@ -41,6 +41,45 @@ func (m *MockService) EXPECT() *MockServiceMockRecorder {
 	return m.recorder
 }
 
+// ApplyProjectChangeSet mocks base method.
+func (m *MockService) ApplyProjectChangeSet(ctx context.Context, req domain.CodebookProjectChangeSet) ([]domain.CodebookProjectChangeResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ApplyProjectChangeSet", ctx, req)
+	ret0, _ := ret[0].([]domain.CodebookProjectChangeResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ApplyProjectChangeSet indicates an expected call of ApplyProjectChangeSet.
+func (mr *MockServiceMockRecorder) ApplyProjectChangeSet(ctx, req any) *MockServiceApplyProjectChangeSetCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyProjectChangeSet", reflect.TypeOf((*MockService)(nil).ApplyProjectChangeSet), ctx, req)
+	return &MockServiceApplyProjectChangeSetCall{Call: call}
+}
+
+// MockServiceApplyProjectChangeSetCall wrap *gomock.Call
+type MockServiceApplyProjectChangeSetCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockServiceApplyProjectChangeSetCall) Return(arg0 []domain.CodebookProjectChangeResult, arg1 error) *MockServiceApplyProjectChangeSetCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockServiceApplyProjectChangeSetCall) Do(f func(context.Context, domain.CodebookProjectChangeSet) ([]domain.CodebookProjectChangeResult, error)) *MockServiceApplyProjectChangeSetCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockServiceApplyProjectChangeSetCall) DoAndReturn(f func(context.Context, domain.CodebookProjectChangeSet) ([]domain.CodebookProjectChangeResult, error)) *MockServiceApplyProjectChangeSetCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // ArchiveProject mocks base method.
 func (m *MockService) ArchiveProject(ctx context.Context, id int64) (int64, error) {
 	m.ctrl.T.Helper()

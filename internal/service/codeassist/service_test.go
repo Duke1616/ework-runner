@@ -24,15 +24,45 @@ func hashContent(content string) string {
 
 type codeAssistRepositoryStub struct {
 	repository.CodeAssistRepository
-	conversation domain.AIConversation
-	messages     []domain.AIMessage
-	suggestion   domain.AISuggestion
-	claimed      bool
-	claimToken   string
-	releaseToken string
-	applied      int64
-	failed       domain.AIMessage
-	failStatus   domain.AIMessageStatus
+	conversation  domain.AIConversation
+	messages      []domain.AIMessage
+	claimed       bool
+	claimToken    string
+	releaseToken  string
+	failed        domain.AIMessage
+	failStatus    domain.AIMessageStatus
+	changeSet     domain.AIChangeSet
+	changeClaimed bool
+}
+
+func (r *codeAssistRepositoryStub) CreateChangeSet(_ context.Context,
+	changeSet domain.AIChangeSet) (domain.AIChangeSet, error) {
+	changeSet.ID = 41
+	r.changeSet = changeSet
+	return changeSet, nil
+}
+
+func (r *codeAssistRepositoryStub) GetChangeSetByID(context.Context,
+	int64) (domain.AIChangeSet, error) {
+	return r.changeSet, nil
+}
+
+func (r *codeAssistRepositoryStub) ClaimChangeSet(context.Context, int64) error {
+	r.changeClaimed = true
+	return nil
+}
+
+func (r *codeAssistRepositoryStub) ReleaseChangeSet(context.Context, int64) error {
+	r.changeClaimed = false
+	return nil
+}
+
+func (r *codeAssistRepositoryStub) MarkChangeSetApplied(_ context.Context, _ int64,
+	items []domain.AIChangeItem) error {
+	r.changeClaimed = false
+	r.changeSet.Status = domain.AIChangeSetStatusApplied
+	r.changeSet.Items = items
+	return nil
 }
 
 func (r *codeAssistRepositoryStub) GetConversationByID(context.Context,
@@ -83,33 +113,6 @@ func (r *codeAssistRepositoryStub) FailMessage(_ context.Context, message domain
 	return nil
 }
 
-func (r *codeAssistRepositoryStub) CreateSuggestion(_ context.Context,
-	suggestion domain.AISuggestion) (domain.AISuggestion, error) {
-	suggestion.ID = 31
-	r.suggestion = suggestion
-	return suggestion, nil
-}
-
-func (r *codeAssistRepositoryStub) GetSuggestionByID(context.Context,
-	int64) (domain.AISuggestion, error) {
-	return r.suggestion, nil
-}
-
-func (r *codeAssistRepositoryStub) ClaimSuggestion(context.Context, int64) error { return nil }
-
-func (r *codeAssistRepositoryStub) ReleaseSuggestion(context.Context, int64,
-	domain.AISuggestionStatus) error {
-	return nil
-}
-
-func (r *codeAssistRepositoryStub) MarkSuggestionApplied(_ context.Context,
-	_ int64, versionID int64) error {
-	r.applied = versionID
-	r.suggestion.Status = domain.AISuggestionStatusApplied
-	r.suggestion.AppliedVersionID = versionID
-	return nil
-}
-
 type workspaceStub struct{ codebookSvc.WorkspaceService }
 
 func (workspaceStub) Tree(context.Context, int64) ([]domain.WorkspaceNode, error) {
@@ -121,6 +124,23 @@ func (workspaceStub) Tree(context.Context, int64) ([]domain.WorkspaceNode, error
 type providerStub struct {
 	events      []ai.Event
 	lastRequest *ai.Request
+}
+
+type queuedProviderStub struct {
+	turns    [][]ai.Event
+	requests []ai.Request
+}
+
+func (*queuedProviderStub) Name() string  { return "fake" }
+func (*queuedProviderStub) Model() string { return "fake-code-model" }
+func (p *queuedProviderStub) Stream(_ context.Context, request ai.Request) (ai.Stream, error) {
+	p.requests = append(p.requests, request)
+	if len(p.turns) == 0 {
+		return nil, fmt.Errorf("unexpected model turn")
+	}
+	events := p.turns[0]
+	p.turns = p.turns[1:]
+	return &streamStub{events: events}, nil
 }
 
 func (providerStub) Name() string  { return "fake" }
@@ -148,7 +168,7 @@ func (s *streamStub) Current() ai.Event { return s.events[s.current-1] }
 func (s *streamStub) Err() error        { return nil }
 func (s *streamStub) Close() error      { return nil }
 
-func TestServiceChatCreatesSuggestion(t *testing.T) {
+func TestServiceChatCreatesSingleFileChangeSet(t *testing.T) {
 	controller := gomock.NewController(t)
 	codebooks := codebookmocks.NewMockService(controller)
 	repo := &codeAssistRepositoryStub{conversation: domain.AIConversation{
@@ -156,11 +176,14 @@ func TestServiceChatCreatesSuggestion(t *testing.T) {
 	}}
 	baseCode := "import sys\nprint(sys.argv[1])\n"
 	baseHash := hashContent(baseCode)
-	codebooks.EXPECT().GetByID(gomock.Any(), int64(10)).Return(domain.Codebook{
+	codebooks.EXPECT().GetProjectByID(gomock.Any(), int64(3)).Return(domain.CodebookProject{
+		ID: 3, SourceRevision: 7,
+	}, nil)
+	codebooks.EXPECT().GetByID(gomock.Any(), int64(10)).Times(2).Return(domain.Codebook{
 		ID: 10, ProjectID: 3, Name: "task.py", Kind: domain.CodebookKindFile,
 		Code: baseCode, CurrentVersionID: 20,
 	}, nil)
-	codebooks.EXPECT().GetVersionByID(gomock.Any(), int64(20)).Return(domain.CodebookVersion{
+	codebooks.EXPECT().GetVersionByID(gomock.Any(), int64(20)).Times(2).Return(domain.CodebookVersion{
 		ID: 20, NodeID: 10, Code: baseCode, Hash: baseHash,
 	}, nil)
 	var modelRequest ai.Request
@@ -168,13 +191,20 @@ func TestServiceChatCreatesSuggestion(t *testing.T) {
 		{Type: ai.EventTypeTextDelta, Text: "已经生成修复建议。"},
 		{Type: ai.EventTypeToolCallStarted},
 		{Type: ai.EventTypeToolCall, ToolCall: &ai.ToolCall{
-			Name:      proposeCodeToolName,
-			Arguments: `{"summary":"升级运行协议","code":"import json\nimport os\nwith open(os.environ['ETASK_ARGS_FILE']) as f:\n    print(json.load(f))\n"}`,
+			Name:      proposeCurrentFileToolName,
+			Arguments: `{"summary":"升级运行协议","content":"import json\nimport os\nwith open(os.environ['ETASK_ARGS_FILE']) as f:\n    print(json.load(f))\n"}`,
 		}},
 		{Type: ai.EventTypeCompleted,
 			Usage: ai.Usage{InputTokens: 10, OutputTokens: 20}},
 	}}
-	service := NewService(repo, codebooks, workspaceStub{}, provider, codeassistRecipe.NewCatalog())
+	workspace := workspaceTreeStub{nodes: []domain.WorkspaceNode{{
+		Kind: domain.CodebookKindDirectory, Layer: domain.WorkspaceLayerProject,
+		Children: []domain.WorkspaceNode{{
+			RuntimePath: "task.py", SourceID: 10, Kind: domain.CodebookKindFile,
+			Layer: domain.WorkspaceLayerProject,
+		}},
+	}}}
+	service := NewService(repo, codebooks, workspace, provider, codeassistRecipe.NewCatalog())
 	ctx := ctxutil.WithTenantID(t.Context(), 1)
 	ctx = ctxutil.WithUserID(ctx, 2)
 	events := make([]StreamEvent, 0)
@@ -191,10 +221,12 @@ func TestServiceChatCreatesSuggestion(t *testing.T) {
 
 	require.NoError(t, err)
 	require.False(t, repo.claimed)
-	require.Equal(t, int64(31), repo.suggestion.ID)
-	require.Equal(t, domain.AISuggestionStatusValidated, repo.suggestion.Status)
-	require.Equal(t, codeassistRecipe.GeneralID, repo.suggestion.RecipeID)
-	require.Equal(t, "1", repo.suggestion.RecipeVersion)
+	require.Equal(t, int64(41), repo.changeSet.ID)
+	require.Equal(t, int64(7), repo.changeSet.BaseRevision)
+	require.Equal(t, domain.AIChangeSetStatusValidated, repo.changeSet.Status)
+	require.Len(t, repo.changeSet.Items, 1)
+	require.Equal(t, "task.py", repo.changeSet.Items[0].Path)
+	require.Equal(t, domain.AIChangeOperationUpdate, repo.changeSet.Items[0].Operation)
 	require.Len(t, modelRequest.Tools, 1)
 	require.Equal(t, "fake", repo.messages[1].Provider)
 	require.Equal(t, repo.claimToken, repo.releaseToken)
@@ -207,13 +239,146 @@ func TestServiceChatCreatesSuggestion(t *testing.T) {
 	}, streamEventTypes(events))
 }
 
-func TestServiceChatRejectsMultipleSuggestionsBeforePersisting(t *testing.T) {
+func TestServiceChatRunsBoundedWorkspaceAgentAndCreatesChangeSet(t *testing.T) {
+	controller := gomock.NewController(t)
+	codebooks := codebookmocks.NewMockService(controller)
+	repo := &codeAssistRepositoryStub{conversation: domain.AIConversation{
+		ID: 1, UserID: 2, ProjectID: 3, Status: domain.AIConversationStatusActive,
+	}}
+	baseCode := "---\n- hosts: all\n  roles:\n    - common\n"
+	baseHash := hashContent(baseCode)
+	codebooks.EXPECT().GetProjectByID(gomock.Any(), int64(3)).Return(domain.CodebookProject{
+		ID: 3, SourceRevision: 7,
+	}, nil)
+	codebooks.EXPECT().GetByID(gomock.Any(), int64(10)).Times(2).Return(domain.Codebook{
+		ID: 10, ProjectID: 3, Name: "site.yml", Kind: domain.CodebookKindFile,
+		Code: baseCode, StorageType: domain.CodebookContentInline, CurrentVersionID: 20,
+	}, nil)
+	codebooks.EXPECT().GetVersionByID(gomock.Any(), int64(20)).Times(2).
+		Return(domain.CodebookVersion{ID: 20, NodeID: 10, Hash: baseHash}, nil)
+	workspace := workspaceTreeStub{nodes: []domain.WorkspaceNode{{
+		Name: "project", Kind: domain.CodebookKindDirectory,
+		Layer: domain.WorkspaceLayerProject, Children: []domain.WorkspaceNode{{
+			Name: "site.yml", RuntimePath: "site.yml", SourceID: 10,
+			ProjectID: 3, Kind: domain.CodebookKindFile, Layer: domain.WorkspaceLayerProject,
+		}},
+	}}}
+	provider := &queuedProviderStub{turns: [][]ai.Event{
+		{
+			{Type: ai.EventTypeToolCall, ToolCall: &ai.ToolCall{
+				Name: readWorkspaceFilesToolName, Arguments: `{"paths":["site.yml"]}`,
+			}},
+			{Type: ai.EventTypeCompleted, Usage: ai.Usage{InputTokens: 10, OutputTokens: 2}},
+		},
+		{
+			{Type: ai.EventTypeTextDelta, Text: "已生成 nginx role。"},
+			{Type: ai.EventTypeToolCall, ToolCall: &ai.ToolCall{
+				Name: proposeChangeSetToolName,
+				Arguments: `{"summary":"新增 nginx role","changes":[` +
+					`{"operation":"update","path":"site.yml","content":"---\n- hosts: all\n  roles:\n    - common\n    - nginx\n"},` +
+					`{"operation":"create","path":"roles/nginx/tasks/main.yml","content":"---\n- name: Install nginx\n  ansible.builtin.package:\n    name: nginx\n    state: present\n"}]}`,
+			}},
+			{Type: ai.EventTypeCompleted, Usage: ai.Usage{InputTokens: 30, OutputTokens: 20}},
+		},
+	}}
+	service := NewService(repo, codebooks, workspace, provider, codeassistRecipe.NewCatalog())
+	ctx := ctxutil.WithUserID(ctxutil.WithTenantID(t.Context(), 1), 2)
+	events := make([]StreamEvent, 0)
+
+	err := service.Chat(ctx, domain.AIChatRequest{
+		ConversationID: 1, RecipeID: codeassistRecipe.AnsibleProjectID,
+		Content: "增加一个 nginx role，并接入 site playbook",
+	}, func(event StreamEvent) error {
+		events = append(events, event)
+		return nil
+	})
+
+	require.NoError(t, err)
+	require.Len(t, provider.requests, 2)
+	require.Len(t, provider.requests[0].Tools, 2)
+	require.Contains(t, provider.requests[0].Instructions, "处理当前 Ansible 项目")
+	require.Contains(t, provider.requests[1].Input, `"content":"---\n- hosts: all`)
+	require.Equal(t, int64(41), repo.changeSet.ID)
+	require.Equal(t, int64(7), repo.changeSet.BaseRevision)
+	require.Equal(t, domain.AIChangeSetStatusValidated, repo.changeSet.Status)
+	require.Len(t, repo.changeSet.Items, 2)
+	require.Equal(t, domain.AIChangeOperationUpdate, repo.changeSet.Items[0].Operation)
+	require.Equal(t, int64(20), repo.changeSet.Items[0].BaseVersionID)
+	require.Equal(t, domain.AIChangeOperationCreate, repo.changeSet.Items[1].Operation)
+	require.Equal(t, "yaml", repo.changeSet.Items[1].Language)
+	require.Equal(t, ai.Usage{InputTokens: 40, OutputTokens: 22},
+		events[len(events)-1].Usage)
+	require.Equal(t, []StreamEventType{
+		StreamEventTypeStarted, StreamEventTypeProgress, StreamEventTypeProgress,
+		StreamEventTypeDelta, StreamEventTypeCompleted,
+	}, streamEventTypes(events))
+}
+
+func TestServiceApplyChangeSetUsesAtomicCodebookOperation(t *testing.T) {
+	controller := gomock.NewController(t)
+	codebooks := codebookmocks.NewMockService(controller)
+	repo := &codeAssistRepositoryStub{
+		conversation: domain.AIConversation{ID: 1, UserID: 2, ProjectID: 3},
+		changeSet: domain.AIChangeSet{
+			ID: 41, ConversationID: 1, ProjectID: 3, BaseRevision: 7,
+			Summary: "新增 nginx role", Status: domain.AIChangeSetStatusValidated,
+			Items: []domain.AIChangeItem{
+				{Operation: domain.AIChangeOperationUpdate, Path: "site.yml",
+					NodeID: 10, BaseVersionID: 20, BaseHash: hashContent("old"),
+					Language: "yaml", Code: "---\n- hosts: all\n"},
+				{Operation: domain.AIChangeOperationCreate,
+					Path: "roles/nginx/tasks/main.yml", Language: "yaml",
+					Code: "---\n- name: Install nginx\n  ansible.builtin.package:\n    name: nginx\n"},
+			},
+		},
+	}
+	codebooks.EXPECT().ApplyProjectChangeSet(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, request domain.CodebookProjectChangeSet) (
+			[]domain.CodebookProjectChangeResult, error) {
+			require.Equal(t, int64(3), request.ProjectID)
+			require.Equal(t, int64(7), request.BaseRevision)
+			require.Len(t, request.Changes, 2)
+			require.Equal(t, domain.CodebookChangeOperationUpdate, request.Changes[0].Operation)
+			require.Equal(t, "ai-change-set:41:item:1", request.Changes[0].SourceKey)
+			require.Equal(t, domain.CodebookChangeOperationCreate, request.Changes[1].Operation)
+			return []domain.CodebookProjectChangeResult{
+				{Path: "site.yml", NodeID: 10, VersionID: 21},
+				{Path: "roles/nginx/tasks/main.yml", NodeID: 11, VersionID: 22},
+			}, nil
+		})
+	service := NewService(repo, codebooks, workspaceStub{}, providerStub{},
+		codeassistRecipe.NewCatalog())
+	ctx := ctxutil.WithUserID(ctxutil.WithTenantID(t.Context(), 1), 2)
+
+	results, err := service.ApplyChangeSet(ctx, 41)
+
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+	require.False(t, repo.changeClaimed)
+	require.Equal(t, domain.AIChangeSetStatusApplied, repo.changeSet.Status)
+	require.Equal(t, int64(11), repo.changeSet.Items[1].NodeID)
+	require.Equal(t, int64(22), repo.changeSet.Items[1].AppliedVersionID)
+}
+
+type workspaceTreeStub struct {
+	codebookSvc.WorkspaceService
+	nodes []domain.WorkspaceNode
+}
+
+func (s workspaceTreeStub) Tree(context.Context, int64) ([]domain.WorkspaceNode, error) {
+	return s.nodes, nil
+}
+
+func TestServiceChatRejectsMultipleFileChangesBeforePersisting(t *testing.T) {
 	controller := gomock.NewController(t)
 	codebooks := codebookmocks.NewMockService(controller)
 	repo := &codeAssistRepositoryStub{conversation: domain.AIConversation{
 		ID: 1, UserID: 2, ProjectID: 3, Status: domain.AIConversationStatusActive,
 	}}
 	baseCode := "print('old')\n"
+	codebooks.EXPECT().GetProjectByID(gomock.Any(), int64(3)).Return(domain.CodebookProject{
+		ID: 3, SourceRevision: 7,
+	}, nil)
 	codebooks.EXPECT().GetByID(gomock.Any(), int64(10)).Return(domain.Codebook{
 		ID: 10, ProjectID: 3, Name: "task.py", Kind: domain.CodebookKindFile,
 		Code: baseCode, CurrentVersionID: 20,
@@ -223,14 +388,21 @@ func TestServiceChatRejectsMultipleSuggestionsBeforePersisting(t *testing.T) {
 	}, nil)
 	provider := providerStub{events: []ai.Event{
 		{Type: ai.EventTypeToolCall, ToolCall: &ai.ToolCall{
-			Name: proposeCodeToolName, Arguments: `{"summary":"first","code":"print(1)\n"}`,
+			Name: proposeCurrentFileToolName, Arguments: `{"summary":"first","content":"print(1)\n"}`,
 		}},
 		{Type: ai.EventTypeToolCall, ToolCall: &ai.ToolCall{
-			Name: proposeCodeToolName, Arguments: `{"summary":"second","code":"print(2)\n"}`,
+			Name: proposeCurrentFileToolName, Arguments: `{"summary":"second","content":"print(2)\n"}`,
 		}},
 		{Type: ai.EventTypeCompleted},
 	}}
-	service := NewService(repo, codebooks, workspaceStub{}, provider, codeassistRecipe.NewCatalog())
+	workspace := workspaceTreeStub{nodes: []domain.WorkspaceNode{{
+		Kind: domain.CodebookKindDirectory, Layer: domain.WorkspaceLayerProject,
+		Children: []domain.WorkspaceNode{{
+			RuntimePath: "task.py", SourceID: 10, Kind: domain.CodebookKindFile,
+			Layer: domain.WorkspaceLayerProject,
+		}},
+	}}}
+	service := NewService(repo, codebooks, workspace, provider, codeassistRecipe.NewCatalog())
 	ctx := ctxutil.WithUserID(ctxutil.WithTenantID(t.Context(), 1), 2)
 
 	err := service.Chat(ctx, domain.AIChatRequest{
@@ -240,8 +412,8 @@ func TestServiceChatRejectsMultipleSuggestionsBeforePersisting(t *testing.T) {
 		},
 	}, func(StreamEvent) error { return nil })
 
-	require.EqualError(t, err, "AI response contains multiple code suggestions")
-	require.Zero(t, repo.suggestion.ID)
+	require.EqualError(t, err, "AI response contains multiple file changes")
+	require.Zero(t, repo.changeSet.ID)
 	require.Equal(t, domain.AIMessageStatusFailed, repo.failStatus)
 }
 
@@ -260,7 +432,7 @@ func TestServiceChatRejectsEmptyCompletedResponse(t *testing.T) {
 		ConversationID: 1, RecipeID: codeassistRecipe.GeneralID, Content: "修改代码",
 	}, func(StreamEvent) error { return nil })
 
-	require.EqualError(t, err, "模型未返回可展示的文本或代码候选")
+	require.EqualError(t, err, "模型未返回可展示的文本或候选变更")
 	require.Equal(t, domain.AIMessageStatusFailed, repo.failStatus)
 	require.Equal(t, int64(943), repo.failed.InputTokens)
 	require.Equal(t, int64(8192), repo.failed.OutputTokens)
@@ -343,80 +515,6 @@ func TestServiceChatSettlesInterruptedMessage(t *testing.T) {
 			require.False(t, repo.claimed)
 		})
 	}
-}
-
-func TestServiceApplySuggestionDoesNotDependOnHistoricalRecipe(t *testing.T) {
-	controller := gomock.NewController(t)
-	codebooks := codebookmocks.NewMockService(controller)
-	baseCode := "print('old')\n"
-	newCode := "print('new')\n"
-	repo := &codeAssistRepositoryStub{
-		conversation: domain.AIConversation{ID: 1, UserID: 2, ProjectID: 3},
-		suggestion: domain.AISuggestion{
-			ID: 31, ConversationID: 1, ProjectID: 3, NodeID: 10,
-			BaseVersionID: 20, BaseHash: hashContent(baseCode),
-			RecipeID: "codebook.removed-recipe", RecipeVersion: "7",
-			Language: "python", Code: newCode, Status: domain.AISuggestionStatusValidated,
-		},
-	}
-	codebooks.EXPECT().GetByID(gomock.Any(), int64(10)).Return(domain.Codebook{
-		ID: 10, ProjectID: 3, Name: "task.py", Kind: domain.CodebookKindFile,
-		CurrentVersionID: 20,
-	}, nil)
-	codebooks.EXPECT().GetVersionByID(gomock.Any(), int64(20)).Return(domain.CodebookVersion{
-		ID: 20, NodeID: 10, Code: baseCode, Hash: hashContent(baseCode),
-	}, nil)
-	codebooks.EXPECT().CreateVersion(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, version domain.CodebookVersionCreate) (int64, error) {
-			require.Equal(t, int64(10), version.NodeID)
-			require.Equal(t, int64(20), version.ExpectedCurrentVersionID)
-			require.Equal(t, "ai-suggestion:31", version.SourceKey)
-			require.Equal(t, newCode, version.Code)
-			return 40, nil
-		})
-	service := NewService(repo, codebooks, workspaceStub{}, providerStub{}, codeassistRecipe.NewCatalog())
-	ctx := ctxutil.WithUserID(ctxutil.WithTenantID(t.Context(), 1), 2)
-
-	versionID, err := service.ApplySuggestion(ctx, 31)
-
-	require.NoError(t, err)
-	require.Equal(t, int64(40), versionID)
-	require.Equal(t, int64(40), repo.applied)
-}
-
-func TestServiceApplySuggestionRetriesApplyingSuggestion(t *testing.T) {
-	controller := gomock.NewController(t)
-	codebooks := codebookmocks.NewMockService(controller)
-	code := "print('new')\n"
-	repo := &codeAssistRepositoryStub{
-		conversation: domain.AIConversation{ID: 1, UserID: 2, ProjectID: 3},
-		suggestion: domain.AISuggestion{
-			ID: 31, ConversationID: 1, ProjectID: 3, NodeID: 10,
-			BaseVersionID: 20, BaseHash: hashContent("print('old')\n"),
-			RecipeID: codeassistRecipe.GeneralID, RecipeVersion: "1",
-			Language: "python", Code: code, Status: domain.AISuggestionStatusApplying,
-		},
-	}
-	codebooks.EXPECT().GetByID(gomock.Any(), int64(10)).Return(domain.Codebook{
-		ID: 10, ProjectID: 3, Name: "task.py", Kind: domain.CodebookKindFile,
-		CurrentVersionID: 20,
-	}, nil)
-	codebooks.EXPECT().GetVersionByID(gomock.Any(), int64(20)).Return(domain.CodebookVersion{
-		ID: 20, NodeID: 10, Hash: hashContent("print('old')\n"),
-	}, nil)
-	codebooks.EXPECT().CreateVersion(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, version domain.CodebookVersionCreate) (int64, error) {
-			require.Equal(t, "ai-suggestion:31", version.SourceKey)
-			return 40, nil
-		})
-	service := NewService(repo, codebooks, workspaceStub{}, providerStub{}, codeassistRecipe.NewCatalog())
-	ctx := ctxutil.WithUserID(ctxutil.WithTenantID(t.Context(), 1), 2)
-
-	versionID, err := service.ApplySuggestion(ctx, 31)
-
-	require.NoError(t, err)
-	require.Equal(t, int64(40), versionID)
-	require.Equal(t, int64(40), repo.applied)
 }
 
 func streamEventTypes(events []StreamEvent) []StreamEventType {

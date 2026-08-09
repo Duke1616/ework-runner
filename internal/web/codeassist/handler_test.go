@@ -144,6 +144,7 @@ func TestTranslateError(t *testing.T) {
 	}{
 		{name: "参数错误", err: errs.ErrInvalidParameter, code: InvalidParameterCode},
 		{name: "会话占用", err: errs.ErrAIConversationBusy, code: ConflictCode},
+		{name: "变更集冲突", err: errs.ErrAIChangeSetConflict, code: ConflictCode},
 		{name: "内部错误", err: context.DeadlineExceeded, code: SystemErrorCode},
 	}
 	for _, testCase := range testCases {

@@ -35,6 +35,8 @@ type Service interface {
 	Update(ctx context.Context, req domain.Codebook) (int64, error)
 	// CreateVersion 校验并创建脚本版本。
 	CreateVersion(ctx context.Context, req domain.CodebookVersionCreate) (int64, error)
+	// ApplyProjectChangeSet 校验并原子创建、更新多个项目文件。
+	ApplyProjectChangeSet(ctx context.Context, req domain.CodebookProjectChangeSet) ([]domain.CodebookProjectChangeResult, error)
 	// UseVersion 设置脚本模板当前使用版本。
 	UseVersion(ctx context.Context, nodeID, versionID int64) (int64, error)
 	// Sort 拖拽排序代码资源节点，支持跨目录移动。
@@ -223,6 +225,57 @@ func (s *service) CreateVersion(ctx context.Context, req domain.CodebookVersionC
 		}
 	}
 	return s.repo.CreateVersion(ctx, req)
+}
+
+func (s *service) ApplyProjectChangeSet(ctx context.Context,
+	req domain.CodebookProjectChangeSet) ([]domain.CodebookProjectChangeResult, error) {
+	if req.ProjectID <= 0 || req.BaseRevision < 0 || len(req.Changes) == 0 || len(req.Changes) > 30 {
+		return nil, fmt.Errorf("%w: 项目变更集上下文非法", errs.ErrInvalidParameter)
+	}
+	project, err := s.repo.GetProjectByID(ctx, req.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	if err = project.ValidateWritable(); err != nil {
+		return nil, err
+	}
+	if err = validateCodebookWriteScope(ctx, project.Scope); err != nil {
+		return nil, err
+	}
+	seen := make(map[string]struct{}, len(req.Changes))
+	for index := range req.Changes {
+		change := &req.Changes[index]
+		change.Path, err = validateImportPath(change.Path)
+		if err != nil {
+			return nil, err
+		}
+		key := strings.ToLower(change.Path)
+		if _, exists := seen[key]; exists {
+			return nil, fmt.Errorf("%w: 项目变更集包含重复路径 %s",
+				errs.ErrInvalidParameter, change.Path)
+		}
+		seen[key] = struct{}{}
+		if strings.TrimSpace(change.Code) == "" || int64(len(change.Code)) > inlineContentMaxSize {
+			return nil, fmt.Errorf("%w: 项目变更文件 %s 内容为空或超出限制",
+				errs.ErrInvalidParameter, change.Path)
+		}
+		switch change.Operation {
+		case domain.CodebookChangeOperationCreate:
+			if change.NodeID != 0 || change.ExpectedCurrentVersionID != 0 || change.ExpectedHash != "" {
+				return nil, fmt.Errorf("%w: 新建文件包含已有版本上下文",
+					errs.ErrInvalidParameter)
+			}
+		case domain.CodebookChangeOperationUpdate:
+			if change.NodeID <= 0 || change.ExpectedCurrentVersionID <= 0 || change.ExpectedHash == "" {
+				return nil, fmt.Errorf("%w: 更新文件缺少基础版本上下文",
+					errs.ErrInvalidParameter)
+			}
+		default:
+			return nil, fmt.Errorf("%w: 不支持的项目变更操作 %s",
+				errs.ErrInvalidParameter, change.Operation)
+		}
+	}
+	return s.repo.ApplyProjectChangeSet(ctx, req)
 }
 
 // UseVersion 设置脚本模板当前使用版本。

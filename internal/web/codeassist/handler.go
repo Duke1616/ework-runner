@@ -46,9 +46,9 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 		Handle(ginx.B[ConversationDetailReq](h.ConversationDetail)))
 	g.POST("/message/stream", h.Capability("发送 AI 消息", "chat").
 		Handle(ginx.B[ChatReq](h.StreamChat)))
-	g.POST("/suggestion/apply", h.Capability("保存 AI 候选版本", "apply_suggestion").
-		Needs("task:codebook:add_version").
-		Handle(ginx.B[ApplySuggestionReq](h.ApplySuggestion)))
+	g.POST("/change-set/apply", h.Capability("应用 AI 项目变更", "apply_change_set").
+		Needs("task:codebook:add", "task:codebook:add_version", "task:codebook:use_version").
+		Handle(ginx.B[ApplyChangeSetReq](h.ApplyChangeSet)))
 }
 
 func (h *Handler) CreateConversation(ctx *ginx.Context,
@@ -75,7 +75,7 @@ func (h *Handler) ListConversations(ctx *ginx.Context,
 
 func (h *Handler) ConversationDetail(ctx *ginx.Context,
 	req ConversationDetailReq) (ginx.Result, error) {
-	messages, suggestions, err := h.svc.ConversationDetail(ctx, req.ConversationID)
+	messages, changeSets, err := h.svc.ConversationDetail(ctx, req.ConversationID)
 	if err != nil {
 		return translateError(err), err
 	}
@@ -83,12 +83,12 @@ func (h *Handler) ConversationDetail(ctx *ginx.Context,
 	for _, message := range messages {
 		messageVOs = append(messageVOs, toMessageVO(message))
 	}
-	suggestionVOs := make([]SuggestionVO, 0, len(suggestions))
-	for _, suggestion := range suggestions {
-		suggestionVOs = append(suggestionVOs, toSuggestionVO(suggestion))
+	changeSetVOs := make([]ChangeSetVO, 0, len(changeSets))
+	for _, changeSet := range changeSets {
+		changeSetVOs = append(changeSetVOs, toChangeSetVO(changeSet))
 	}
 	return ginx.Result{Msg: "success", Data: ConversationDetailResp{
-		Messages: messageVOs, Suggestions: suggestionVOs,
+		Messages: messageVOs, ChangeSets: changeSetVOs,
 	}}, nil
 }
 
@@ -164,10 +164,16 @@ func (h *Handler) writeStreamEvent(ctx *ginx.Context, event codeassistSvc.Stream
 	ctx.Writer.Flush()
 }
 
-func (h *Handler) ApplySuggestion(ctx *ginx.Context, req ApplySuggestionReq) (ginx.Result, error) {
-	versionID, err := h.svc.ApplySuggestion(ctx, req.ID)
+func (h *Handler) ApplyChangeSet(ctx *ginx.Context, req ApplyChangeSetReq) (ginx.Result, error) {
+	results, err := h.svc.ApplyChangeSet(ctx, req.ID)
 	if err != nil {
 		return translateError(err), err
 	}
-	return ginx.Result{Msg: "success", Data: ApplySuggestionResp{VersionID: versionID}}, nil
+	items := make([]AppliedChangeItemVO, 0, len(results))
+	for _, result := range results {
+		items = append(items, AppliedChangeItemVO{
+			Path: result.Path, NodeID: result.NodeID, VersionID: result.VersionID,
+		})
+	}
+	return ginx.Result{Msg: "success", Data: ApplyChangeSetResp{Items: items}}, nil
 }
