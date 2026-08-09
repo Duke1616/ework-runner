@@ -39,23 +39,24 @@ func TestCodebookNameConflict(t *testing.T) {
 
 type projectRepositoryStub struct {
 	repository.ICodebookRepository
-	projects          []domain.CodebookProject
-	total             int64
-	listQuery         domain.CodebookProjectListQuery
-	countQuery        domain.CodebookProjectListQuery
-	archivedID        int64
-	restoredID        int64
-	archiveAffected   int64
-	restoreAffected   int64
-	referenceProjects []domain.CodebookProject
-	referenceTotal    int64
-	referenceKeyword  string
-	referenceOffset   int64
-	referenceLimit    int64
-	node              domain.Codebook
-	project           domain.CodebookProject
-	changeSet         domain.CodebookProjectChangeSet
-	changeResults     []domain.CodebookProjectChangeResult
+	projects                  []domain.CodebookProject
+	total                     int64
+	listQuery                 domain.CodebookProjectListQuery
+	countQuery                domain.CodebookProjectListQuery
+	archivedID                int64
+	restoredID                int64
+	archiveAffected           int64
+	restoreAffected           int64
+	referenceProjects         []domain.CodebookProject
+	referenceTotal            int64
+	referenceKeyword          string
+	referenceExcludeProjectID int64
+	referenceOffset           int64
+	referenceLimit            int64
+	node                      domain.Codebook
+	project                   domain.CodebookProject
+	changeSet                 domain.CodebookProjectChangeSet
+	changeResults             []domain.CodebookProjectChangeResult
 }
 
 func (s *projectRepositoryStub) ApplyProjectChangeSet(_ context.Context,
@@ -104,14 +105,15 @@ func (s *projectRepositoryStub) CountProjects(_ context.Context,
 }
 
 func (s *projectRepositoryStub) ListReferenceProjects(_ context.Context, keyword string,
-	offset, limit int64) ([]domain.CodebookProject, error) {
+	excludeProjectID, offset, limit int64) ([]domain.CodebookProject, error) {
 	s.referenceKeyword = keyword
+	s.referenceExcludeProjectID = excludeProjectID
 	s.referenceOffset = offset
 	s.referenceLimit = limit
 	return s.referenceProjects, nil
 }
 
-func (s *projectRepositoryStub) CountReferenceProjects(_ context.Context, _ string) (int64, error) {
+func (s *projectRepositoryStub) CountReferenceProjects(_ context.Context, _ string, _ int64) (int64, error) {
 	return s.referenceTotal, nil
 }
 
@@ -201,12 +203,13 @@ func TestListReferenceProjectsTrimsKeywordAndForwardsPage(t *testing.T) {
 	}
 	svc := NewService(repo)
 
-	projects, total, err := svc.ListReferenceProjects(t.Context(), "  deploy  ", 20, 10)
+	projects, total, err := svc.ListReferenceProjects(t.Context(), "  deploy  ", 7, 20, 10)
 
 	require.NoError(t, err)
 	require.Equal(t, repo.referenceProjects, projects)
 	require.Equal(t, int64(12), total)
 	require.Equal(t, "deploy", repo.referenceKeyword)
+	require.Equal(t, int64(7), repo.referenceExcludeProjectID)
 	require.Equal(t, int64(20), repo.referenceOffset)
 	require.Equal(t, int64(10), repo.referenceLimit)
 }

@@ -38,6 +38,11 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 		Handle(ginx.B[RegisterRunnerReq](h.Register)),
 	)
 	g.POST("/list", h.Capability("执行单元列表", "view").
+		Needs(
+			"task:runner:ids",
+			"task:runner:view_by_codebook_id",
+			"task:runner:view_exclude_codebook_id",
+		).
 		Handle(ginx.B[ListRunnerReq](h.List)),
 	)
 	g.GET("/detail/:id", h.Capability("执行单元详情", "get").

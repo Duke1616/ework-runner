@@ -123,9 +123,9 @@ type CodebookProjectDAO interface {
 	// Count 按状态统计代码资源项目总数。
 	Count(ctx context.Context, status, keyword string) (int64, error)
 	// ListReferenceProjects 分页查询当前租户可引用的正常和归档项目。
-	ListReferenceProjects(ctx context.Context, keyword string, offset, limit int64) ([]CodebookProject, error)
+	ListReferenceProjects(ctx context.Context, keyword string, excludeProjectID, offset, limit int64) ([]CodebookProject, error)
 	// CountReferenceProjects 统计当前租户可引用的正常和归档项目数量。
-	CountReferenceProjects(ctx context.Context, keyword string) (int64, error)
+	CountReferenceProjects(ctx context.Context, keyword string, excludeProjectID int64) (int64, error)
 	// GetMaxSortNo 查询当前租户项目最大的排序号。
 	GetMaxSortNo(ctx context.Context) (int64, error)
 	// Update 更新代码资源项目。
@@ -286,7 +286,7 @@ func (g *GORMCodebookProjectDAO) Count(ctx context.Context, status, keyword stri
 }
 
 func (g *GORMCodebookProjectDAO) ListReferenceProjects(ctx context.Context, keyword string,
-	offset, limit int64) ([]CodebookProject, error) {
+	excludeProjectID, offset, limit int64) ([]CodebookProject, error) {
 	var projects []CodebookProject
 	db := g.db.WithContext(ctx).Where("scope = ? AND status IN ?", domain.CodebookScopeTenant.String(), []string{
 		domain.CodebookProjectStatusNormal.String(),
@@ -296,12 +296,15 @@ func (g *GORMCodebookProjectDAO) ListReferenceProjects(ctx context.Context, keyw
 		like := "%" + keyword + "%"
 		db = db.Where("name LIKE ? OR description LIKE ?", like, like)
 	}
+	if excludeProjectID > 0 {
+		db = db.Where("id <> ?", excludeProjectID)
+	}
 	err := db.Order("sort_no ASC, name ASC, id ASC").
 		Offset(int(offset)).Limit(int(limit)).Find(&projects).Error
 	return projects, err
 }
 
-func (g *GORMCodebookProjectDAO) CountReferenceProjects(ctx context.Context, keyword string) (int64, error) {
+func (g *GORMCodebookProjectDAO) CountReferenceProjects(ctx context.Context, keyword string, excludeProjectID int64) (int64, error) {
 	var total int64
 	db := g.db.WithContext(ctx).Model(&CodebookProject{}).
 		Where("scope = ? AND status IN ?", domain.CodebookScopeTenant.String(), []string{
@@ -311,6 +314,9 @@ func (g *GORMCodebookProjectDAO) CountReferenceProjects(ctx context.Context, key
 	if keyword != "" {
 		like := "%" + keyword + "%"
 		db = db.Where("name LIKE ? OR description LIKE ?", like, like)
+	}
+	if excludeProjectID > 0 {
+		db = db.Where("id <> ?", excludeProjectID)
 	}
 	err := db.Count(&total).Error
 	return total, err

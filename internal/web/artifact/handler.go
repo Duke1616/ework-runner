@@ -39,12 +39,14 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 		Handle(ginx.B[PublishReq](h.Publish)),
 	)
 	g.POST("/list", permission("制品发布记录", "view").
+		Needs("task:artifact:status").
 		Handle(ginx.B[ListReq](h.List)),
 	)
 	g.POST("/activate", permission("切换制品", "activate").
 		Handle(ginx.B[ActivateReq](h.Activate)),
 	)
-	g.POST("/status", permission("制品状态", "view").
+	g.POST("/status", permission("制品状态", "status").
+		NoSync().
 		Handle(ginx.B[StatusReq](h.Status)),
 	)
 }

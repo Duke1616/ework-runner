@@ -67,9 +67,9 @@ type ICodebookRepository interface {
 	// CountProjects 按查询条件统计租户项目或公共库数量。
 	CountProjects(ctx context.Context, query domain.CodebookProjectListQuery) (int64, error)
 	// ListReferenceProjects 分页查询当前租户可引用的正常和归档项目。
-	ListReferenceProjects(ctx context.Context, keyword string, offset, limit int64) ([]domain.CodebookProject, error)
+	ListReferenceProjects(ctx context.Context, keyword string, excludeProjectID, offset, limit int64) ([]domain.CodebookProject, error)
 	// CountReferenceProjects 统计当前租户可引用的正常和归档项目数量。
-	CountReferenceProjects(ctx context.Context, keyword string) (int64, error)
+	CountReferenceProjects(ctx context.Context, keyword string, excludeProjectID int64) (int64, error)
 	// GetProjectMaxSortNo 查询当前租户项目最大的排序号。
 	GetProjectMaxSortNo(ctx context.Context) (int64, error)
 	// UpdateProject 更新代码资源项目。
@@ -544,8 +544,8 @@ func (repo *codebookRepository) CountProjects(ctx context.Context,
 }
 
 func (repo *codebookRepository) ListReferenceProjects(ctx context.Context, keyword string,
-	offset, limit int64) ([]domain.CodebookProject, error) {
-	projects, err := repo.projectDao.ListReferenceProjects(ctx, keyword, offset, limit)
+	excludeProjectID, offset, limit int64) ([]domain.CodebookProject, error) {
+	projects, err := repo.projectDao.ListReferenceProjects(ctx, keyword, excludeProjectID, offset, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -554,8 +554,8 @@ func (repo *codebookRepository) ListReferenceProjects(ctx context.Context, keywo
 	}), nil
 }
 
-func (repo *codebookRepository) CountReferenceProjects(ctx context.Context, keyword string) (int64, error) {
-	return repo.projectDao.CountReferenceProjects(ctx, keyword)
+func (repo *codebookRepository) CountReferenceProjects(ctx context.Context, keyword string, excludeProjectID int64) (int64, error) {
+	return repo.projectDao.CountReferenceProjects(ctx, keyword, excludeProjectID)
 }
 
 func (repo *codebookRepository) GetProjectMaxSortNo(ctx context.Context) (int64, error) {

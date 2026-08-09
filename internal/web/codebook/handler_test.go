@@ -86,6 +86,55 @@ func TestToWorkspaceNodesIncludesTimes(t *testing.T) {
 	}
 }
 
+func TestProjectAuxiliaryRoutesReuseProjectPermissions(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler := NewHandler(nil, nil, nil, nil)
+	handler.PrivateRoutes(gin.New())
+
+	internalCodes := []string{
+		"task:codebook:import",
+		"task:codebook:download",
+		"task:codebook:get_project",
+		"task:codebook:reference_projects",
+		"task:codebook:project_delete_impact",
+	}
+	for _, code := range internalCodes {
+		permission, exists := handler.GetPermission(code)
+		if !exists {
+			t.Fatalf("权限 %s 未注册", code)
+		}
+		if !permission.NoSync || len(permission.Needs) != 0 {
+			t.Fatalf("内部权限 %s 的声明不正确: %#v", code, permission)
+		}
+	}
+
+	assertNeeds(t, handler, "task:codebook:add", []string{"task:codebook:import"})
+	assertNeeds(t, handler, "task:codebook:get", []string{"task:codebook:download"})
+	assertNeeds(t, handler, "task:codebook:view_project", []string{
+		"task:codebook:get_project",
+		"task:codebook:reference_projects",
+	})
+	assertNeeds(t, handler, "task:codebook:purge_project", []string{
+		"task:codebook:project_delete_impact",
+	})
+}
+
+func assertNeeds(t *testing.T, handler *Handler, code string, expected []string) {
+	t.Helper()
+	permission, exists := handler.GetPermission(code)
+	if !exists {
+		t.Fatalf("权限 %s 未注册", code)
+	}
+	if len(permission.Needs) != len(expected) {
+		t.Fatalf("权限 %s 的 Needs = %v，期望 %v", code, permission.Needs, expected)
+	}
+	for i := range expected {
+		if permission.Needs[i] != expected[i] {
+			t.Fatalf("权限 %s 的 Needs = %v，期望 %v", code, permission.Needs, expected)
+		}
+	}
+}
+
 func TestTranslateError(t *testing.T) {
 	testCases := []struct {
 		name     string

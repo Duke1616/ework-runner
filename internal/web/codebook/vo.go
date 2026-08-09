@@ -60,7 +60,8 @@ type ListProjectsReq struct {
 
 type ListReferenceProjectsReq struct {
 	Page
-	Keyword string `json:"keyword,omitempty"`
+	Keyword          string `json:"keyword,omitempty"`
+	ExcludeProjectID int64  `json:"exclude_project_id,omitempty"`
 }
 
 type ProjectDeleteReq struct {

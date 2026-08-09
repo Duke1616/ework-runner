@@ -39,10 +39,10 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 	g.POST("/conversation/create", h.Capability("创建 AI 会话", "add_conversation").
 		Handle(ginx.B[CreateConversationReq](h.CreateConversation)))
 	g.POST("/conversation/list", h.Capability("AI 会话列表", "view").
+		Needs("task:code_assist:get_conversation").
 		Handle(ginx.B[ListConversationsReq](h.ListConversations)))
 	g.POST("/conversation/detail", h.Capability("AI 会话详情", "get_conversation").
 		NoSync().
-		Needs("task:code_assist:view").
 		Handle(ginx.B[ConversationDetailReq](h.ConversationDetail)))
 	g.POST("/message/stream", h.Capability("发送 AI 消息", "chat").
 		Handle(ginx.B[ChatReq](h.StreamChat)))

@@ -49,6 +49,7 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 	}
 	g := server.Group("/api/codebook")
 	g.POST("/create", cb("创建模板", "add").
+		Needs("task:codebook:import").
 		Handle(ginx.B[CreateReq](h.Create)),
 	)
 	g.POST("/children", cb("代码资源子节点", "children").
@@ -63,6 +64,7 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 		Handle(ginx.B[WorkspaceFileReq](h.WorkspaceFile)),
 	)
 	g.GET("/detail/:id", cb("模板详情", "get").
+		Needs("task:codebook:download").
 		Handle(ginx.W(h.Detail)),
 	)
 	g.POST("/update", cb("更新模板", "edit").
@@ -71,10 +73,12 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 	g.POST("/sort", cb("模板排序", "sort").
 		Handle(ginx.B[SortReq](h.Sort)),
 	)
-	g.POST("/import", cb("导入项目文件", "import").NoSync().Needs("task:codebook:add").
+	g.POST("/import", cb("导入项目文件", "import").
+		NoSync().
 		Handle(ginx.W(h.Import)),
 	)
-	g.GET("/file/:id/download", cb("下载项目文件", "download").NoSync().Needs("task:codebook:get").
+	g.GET("/file/:id/download", cb("下载项目文件", "download").
+		NoSync().
 		Handle(ginx.W(h.Download)),
 	)
 	g.DELETE("/delete/:id", cb("删除脚本模板", "delete").
@@ -101,9 +105,15 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 		Handle(ginx.B[CreateProjectReq](h.CreateProject)),
 	)
 	pg.POST("/list", project("项目列表", "view_project").
+		Needs("task:codebook:get_project", "task:codebook:reference_projects").
 		Handle(ginx.B[ListProjectsReq](h.ListProject)),
 	)
-	pg.POST("/references", project("可引用项目列表", "view_project").
+	pg.GET("/detail/:id", project("项目详情", "get_project").
+		NoSync().
+		Handle(ginx.W(h.ProjectDetail)),
+	)
+	pg.POST("/references", project("可引用项目列表", "reference_projects").
+		NoSync().
 		Handle(ginx.B[ListReferenceProjectsReq](h.ListReferenceProjects)),
 	)
 	pg.POST("/update", project("更新项目", "edit_project").
@@ -115,10 +125,12 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 	pg.POST("/restore/:id", project("恢复项目", "restore_project").
 		Handle(ginx.W(h.RestoreProject)),
 	)
-	pg.GET("/delete-impact/:id", project("项目删除影响", "purge_project").
+	pg.GET("/delete-impact/:id", project("项目删除影响", "project_delete_impact").
+		NoSync().
 		Handle(ginx.W(h.ProjectDeleteImpact)),
 	)
 	pg.DELETE("/delete/:id", project("删除项目", "purge_project").
+		Needs("task:codebook:project_delete_impact").
 		Handle(ginx.B[ProjectDeleteReq](h.DeleteProject)),
 	)
 }
@@ -283,8 +295,20 @@ func (h *Handler) ListProject(ctx *ginx.Context, req ListProjectsReq) (ginx.Resu
 	return ginx.Result{Msg: "success", Data: h.toProjectListResp(ps, total)}, nil
 }
 
+func (h *Handler) ProjectDetail(ctx *ginx.Context) (ginx.Result, error) {
+	id, err := ctx.Param("id").AsInt64()
+	if err != nil {
+		return invalidProjectIDError, err
+	}
+	project, err := h.svc.GetProjectByID(ctx, id)
+	if err != nil {
+		return h.translateError(err), err
+	}
+	return ginx.Result{Msg: "success", Data: h.toProjectVO(project)}, nil
+}
+
 func (h *Handler) ListReferenceProjects(ctx *ginx.Context, req ListReferenceProjectsReq) (ginx.Result, error) {
-	ps, total, err := h.svc.ListReferenceProjects(ctx, req.Keyword, req.Offset, req.Limit)
+	ps, total, err := h.svc.ListReferenceProjects(ctx, req.Keyword, req.ExcludeProjectID, req.Offset, req.Limit)
 	if err != nil {
 		return h.translateError(err), err
 	}

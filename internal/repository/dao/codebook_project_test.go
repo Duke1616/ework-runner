@@ -40,3 +40,23 @@ func TestCodebookProjectGetByIDIncludesArchivedProjects(t *testing.T) {
 	require.Contains(t, whereClause, "tenant_id")
 	require.NotContains(t, whereClause, "status")
 }
+
+func TestReferenceProjectsExcludePinnedProject(t *testing.T) {
+	recorder := &sqlRecorder{Interface: logger.Default.LogMode(logger.Info)}
+	db, err := gorm.Open(mysql.New(mysql.Config{
+		DSN:                       "gorm:gorm@tcp(localhost:9910)/gorm?charset=utf8mb4&parseTime=True&loc=Local",
+		SkipInitializeWithVersion: true,
+	}), &gorm.Config{DryRun: true, DisableAutomaticPing: true, Logger: recorder})
+	require.NoError(t, err)
+	require.NoError(t, db.Use(gormx.NewTenantPlugin()))
+	dao := NewGORMCodebookProjectDAO(db)
+	ctx := ctxutil.WithTenantID(t.Context(), 9)
+
+	_, err = dao.ListReferenceProjects(ctx, "", 7, 0, 20)
+	require.NoError(t, err)
+	require.Contains(t, recorder.statement, "<> 7")
+
+	_, err = dao.CountReferenceProjects(ctx, "", 7)
+	require.NoError(t, err)
+	require.Contains(t, recorder.statement, "<> 7")
+}

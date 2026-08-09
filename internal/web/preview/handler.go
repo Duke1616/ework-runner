@@ -40,11 +40,11 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 		Handle(ginx.B[RunReq](h.Run)),
 	)
 	g.POST("/status", permission("查看试运行", "view").
-		Needs("task:execution:logs").
+		Needs("task:execution:logs", "task:preview:view_logs").
 		Handle(ginx.B[StatusReq](h.Status)),
 	)
-	g.POST("/logs", permission("查看试运行", "view").
-		Needs("task:execution:logs").
+	g.POST("/logs", permission("查看试运行日志", "view_logs").
+		NoSync().
 		Handle(ginx.B[LogsReq](h.Logs)),
 	)
 }
