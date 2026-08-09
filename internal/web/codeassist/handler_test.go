@@ -23,6 +23,16 @@ type panicServiceStub struct{ codeassistSvc.Service }
 
 type delayedServiceStub struct{ codeassistSvc.Service }
 
+func TestToChatRequestMapsProfile(t *testing.T) {
+	request := toChatRequest(ChatReq{
+		ConversationID: 1, ProfileID: "ansible", Content: "审阅项目",
+		Context: ChatContextReq{NodeID: 2, BaseVersionID: 3, EditorCode: "---\n"},
+	})
+
+	require.Equal(t, "ansible", request.ProfileID)
+	require.Equal(t, int64(2), request.Context.NodeID)
+}
+
 func (panicServiceStub) Chat(context.Context, domain.AIChatRequest,
 	codeassistSvc.EventEmitter) error {
 	panic("provider panic")

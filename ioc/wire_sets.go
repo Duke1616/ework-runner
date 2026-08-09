@@ -7,7 +7,6 @@ import (
 	"github.com/Duke1616/etask/internal/repository/dao"
 	artifactSvc "github.com/Duke1616/etask/internal/service/artifact"
 	codeassistSvc "github.com/Duke1616/etask/internal/service/codeassist"
-	codeassistRecipe "github.com/Duke1616/etask/internal/service/codeassist/recipe"
 	codebookSvc "github.com/Duke1616/etask/internal/service/codebook"
 	poolSvc "github.com/Duke1616/etask/internal/service/pool"
 	previewSvc "github.com/Duke1616/etask/internal/service/preview"
@@ -81,7 +80,6 @@ var (
 
 	CodeAssistSet = wire.NewSet(
 		InitAIProvider,
-		codeassistRecipe.NewCatalog,
 		dao.NewGORMCodeAssistDAO,
 		repository.NewCodeAssistRepository,
 		codeassistSvc.NewService,

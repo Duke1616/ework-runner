@@ -2,35 +2,10 @@ package codeassist
 
 import "github.com/Duke1616/etask/internal/ai"
 
-const proposeCurrentFileToolName = "propose_current_file"
-
 const (
 	readWorkspaceFilesToolName = "read_workspace_files"
 	proposeChangeSetToolName   = "propose_changeset"
 )
-
-func currentFileChangeTool() ai.Tool {
-	return ai.Tool{
-		Name:        proposeCurrentFileToolName,
-		Description: "提交完整的候选脚本代码。只有用户明确要求生成、修改或修复代码时才调用。",
-		Parameters: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"summary": map[string]any{"type": "string"},
-				"content": map[string]any{"type": "string"},
-			},
-			"required":             []string{"summary", "content"},
-			"additionalProperties": false,
-		},
-	}
-}
-
-func workspaceAgentTools() []ai.Tool {
-	return []ai.Tool{
-		readWorkspaceFilesTool(),
-		proposeChangeSetTool(),
-	}
-}
 
 func readWorkspaceFilesTool() ai.Tool {
 	return ai.Tool{

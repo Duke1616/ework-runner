@@ -98,8 +98,8 @@ type AIMessage struct {
 	Status         AIMessageStatus
 	Provider       string
 	Model          string
-	RecipeID       string
-	RecipeVersion  string
+	ProfileID      string
+	ProfileVersion string
 	InputTokens    int64
 	OutputTokens   int64
 	LatencyMillis  int64
@@ -194,7 +194,7 @@ type AIChatContext struct {
 // AIChatRequest 描述用户发送的一条 AI 消息。
 type AIChatRequest struct {
 	ConversationID int64
-	RecipeID       string
+	ProfileID      string
 	Content        string
 	Context        AIChatContext
 }

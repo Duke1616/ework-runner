@@ -30,3 +30,12 @@ func TestAIChangeSetItemsJSONRoundTrip(t *testing.T) {
 
 	require.Equal(t, source, toAIChangeSetDomain(loaded))
 }
+
+func TestAIMessageProfileRoundTrip(t *testing.T) {
+	source := domain.AIMessage{
+		ID: 1, ConversationID: 2, Role: domain.AIMessageRoleAssistant,
+		Status: domain.AIMessageStatusCompleted, ProfileID: "review", ProfileVersion: "1",
+	}
+
+	require.Equal(t, source, toAIMessageDomain(toAIMessageEntity(source)))
+}

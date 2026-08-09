@@ -52,7 +52,7 @@ type ChatContextReq struct {
 // ChatReq 是一次流式 AI 消息请求。
 type ChatReq struct {
 	ConversationID int64          `json:"conversation_id"`
-	RecipeID       string         `json:"recipe_id"`
+	ProfileID      string         `json:"profile_id"`
 	Content        string         `json:"content"`
 	Context        ChatContextReq `json:"context"`
 }

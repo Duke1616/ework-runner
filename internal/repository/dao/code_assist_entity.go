@@ -30,8 +30,8 @@ type AIMessage struct {
 	Status         string `gorm:"column:status;type:varchar(16);not null;index;comment:'生成状态'"`
 	Provider       string `gorm:"column:provider;type:varchar(32);not null;default:'';comment:'模型供应商'"`
 	Model          string `gorm:"column:model;type:varchar(128);not null;default:'';comment:'模型名称'"`
-	RecipeID       string `gorm:"column:recipe_id;type:varchar(64);not null;default:'';comment:'场景标识'"`
-	RecipeVersion  string `gorm:"column:recipe_version;type:varchar(32);not null;default:'';comment:'场景版本'"`
+	ProfileID      string `gorm:"column:profile_id;type:varchar(64);not null;default:'';comment:'协作配置标识'"`
+	ProfileVersion string `gorm:"column:profile_version;type:varchar(32);not null;default:'';comment:'协作配置版本'"`
 	InputTokens    int64  `gorm:"column:input_tokens;type:bigint;not null;default:0;comment:'输入Token数'"`
 	OutputTokens   int64  `gorm:"column:output_tokens;type:bigint;not null;default:0;comment:'输出Token数'"`
 	LatencyMillis  int64  `gorm:"column:latency_millis;type:bigint;not null;default:0;comment:'响应耗时毫秒'"`

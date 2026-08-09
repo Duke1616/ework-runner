@@ -9,7 +9,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/Duke1616/etask/internal/domain"
-	"github.com/Duke1616/etask/internal/service/codeassist/recipe"
 )
 
 const (
@@ -29,64 +28,30 @@ type proposedFileChange struct {
 	Content   string `json:"content"`
 }
 
-type currentFileChangeArguments struct {
-	Summary string `json:"summary"`
-	Content string `json:"content"`
-}
-
 func (s *service) createWorkspaceChangeSet(ctx context.Context,
 	conversation domain.AIConversation, messageID int64, prepared preparedContext,
-	selectedRecipe recipe.Definition, arguments string) (domain.AIChangeSet, error) {
+	arguments string) (domain.AIChangeSet, error) {
 	var proposal changeSetArguments
 	if err := json.Unmarshal([]byte(arguments), &proposal); err != nil {
 		return domain.AIChangeSet{}, fmt.Errorf("invalid AI change set: %w", err)
 	}
-	return s.createChangeSet(ctx, conversation, messageID, prepared, selectedRecipe, proposal)
-}
-
-func (s *service) createCurrentFileChangeSet(ctx context.Context,
-	conversation domain.AIConversation, messageID int64, prepared preparedContext,
-	selectedRecipe recipe.Definition, arguments string) (domain.AIChangeSet, error) {
-	if prepared.node.ID <= 0 {
-		return domain.AIChangeSet{}, fmt.Errorf("AI proposed a change without a file context")
-	}
-	var proposal currentFileChangeArguments
-	if err := json.Unmarshal([]byte(arguments), &proposal); err != nil {
-		return domain.AIChangeSet{}, fmt.Errorf("invalid AI file change: %w", err)
-	}
-	filePath, exists := projectFilePath(prepared.workspaceTree, prepared.node.ID)
-	if !exists {
-		return domain.AIChangeSet{}, fmt.Errorf("current file is missing from the project workspace")
-	}
-	return s.createChangeSet(ctx, conversation, messageID, prepared, selectedRecipe,
-		changeSetArguments{
-			Summary: proposal.Summary,
-			Changes: []proposedFileChange{{
-				Operation: "update", Path: filePath, Content: proposal.Content,
-			}},
-		})
+	return s.createChangeSet(ctx, conversation, messageID, prepared, proposal)
 }
 
 func (s *service) createChangeSet(ctx context.Context, conversation domain.AIConversation,
-	messageID int64, prepared preparedContext, selectedRecipe recipe.Definition,
-	proposal changeSetArguments) (domain.AIChangeSet, error) {
-	if !selectedRecipe.AllowsChanges {
-		return domain.AIChangeSet{}, fmt.Errorf("AI recipe does not allow file changes")
+	messageID int64, prepared preparedContext, proposal changeSetArguments) (domain.AIChangeSet, error) {
+	if !prepared.projectWritable {
+		return domain.AIChangeSet{}, fmt.Errorf("AI cannot propose changes for a readonly project")
 	}
 	if len(proposal.Changes) == 0 || len(proposal.Changes) > changeSetMaxFiles {
 		return domain.AIChangeSet{}, fmt.Errorf("AI change set must contain between 1 and %d files",
 			changeSetMaxFiles)
 	}
-	if !selectedRecipe.UsesWorkspaceAgent &&
-		(len(proposal.Changes) != 1 || !isUpdate(proposal.Changes[0].Operation)) {
-		return domain.AIChangeSet{}, fmt.Errorf("current-file recipe requires exactly one update")
-	}
-
 	workspace := indexWorkspaceNodes(prepared.workspaceTree)
 	items := make([]domain.AIChangeItem, 0, len(proposal.Changes))
 	totalBytes, hasErrors := 0, false
 	for _, change := range proposal.Changes {
-		item, err := s.buildChangeItem(ctx, change, workspace, prepared, selectedRecipe)
+		item, err := s.buildChangeItem(ctx, change, workspace)
 		if err != nil {
 			return domain.AIChangeSet{}, err
 		}
@@ -114,8 +79,7 @@ func (s *service) createChangeSet(ctx context.Context, conversation domain.AICon
 }
 
 func (s *service) buildChangeItem(ctx context.Context, change proposedFileChange,
-	workspace map[string]domain.WorkspaceNode, prepared preparedContext,
-	selectedRecipe recipe.Definition) (domain.AIChangeItem, error) {
+	workspace map[string]domain.WorkspaceNode) (domain.AIChangeItem, error) {
 	filePath, err := normalizeWorkspacePath(change.Path)
 	if err != nil {
 		return domain.AIChangeItem{}, err
@@ -128,9 +92,6 @@ func (s *service) buildChangeItem(ctx context.Context, change proposedFileChange
 	}
 
 	existing, exists := workspace[strings.ToLower(filePath)]
-	if !selectedRecipe.UsesWorkspaceAgent && (!exists || existing.SourceID != prepared.node.ID) {
-		return domain.AIChangeItem{}, fmt.Errorf("AI file change does not target the current file")
-	}
 	item := domain.AIChangeItem{
 		Path: filePath, Language: workspaceFileLanguage(filePath), Code: change.Content,
 	}
@@ -164,23 +125,6 @@ func (s *service) buildChangeItem(ctx context.Context, change proposedFileChange
 	}
 	item.Diagnostics = validateCandidate(ctx, item.Language, item.Code)
 	return item, nil
-}
-
-func isUpdate(operation string) bool {
-	return strings.EqualFold(strings.TrimSpace(operation), "update")
-}
-
-func projectFilePath(nodes []domain.WorkspaceNode, nodeID int64) (string, bool) {
-	for _, node := range nodes {
-		if node.Layer == domain.WorkspaceLayerProject && node.SourceID == nodeID &&
-			node.Kind == domain.CodebookKindFile {
-			return node.RuntimePath, true
-		}
-		if filePath, exists := projectFilePath(node.Children, nodeID); exists {
-			return filePath, true
-		}
-	}
-	return "", false
 }
 
 func validateCreateParent(filePath string, workspace map[string]domain.WorkspaceNode) error {

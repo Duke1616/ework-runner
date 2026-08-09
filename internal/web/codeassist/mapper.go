@@ -4,7 +4,7 @@ import "github.com/Duke1616/etask/internal/domain"
 
 func toChatRequest(req ChatReq) domain.AIChatRequest {
 	return domain.AIChatRequest{
-		ConversationID: req.ConversationID, RecipeID: req.RecipeID, Content: req.Content,
+		ConversationID: req.ConversationID, ProfileID: req.ProfileID, Content: req.Content,
 		Context: domain.AIChatContext{
 			NodeID: req.Context.NodeID, BaseVersionID: req.Context.BaseVersionID,
 			EditorCode: req.Context.EditorCode,

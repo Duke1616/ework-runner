@@ -13,7 +13,6 @@ import (
 	"github.com/Duke1616/etask/internal/repository/dao"
 	"github.com/Duke1616/etask/internal/service/artifact"
 	"github.com/Duke1616/etask/internal/service/codeassist"
-	"github.com/Duke1616/etask/internal/service/codeassist/recipe"
 	"github.com/Duke1616/etask/internal/service/codebook"
 	"github.com/Duke1616/etask/internal/service/pool"
 	"github.com/Duke1616/etask/internal/service/preview"
@@ -117,8 +116,7 @@ func InitSchedulerApplication(base *Base) *SchedulerApplication {
 	gormCodeAssistDAO := dao.NewGORMCodeAssistDAO(db)
 	codeAssistRepository := repository.NewCodeAssistRepository(gormCodeAssistDAO)
 	provider := InitAIProvider()
-	catalog := recipe.NewCatalog()
-	codeassistService := codeassist.NewService(codeAssistRepository, codebookService, workspaceService, provider, catalog)
+	codeassistService := codeassist.NewService(codeAssistRepository, codebookService, workspaceService, provider)
 	codeassistHandler := codeassist2.NewHandler(codeassistService)
 	clients := InitExecutorServiceGRPCClients(registry)
 	invoker := InitInvoker(clients, mq)

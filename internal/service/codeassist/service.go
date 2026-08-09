@@ -8,7 +8,6 @@ import (
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/repository"
 	codeassistagent "github.com/Duke1616/etask/internal/service/codeassist/agent"
-	"github.com/Duke1616/etask/internal/service/codeassist/recipe"
 	codebookSvc "github.com/Duke1616/etask/internal/service/codebook"
 )
 
@@ -63,7 +62,6 @@ type service struct {
 	workspace      codebookSvc.WorkspaceService
 	provider       ai.Provider
 	workspaceAgent codeassistagent.Runner
-	recipes        *recipe.Catalog
 }
 
 // Option 配置 CodeAssist Harness 的可替换组件。
@@ -80,10 +78,10 @@ func WithWorkspaceAgent(agent codeassistagent.Runner) Option {
 
 // NewService 创建 AI 代码助手服务。
 func NewService(repo repository.CodeAssistRepository, codebooks codebookSvc.Service,
-	workspace codebookSvc.WorkspaceService, provider ai.Provider, recipes *recipe.Catalog,
+	workspace codebookSvc.WorkspaceService, provider ai.Provider,
 	options ...Option) Service {
 	result := &service{
-		repo: repo, codebooks: codebooks, workspace: workspace, provider: provider, recipes: recipes,
+		repo: repo, codebooks: codebooks, workspace: workspace, provider: provider,
 	}
 	result.workspaceAgent = codeassistagent.NewEinoRunner(provider)
 	for _, option := range options {

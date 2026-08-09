@@ -20,11 +20,10 @@ func (s *service) Chat(ctx context.Context, request domain.AIChatRequest, emit E
 	if request.ConversationID <= 0 || request.Content == "" || len(request.Content) > maxUserMessageLength {
 		return fmt.Errorf("%w: invalid AI chat request", errs.ErrInvalidParameter)
 	}
-	selectedRecipe, err := s.recipes.Get(request.RecipeID)
+	profile, err := resolveProfile(request.ProfileID)
 	if err != nil {
 		return err
 	}
-	resolvedInstructions := instructionsFor(selectedRecipe)
 	conversation, err := s.userConversation(ctx, request.ConversationID)
 	if err != nil {
 		return err
@@ -40,7 +39,7 @@ func (s *service) Chat(ctx context.Context, request domain.AIChatRequest, emit E
 		_ = s.repo.ReleaseConversation(settleCtx, conversation.ID, runToken)
 	}()
 
-	chatContext, err := s.prepareContext(ctx, conversation, request.Context, selectedRecipe)
+	chatContext, err := s.prepareContext(ctx, conversation, request.Context)
 	if err != nil {
 		return err
 	}
@@ -51,7 +50,7 @@ func (s *service) Chat(ctx context.Context, request domain.AIChatRequest, emit E
 	if _, err = s.repo.CreateMessage(ctx, domain.AIMessage{
 		ConversationID: conversation.ID, Role: domain.AIMessageRoleUser,
 		Content: request.Content, Status: domain.AIMessageStatusCompleted,
-		RecipeID: selectedRecipe.ID, RecipeVersion: selectedRecipe.Version,
+		ProfileID: profile.ID, ProfileVersion: profile.Version,
 	}); err != nil {
 		return err
 	}
@@ -59,7 +58,7 @@ func (s *service) Chat(ctx context.Context, request domain.AIChatRequest, emit E
 		ConversationID: conversation.ID, Role: domain.AIMessageRoleAssistant,
 		Status:   domain.AIMessageStatusStreaming,
 		Provider: s.provider.Name(), Model: s.provider.Model(),
-		RecipeID: selectedRecipe.ID, RecipeVersion: selectedRecipe.Version,
+		ProfileID: profile.ID, ProfileVersion: profile.Version,
 	})
 	if err != nil {
 		return err
@@ -85,47 +84,26 @@ func (s *service) Chat(ctx context.Context, request domain.AIChatRequest, emit E
 	if err = emit(StreamEvent{Type: StreamEventTypeStarted, MessageID: assistantMessage.ID}); err != nil {
 		return fail(err)
 	}
-	if selectedRecipe.UsesWorkspaceAgent {
-		result, agentErr := s.runWorkspaceAgent(ctx, conversation, assistantMessage.ID,
-			selectedRecipe, resolvedInstructions, history, request.Content, chatContext, emit)
-		if agentErr != nil {
-			return fail(agentErr)
-		}
-		content.WriteString(result.Text)
-		assistantMessage.Content = result.Text
-		assistantMessage.InputTokens = result.Usage.InputTokens
-		assistantMessage.OutputTokens = result.Usage.OutputTokens
-		assistantMessage.LatencyMillis = time.Since(startedAt).Milliseconds()
-		if strings.TrimSpace(result.Text) != "" {
-			if err = emit(StreamEvent{Type: StreamEventTypeDelta,
-				MessageID: assistantMessage.ID, Text: result.Text}); err != nil {
-				return fail(err)
-			}
-		}
-		if err = s.repo.CompleteMessage(ctx, assistantMessage); err != nil {
-			return fail(err)
-		}
-		return emit(StreamEvent{Type: StreamEventTypeCompleted,
-			MessageID: assistantMessage.ID, Usage: result.Usage})
-	}
-
-	usage, err := s.runDirectChat(ctx, conversation, assistantMessage.ID, selectedRecipe,
-		resolvedInstructions, history, request.Content, chatContext, &content, emit)
-	assistantMessage.InputTokens = usage.InputTokens
-	assistantMessage.OutputTokens = usage.OutputTokens
+	result, err := s.runWorkspaceAgent(ctx, conversation, assistantMessage.ID, profile,
+		history, request.Content, chatContext, emit)
 	if err != nil {
 		return fail(err)
 	}
-
-	assistantMessage.Content = content.String()
-	if assistantMessage.Content == "" {
-		assistantMessage.Content = "已生成候选变更。"
-	}
+	content.WriteString(result.Text)
+	assistantMessage.Content = result.Text
+	assistantMessage.InputTokens = result.Usage.InputTokens
+	assistantMessage.OutputTokens = result.Usage.OutputTokens
 	assistantMessage.LatencyMillis = time.Since(startedAt).Milliseconds()
+	if strings.TrimSpace(result.Text) != "" {
+		if err = emit(StreamEvent{Type: StreamEventTypeDelta,
+			MessageID: assistantMessage.ID, Text: result.Text}); err != nil {
+			return fail(err)
+		}
+	}
 	if err = s.repo.CompleteMessage(ctx, assistantMessage); err != nil {
 		return fail(err)
 	}
 	return emit(StreamEvent{
-		Type: StreamEventTypeCompleted, MessageID: assistantMessage.ID, Usage: usage,
+		Type: StreamEventTypeCompleted, MessageID: assistantMessage.ID, Usage: result.Usage,
 	})
 }

@@ -35,23 +35,32 @@ Qwen 的 `endpoint` 使用 OpenAI-compatible Chat Completions 地址，并可配
 
 接口前缀为 `/api/code-assist`。会话和候选代码只允许当前用户访问。
 
-## 场景
+## 协作模型
 
-| Recipe ID | 用途 |
+所有项目会话统一使用有界工作区 Agent。前端不负责识别“解释、审阅还是修改”意图，也不通过模式按钮决定工具权限；模型根据用户自然语言和对话历史决定直接回答、读取文件或提出变更。
+
+服务端根据真实上下文装配工具：
+
+- 所有项目会话都提供 `read_workspace_files`。
+- 仅当项目可写且当前 Profile 允许修改时提供 `propose_changeset`。
+- 已归档项目和只审阅 Profile 没有候选变更工具。
+
+Profile 只补充本轮协作规则，不参与 Agent 路由：
+
+| Profile ID | 用途 |
 | --- | --- |
-| `codebook.general` | 通用解释、审阅和按需修改 |
-| `codebook.review` | 只读代码审阅 |
-| `codebook.edit` | 生成完整候选文件 |
-| `codebook.legacy-migration` | 迁移旧运行协议 |
-| `codebook.ansible-project` | 使用有界工作区 Agent 生成 Ansible 多文件变更集 |
+| `default` | 根据自然语言自动解释、审阅或提出变更 |
+| `review` | 只读审阅，不生成候选变更 |
+| `legacy-migration` | 迁移旧 etask 运行协议 |
+| `ansible` | 应用 Ansible 项目结构和凭据约束 |
 
-`recipe_id` 为空时使用 `codebook.general`。文件上下文和场景允许生成代码时，模型可调用 `propose_current_file`；单文件和多文件修改都会保存为 ChangeSet，并执行确定性文件检查。
+`profile_id` 为空时使用 `default`。单文件和多文件修改统一保存为 ChangeSet，并执行确定性文件检查。
 
 应用 ChangeSet 会校验项目修订和文件基础版本，在一个事务中创建版本并切换涉及文件的当前版本，但不会自动发布制品。
 
-### Ansible 项目 Agent
+### 工作区 Agent
 
-`codebook.ansible-project` 的工作流规则直接属于 Recipe，并由 Eino ReAct 负责模型与工具之间的有界循环。Harness 最多执行 6 轮、总计不超过 4 分钟。模型可以通过 `read_workspace_files` 按需读取当前项目或只读依赖中的文本文件，单次最多读取 12 个文件，整次运行最多读取 30 个文件和 512 KiB 内容。凭据文件、私钥和包含 Ansible 明文密码字段的内容不会提供给模型。模型没有 Shell、执行、发布或直接写入权限。
+Eino ReAct 负责模型与工具之间的有界循环。Harness 最多执行 6 轮、总计不超过 4 分钟。模型可以通过 `read_workspace_files` 按需读取当前项目或只读依赖中的文本文件，单次最多读取 12 个文件，整次运行最多读取 30 个文件和 512 KiB 内容。凭据文件、私钥和包含 Ansible 明文密码字段的内容不会提供给模型。模型没有 Shell、执行、发布或直接写入权限。
 
 Eino 只负责 Agent 编排。工作区权限和路径检查、读取预算、敏感内容过滤、ChangeSet 校验与持久化、Codebook 原子事务以及 SSE 生命周期仍由 CodeAssist Harness 管理。
 
@@ -70,4 +79,4 @@ Eino 只负责 Agent 编排。工作区权限和路径检查、读取预算、�
 
 ## 数据表
 
-`ai_conversation`、`ai_message`、`ai_change_set` 由 `AutoMigrate` 创建。ChangeSet 的文件项作为 JSON 整体保存，不建立单独文件项表。AI 尚未投入使用，开发数据库应直接删除旧 AI 表后重新启动，不提供旧结构迁移。
+`ai_conversation`、`ai_message`、`ai_change_set` 由 `AutoMigrate` 创建。ChangeSet 的文件项作为 JSON 整体保存，不建立单独文件项表。迁移 `20260809000007_reset_code_assist_schema.sql` 会删除未投产期间的旧 AI 表和试用数据，再由服务按当前 Profile 模型重建，不提供历史兼容。

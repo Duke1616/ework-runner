@@ -11,7 +11,6 @@ import (
 	"github.com/Duke1616/eiam/pkg/ctxutil"
 	"github.com/Duke1616/etask/internal/domain"
 	codeassistagent "github.com/Duke1616/etask/internal/service/codeassist/agent"
-	"github.com/Duke1616/etask/internal/service/codeassist/recipe"
 )
 
 const (
@@ -21,19 +20,13 @@ const (
 	workspaceAgentMaxDuration  = 4 * time.Minute
 )
 
-const workspaceAgentGuidance = `你正在受控的工作区 Agent 中运行：
-- 需要项目文件内容时调用 read_workspace_files，不要猜测未读取的内容。
-- 用户明确要求修改项目时，以 propose_changeset 提交完整变更集并结束。
-- 每一轮最多调用一个工具；工具报错时根据错误修正参数。
-- 不执行脚本，不直接修改文件，也不声称已经应用变更。`
-
 type workspaceReadBudget struct {
 	files map[string]int
 	bytes int
 }
 
 func (s *service) runWorkspaceAgent(ctx context.Context, conversation domain.AIConversation,
-	messageID int64, selectedRecipe recipe.Definition, instructions string,
+	messageID int64, profile assistantProfile,
 	history []domain.AIMessage, userContent string, prepared preparedContext,
 	emit EventEmitter) (codeassistagent.Result, error) {
 	agentCtx, cancel := context.WithTimeout(ctx, workspaceAgentMaxDuration)
@@ -66,7 +59,7 @@ func (s *service) runWorkspaceAgent(ctx context.Context, conversation domain.AIC
 			return "", err
 		}
 		changeSet, err := s.createWorkspaceChangeSet(toolCtx, conversation, messageID,
-			prepared, selectedRecipe, arguments)
+			prepared, arguments)
 		if err != nil {
 			return "", err
 		}
@@ -76,18 +69,19 @@ func (s *service) runWorkspaceAgent(ctx context.Context, conversation domain.AIC
 		return "已生成多文件项目变更建议。", nil
 	}
 
+	tools := []codeassistagent.Tool{{Definition: readWorkspaceFilesTool(), Run: readFiles}}
+	if prepared.projectWritable && profile.AllowsChanges {
+		tools = append(tools, codeassistagent.Tool{
+			Definition: proposeChangeSetTool(), Run: proposeChanges, ReturnDirectly: true,
+		})
+	}
+
 	return s.workspaceAgent.Run(agentCtx, codeassistagent.Request{
-		Instructions: instructions + "\n\n" + workspaceAgentGuidance,
+		Instructions: buildInstructions(profile, prepared),
 		Input:        buildPrompt(history, userContent, prepared),
 		UserKey: fmt.Sprintf("%d:%d", ctxutil.GetTenantID(ctx).Int64(),
 			ctxutil.GetUserID(ctx).Int64()),
 		MaxTurns: workspaceAgentMaxTurns,
-		Tools: []codeassistagent.Tool{
-			{Definition: readWorkspaceFilesTool(), Run: readFiles},
-			{
-				Definition: proposeChangeSetTool(), Run: proposeChanges,
-				ReturnDirectly: true,
-			},
-		},
+		Tools:    tools,
 	})
 }
