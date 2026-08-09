@@ -42,9 +42,10 @@ type ImportFile struct {
 
 // ImportRequest 描述一次原子项目文件导入。
 type ImportRequest struct {
-	ProjectID int64
-	ParentID  int64
-	Files     []ImportFile
+	ProjectID      int64
+	ParentID       int64
+	Files          []ImportFile
+	OverwritePaths []string
 }
 
 // ProjectFileRepository 是项目文件服务依赖的最小 Codebook 仓储能力。
@@ -137,6 +138,22 @@ func (s *projectFileService) Import(ctx context.Context,
 				errs.ErrInvalidParameter)
 		}
 	}
+	overwriteSeen := make(map[string]struct{}, len(request.OverwritePaths))
+	for _, value := range request.OverwritePaths {
+		overwritePath, overwriteErr := validateImportPath(value)
+		if overwriteErr != nil {
+			return domain.CodebookImportResult{}, overwriteErr
+		}
+		key := strings.ToLower(overwritePath)
+		if _, exists := seen[key]; !exists {
+			return domain.CodebookImportResult{}, fmt.Errorf("%w: 覆盖路径不在上传清单中: %s",
+				errs.ErrInvalidParameter, overwritePath)
+		}
+		if _, exists := overwriteSeen[key]; exists {
+			continue
+		}
+		overwriteSeen[key] = struct{}{}
+	}
 
 	tenantID := ctxutil.GetTenantID(ctx).Int64()
 	prepared := make([]domain.CodebookImportFile, 0, len(request.Files))
@@ -161,6 +178,7 @@ func (s *projectFileService) Import(ctx context.Context,
 			s.cleanup(ctx, createdObjects)
 			return domain.CodebookImportResult{}, fmt.Errorf("关闭文件 %s 失败: %w", file.Path, closeErr)
 		}
+		_, content.Overwrite = overwriteSeen[strings.ToLower(file.Path)]
 		prepared = append(prepared, content)
 		if content.StorageType == domain.CodebookContentBlob {
 			createdObjects = append(createdObjects, content.ObjectKey)

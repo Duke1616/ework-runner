@@ -73,6 +73,35 @@ func TestBuildCodebookImportPlanRejectsConflicts(t *testing.T) {
 	require.ErrorIs(t, err, errs.ErrCodebookNameConflict)
 }
 
+func TestBuildCodebookImportPlanOverwritesConfirmedFile(t *testing.T) {
+	existing := []Codebook{{
+		ID: 10, Scope: domain.CodebookScopeTenant.String(), ProjectID: 3,
+		PathIDs: domain.CodebookRootPathIDs, Depth: 0,
+		Name: "site.yml", Kind: domain.CodebookKindFile.String(), CurrentVersionID: 7,
+	}}
+	plan, err := buildCodebookImportPlan(CodebookImport{
+		ProjectID: 3, Files: []CodebookImportFile{{Path: "SITE.yml", Overwrite: true, Code: "new"}},
+	}, existing, 123)
+
+	require.NoError(t, err)
+	require.Equal(t, CodebookImportResult{FileCount: 1}, plan.result())
+	require.Equal(t, int64(10), plan.files[0].entity.ID)
+	require.Equal(t, "new", plan.files[0].file.Code)
+}
+
+func TestBuildCodebookImportPlanDoesNotReplaceDirectory(t *testing.T) {
+	existing := []Codebook{{
+		ID: 10, Scope: domain.CodebookScopeTenant.String(), ProjectID: 3,
+		PathIDs: domain.CodebookRootPathIDs, Depth: 0,
+		Name: "roles", Kind: domain.CodebookKindDirectory.String(),
+	}}
+	_, err := buildCodebookImportPlan(CodebookImport{
+		ProjectID: 3, Files: []CodebookImportFile{{Path: "roles", Overwrite: true}},
+	}, existing, 123)
+
+	require.ErrorIs(t, err, errs.ErrCodebookNameConflict)
+}
+
 func TestBuildCodebookImportPlanRejectsInvalidParent(t *testing.T) {
 	_, err := buildCodebookImportPlan(CodebookImport{
 		ProjectID: 3, ParentID: 99, Files: []CodebookImportFile{{Path: "main.yml"}},

@@ -9,6 +9,7 @@ import (
 
 	"github.com/Duke1616/eiam/pkg/ctxutil"
 	"github.com/Duke1616/etask/internal/domain"
+	"github.com/Duke1616/etask/internal/errs"
 	codebookSvc "github.com/Duke1616/etask/internal/service/codebook"
 	codebookmocks "github.com/Duke1616/etask/internal/service/codebook/mocks"
 	"github.com/Duke1616/etask/pkg/blobstore"
@@ -31,13 +32,15 @@ func TestProjectFileServiceImportsSmallTextInline(t *testing.T) {
 			require.Equal(t, "roles/web/tasks/main.yml", request.Files[0].Path)
 			require.Equal(t, domain.CodebookContentInline, request.Files[0].StorageType)
 			require.Equal(t, "- debug: msg=ok\n", request.Files[0].Code)
+			require.True(t, request.Files[0].Overwrite)
 			return domain.CodebookImportResult{FileCount: 1, DirectoryCount: 3}, nil
 		})
 
 	service := codebookSvc.NewProjectFileService(repo, store)
 	content := "- debug: msg=ok\n"
 	result, err := service.Import(ctx, codebookSvc.ImportRequest{
-		ProjectID: 3,
+		ProjectID:      3,
+		OverwritePaths: []string{"roles/web/tasks/main.yml"},
 		Files: []codebookSvc.ImportFile{{
 			Path: "roles/web/tasks/main.yml", Size: int64(len(content)),
 			Open: func() (io.ReadCloser, error) { return io.NopCloser(strings.NewReader(content)), nil },
@@ -45,6 +48,27 @@ func TestProjectFileServiceImportsSmallTextInline(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, 1, result.FileCount)
+}
+
+func TestProjectFileServiceRejectsOverwritePathOutsideUpload(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	repo := codebookmocks.NewMockProjectFileRepository(ctrl)
+	store := blobstoremocks.NewMockStore(ctrl)
+	ctx := ctxutil.WithTenantID(context.Background(), 7)
+	repo.EXPECT().GetProjectByID(gomock.Any(), int64(3)).Return(domain.CodebookProject{
+		ID: 3, Scope: domain.CodebookScopeTenant,
+	}, nil)
+
+	service := codebookSvc.NewProjectFileService(repo, store)
+	_, err := service.Import(ctx, codebookSvc.ImportRequest{
+		ProjectID: 3, OverwritePaths: []string{"other.yml"},
+		Files: []codebookSvc.ImportFile{{
+			Path: "site.yml", Size: 1,
+			Open: func() (io.ReadCloser, error) { return io.NopCloser(strings.NewReader("x")), nil },
+		}},
+	})
+
+	require.ErrorIs(t, err, errs.ErrInvalidParameter)
 }
 
 func TestProjectFileServiceStoresBinaryInBlob(t *testing.T) {

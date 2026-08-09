@@ -268,7 +268,7 @@ func (repo *codebookRepository) Import(ctx context.Context,
 		ProjectID: request.ProjectID, ParentID: request.ParentID,
 		Files: lo.Map(request.Files, func(file domain.CodebookImportFile, _ int) dao.CodebookImportFile {
 			return dao.CodebookImportFile{
-				Path: file.Path, Code: file.Code, StorageType: file.StorageType.String(),
+				Path: file.Path, Overwrite: file.Overwrite, Code: file.Code, StorageType: file.StorageType.String(),
 				ObjectKey: file.ObjectKey, Size: file.Size, ContentType: file.ContentType, Hash: file.Hash,
 			}
 		}),

@@ -18,6 +18,7 @@ const codebookImportBatchSize = 100
 
 type CodebookImportFile struct {
 	Path        string
+	Overwrite   bool
 	Code        string
 	StorageType string
 	ObjectKey   string
@@ -150,7 +151,15 @@ func (p *codebookImportPlan) addFile(projectID int64, target *codebookImportNode
 		last := index == len(segments)-1
 		if child, exists := parent.children[importNameKey(name)]; exists {
 			if last {
-				return fmt.Errorf("%w: %s", errs.ErrCodebookNameConflict, file.Path)
+				if child.entity.Kind != domain.CodebookKindFile.String() {
+					return fmt.Errorf("%w: 路径 %s 已存在同名目录", errs.ErrCodebookNameConflict, file.Path)
+				}
+				if !file.Overwrite {
+					return fmt.Errorf("%w: %s", errs.ErrCodebookNameConflict, file.Path)
+				}
+				child.file = file
+				p.files = append(p.files, child)
+				return nil
 			}
 			if child.entity.Kind != domain.CodebookKindDirectory.String() {
 				return fmt.Errorf("%w: \u8def\u5f84 %s \u5df2\u5b58\u5728\u540c\u540d\u6587\u4ef6", errs.ErrCodebookNameConflict,
@@ -201,14 +210,31 @@ func (p *codebookImportPlan) persist(tx *gorm.DB, authorUserID int64) error {
 			return err
 		}
 	}
-	if err := createCodebookImportNodes(tx, p.files); err != nil {
+	newFiles := make([]*codebookImportNode, 0, len(p.files))
+	existingIDs := make([]int64, 0, len(p.files))
+	for _, node := range p.files {
+		if node.entity.ID == 0 {
+			newFiles = append(newFiles, node)
+		} else {
+			existingIDs = append(existingIDs, node.entity.ID)
+		}
+	}
+	if err := createCodebookImportNodes(tx, newFiles); err != nil {
+		return err
+	}
+	versionNumbers, err := loadNextImportVersionNumbers(tx, existingIDs)
+	if err != nil {
 		return err
 	}
 	versions := make([]CodebookVersion, len(p.files))
 	for index, node := range p.files {
 		file := node.file
+		versionNo := int64(1)
+		if node.entity.ID > 0 {
+			versionNo = versionNumbers[node.entity.ID]
+		}
 		versions[index] = CodebookVersion{
-			NodeID: node.entity.ID, Scope: node.entity.Scope, VersionNo: 1,
+			NodeID: node.entity.ID, Scope: node.entity.Scope, VersionNo: versionNo,
 			Code: file.Code, StorageType: file.StorageType, ObjectKey: file.ObjectKey,
 			Size: file.Size, ContentType: file.ContentType, Hash: file.Hash,
 			Message: file.Message, AuthorUserID: authorUserID, CTime: p.now,
@@ -227,6 +253,32 @@ func (p *codebookImportPlan) persist(tx *gorm.DB, authorUserID int64) error {
 		p.files[index].versionID = versions[index].ID
 	}
 	return updateCodebookImportVersions(tx, p.files, versions, p.now)
+}
+
+func loadNextImportVersionNumbers(tx *gorm.DB, nodeIDs []int64) (map[int64]int64, error) {
+	result := make(map[int64]int64, len(nodeIDs))
+	if len(nodeIDs) == 0 {
+		return result, nil
+	}
+	var rows []struct {
+		NodeID       int64
+		MaxVersionNo int64
+	}
+	if err := tx.Model(&CodebookVersion{}).
+		Select("node_id, MAX(version_no) AS max_version_no").
+		Where("node_id IN ?", nodeIDs).
+		Group("node_id").Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		result[row.NodeID] = row.MaxVersionNo + 1
+	}
+	for _, nodeID := range nodeIDs {
+		if result[nodeID] == 0 {
+			result[nodeID] = 1
+		}
+	}
+	return result, nil
 }
 
 func createCodebookImportNodes(tx *gorm.DB, nodes []*codebookImportNode) error {

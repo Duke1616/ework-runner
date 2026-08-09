@@ -34,6 +34,12 @@ func (h *Handler) Import(ctx *ginx.Context) (ginx.Result, error) {
 	if err = json.Unmarshal([]byte(ctx.PostForm("paths")), &paths); err != nil {
 		return invalidParameterResult(err), err
 	}
+	var overwritePaths []string
+	if raw := ctx.PostForm("overwrite_paths"); raw != "" {
+		if err = json.Unmarshal([]byte(raw), &overwritePaths); err != nil {
+			return invalidParameterResult(err), err
+		}
+	}
 	headers := ctx.Request.MultipartForm.File["files"]
 	if len(paths) != len(headers) {
 		err = fmt.Errorf("%w: 文件清单和上传内容数量不一致", errs.ErrInvalidParameter)
@@ -52,6 +58,7 @@ func (h *Handler) Import(ctx *ginx.Context) (ginx.Result, error) {
 	}
 	result, err := h.files.Import(ctx, codebookSvc.ImportRequest{
 		ProjectID: projectID, ParentID: parentID, Files: files,
+		OverwritePaths: overwritePaths,
 	})
 	if err != nil {
 		return h.translateError(err), err

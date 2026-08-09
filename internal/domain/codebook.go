@@ -201,6 +201,7 @@ type CodebookSortItem struct {
 // CodebookImportFile 描述已经完成内容持久化的待导入项目文件。
 type CodebookImportFile struct {
 	Path        string
+	Overwrite   bool
 	Code        string
 	StorageType CodebookContentStorage
 	ObjectKey   string
