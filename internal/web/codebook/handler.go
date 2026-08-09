@@ -401,6 +401,7 @@ func (h *Handler) toWorkspaceNodes(nodes []domain.WorkspaceNode) []WorkspaceNode
 			Layer: string(node.Layer), RuntimePath: node.RuntimePath, Readonly: node.Readonly,
 			ProjectID: node.ProjectID, ParentID: node.ParentID, SortNo: node.SortNo,
 			DownloadOnly: node.DownloadOnly, Size: node.Size,
+			CTime: node.CTime, UTime: node.UTime,
 			Namespace: node.Namespace, Children: h.toWorkspaceNodes(node.Children),
 		}
 	})

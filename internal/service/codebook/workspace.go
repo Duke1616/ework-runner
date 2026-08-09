@@ -77,6 +77,8 @@ func (s *workspaceService) Tree(ctx context.Context, projectID int64) ([]domain.
 		case domain.CodebookScopeSystem:
 			system.ReleaseID = content.Release.ID
 			system.Digest = content.Release.Digest
+			system.CTime = content.Release.CTime
+			system.UTime = content.Release.CTime
 			system.Children = buildArtifactNodes(content, "system", domain.WorkspaceLayerSystem)
 		case domain.CodebookScopeTenant:
 			namespace := content.Release.Namespace
@@ -87,6 +89,8 @@ func (s *workspaceService) Tree(ctx context.Context, projectID int64) ([]domain.
 			library.Digest = content.Release.Digest
 			library.Namespace = namespace
 			library.RuntimePath = rootPath
+			library.CTime = content.Release.CTime
+			library.UTime = content.Release.CTime
 			library.Children = buildArtifactNodes(content, rootPath, domain.WorkspaceLayerDependency)
 			dependencies.Children = append(dependencies.Children, library)
 		}
@@ -211,6 +215,7 @@ func buildProjectNodes(source []domain.Codebook, projectID int64) ([]domain.Work
 				Readonly:  node.Scope == domain.CodebookScopeSystem,
 				ProjectID: projectID, ParentID: node.ParentID, SortNo: node.SortNo,
 				DownloadOnly: node.StorageType == domain.CodebookContentBlob, Size: node.Size,
+				CTime: node.CTime, UTime: node.UTime,
 				Children: make([]domain.WorkspaceNode, 0),
 			}
 			var buildErr error
@@ -263,6 +268,7 @@ func buildArtifactNodes(content domain.ArtifactContent, rootPath string,
 func convertArtifactNodes(parent *artifactTreeNode, release domain.ArtifactRelease,
 	parentPath string, layer domain.WorkspaceLayer,
 	files []domain.ArtifactManifestFile) []domain.WorkspaceNode {
+	// 制品清单不保存逐文件时间；不可变节点统一使用所属发布的创建时间。
 	names := make([]string, 0, len(parent.children))
 	for name := range parent.children {
 		names = append(names, name)
@@ -282,6 +288,8 @@ func convertArtifactNodes(parent *artifactTreeNode, release domain.ArtifactRelea
 			Name: name, Kind: kind, Scope: release.Scope, Layer: layer,
 			RuntimePath: runtimePath, Readonly: true, ProjectID: release.ProjectID,
 			Size:      artifactNodeSize(files, node.filePath),
+			CTime:     release.CTime,
+			UTime:     release.CTime,
 			Namespace: release.Namespace, Children: make([]domain.WorkspaceNode, 0),
 		}
 		value.Children = convertArtifactNodes(node, release, runtimePath, layer, files)

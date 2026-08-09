@@ -73,6 +73,19 @@ func TestTreeUsesSystemScopeWhenExplicit(t *testing.T) {
 	}
 }
 
+func TestToWorkspaceNodesIncludesTimes(t *testing.T) {
+	handler := &Handler{}
+	nodes := handler.toWorkspaceNodes([]domain.WorkspaceNode{{
+		Key: "project:1", Name: "site.yml", CTime: 100, UTime: 200,
+		Children: []domain.WorkspaceNode{{Key: "project:2", Name: "child.yml", CTime: 300, UTime: 400}},
+	}})
+
+	if nodes[0].CTime != 100 || nodes[0].UTime != 200 ||
+		nodes[0].Children[0].CTime != 300 || nodes[0].Children[0].UTime != 400 {
+		t.Fatalf("toWorkspaceNodes() 未完整返回节点时间: %#v", nodes)
+	}
+}
+
 func TestTranslateError(t *testing.T) {
 	testCases := []struct {
 		name     string

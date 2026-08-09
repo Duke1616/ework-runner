@@ -32,6 +32,8 @@ type WorkspaceNode struct {
 	SortNo       int64
 	DownloadOnly bool
 	Size         int64
+	CTime        int64 // 毫秒时间戳；制品虚拟节点使用发布时间。
+	UTime        int64 // 毫秒时间戳；不可变制品与 CTime 相同。
 	Namespace    string
 	Children     []WorkspaceNode
 }

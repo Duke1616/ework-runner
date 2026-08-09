@@ -49,17 +49,26 @@ func TestWorkspaceServiceTree(t *testing.T) {
 		{
 			name: "后端生成三层完整运行路径",
 			source: []domain.Codebook{
-				{ID: 1, ProjectID: 9, Name: "scripts", Kind: domain.CodebookKindDirectory, Scope: domain.CodebookScopeTenant},
-				{ID: 2, ProjectID: 9, ParentID: 1, Name: "smoke.sh", Kind: domain.CodebookKindFile, Scope: domain.CodebookScopeTenant},
+				{
+					ID: 1, ProjectID: 9, Name: "scripts", Kind: domain.CodebookKindDirectory,
+					Scope: domain.CodebookScopeTenant, CTime: 100, UTime: 200,
+				},
+				{
+					ID: 2, ProjectID: 9, ParentID: 1, Name: "smoke.sh", Kind: domain.CodebookKindFile,
+					Scope: domain.CodebookScopeTenant, CTime: 110, UTime: 210,
+				},
 			},
 			contents: []domain.ArtifactContent{
 				{
-					Release: domain.ArtifactRelease{ID: 10, Scope: domain.CodebookScopeSystem, Digest: "system"},
+					Release: domain.ArtifactRelease{ID: 10, Scope: domain.CodebookScopeSystem, Digest: "system", CTime: 300},
 					Files:   []domain.ArtifactManifestFile{{Path: "private/utils.sh"}},
 				},
 				{
-					Release: domain.ArtifactRelease{ID: 11, Scope: domain.CodebookScopeTenant, ProjectID: 20, Namespace: "ops_common", Digest: "tenant"},
-					Files:   []domain.ArtifactManifestFile{{Path: "private/utils.sh"}},
+					Release: domain.ArtifactRelease{
+						ID: 11, Scope: domain.CodebookScopeTenant, ProjectID: 20,
+						Namespace: "ops_common", Digest: "tenant", CTime: 400,
+					},
+					Files: []domain.ArtifactManifestFile{{Path: "private/utils.sh"}},
 				},
 				{
 					Release: domain.ArtifactRelease{ID: 12, Scope: domain.CodebookScopeTenant, ProjectID: 9, Namespace: "self_library", Digest: "self"},
@@ -76,6 +85,10 @@ func TestWorkspaceServiceTree(t *testing.T) {
 				require.Len(t, nodes[2].Children, 1)
 				require.True(t, nodes[1].Readonly)
 				require.True(t, nodes[2].Children[0].Readonly)
+				require.Equal(t, int64(100), nodes[0].Children[0].CTime)
+				require.Equal(t, int64(210), nodes[0].Children[0].Children[0].UTime)
+				require.Equal(t, int64(300), nodes[1].Children[0].Children[0].UTime)
+				require.Equal(t, int64(400), nodes[2].Children[0].UTime)
 			},
 		},
 		{

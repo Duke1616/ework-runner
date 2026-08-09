@@ -125,6 +125,8 @@ type WorkspaceNode struct {
 	SortNo       int64           `json:"sort_no"`
 	DownloadOnly bool            `json:"download_only"`
 	Size         int64           `json:"size"`
+	CTime        int64           `json:"ctime"`
+	UTime        int64           `json:"utime"`
 	Namespace    string          `json:"namespace"`
 	Children     []WorkspaceNode `json:"children"`
 }
