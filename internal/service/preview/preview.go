@@ -19,10 +19,9 @@ const (
 	maxTimeoutSeconds     int64 = 3600
 )
 
-// RunCommand 描述一次程序试运行使用的来源、执行单元和临时参数。
+// RunCommand 描述一次程序试运行使用的执行单元和临时参数。
 type RunCommand struct {
 	RunnerID            int64
-	Program             *domain.ProgramSpec
 	Args                string
 	Variables           []domain.RunnerVariable
 	MaxExecutionSeconds int64

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Duke1616/etask/internal/domain"
+	programSvc "github.com/Duke1616/etask/internal/service/program"
 )
 
 type prepareResult struct {
@@ -23,7 +24,7 @@ func (s *service) prepare(ctx context.Context, command RunCommand) (prepareResul
 	if err := validateCommand(command); err != nil {
 		return prepareResult{}, err
 	}
-	runner, err := s.resolveRunner(ctx, command.RunnerID, referencedCodebookID(command.Program))
+	runner, err := s.resolveRunner(ctx, command.RunnerID)
 	if err != nil {
 		return prepareResult{}, err
 	}
@@ -39,7 +40,7 @@ func (s *service) prepare(ctx context.Context, command RunCommand) (prepareResul
 	if err != nil {
 		return prepareResult{}, err
 	}
-	resolution, err := s.programSvc.Resolve(ctx, command.Program)
+	resolution, err := s.resolveProgram(ctx, runner)
 	if err != nil {
 		return prepareResult{}, fmt.Errorf("解析试运行程序失败: %w", err)
 	}
@@ -56,35 +57,19 @@ func validateCommand(command RunCommand) error {
 	if command.RunnerID <= 0 {
 		return fmt.Errorf("执行单元 ID 必须大于 0")
 	}
-	if command.Program == nil {
-		return fmt.Errorf("试运行程序不能为空")
-	}
-	if err := command.Program.Validate(); err != nil {
-		return fmt.Errorf("试运行程序配置非法: %w", err)
-	}
 	return nil
 }
 
-func referencedCodebookID(spec *domain.ProgramSpec) int64 {
-	if spec == nil {
-		return 0
-	}
-	if spec.Inline != nil {
-		return spec.Inline.CodebookID
-	}
-	if spec.Project != nil {
-		return spec.Project.EntryCodebookID
-	}
-	return 0
-}
-
-func (s *service) resolveRunner(ctx context.Context, id, codebookID int64) (domain.Runner, error) {
+func (s *service) resolveRunner(ctx context.Context, id int64) (domain.Runner, error) {
 	runner, err := s.runnerSvc.FindForExecution(ctx, id)
 	if err != nil {
 		return domain.Runner{}, fmt.Errorf("查询执行单元失败: %w", err)
 	}
-	if codebookID > 0 && runner.CodebookID != codebookID {
-		return domain.Runner{}, fmt.Errorf("执行单元未绑定当前 Codebook 文件")
+	if runner.CodebookID <= 0 {
+		return domain.Runner{}, fmt.Errorf("执行单元未绑定程序来源")
+	}
+	if !runner.ProgramKind.Valid() {
+		return domain.Runner{}, fmt.Errorf("执行单元程序类型非法: %s", runner.ProgramKind)
 	}
 	if !runner.Kind.IsValid() {
 		return domain.Runner{}, fmt.Errorf("执行单元类型非法: %s", runner.Kind)
@@ -96,6 +81,14 @@ func (s *service) resolveRunner(ctx context.Context, id, codebookID int64) (doma
 		return domain.Runner{}, fmt.Errorf("当前执行单元未启用")
 	}
 	return runner, nil
+}
+
+func (s *service) resolveProgram(ctx context.Context, runner domain.Runner) (programSvc.Resolution, error) {
+	spec, err := programSvc.SpecFromRunnerBinding(runner.CodebookID, runner.ProgramKind)
+	if err != nil {
+		return programSvc.Resolution{}, err
+	}
+	return s.programSvc.Resolve(ctx, spec)
 }
 
 func normalizeArgs(raw string) (string, error) {

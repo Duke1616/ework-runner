@@ -16,22 +16,26 @@ func TestPrepareMergesTemporaryVariables(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	programs := programmocks.NewMockService(ctrl)
 	runners := runnermocks.NewMockService(ctrl)
-	spec := inlineCode("print('ok')")
 	resolved := domain.NewInlineProgram("print('ok')")
 	runners.EXPECT().FindForExecution(gomock.Any(), int64(22)).Return(domain.Runner{
-		ID: 22, Name: "Python", CodebookID: 11, Kind: domain.RunnerKindGRPC, Target: "executor",
+		ID: 22, Name: "Python", CodebookID: 11, ProgramKind: domain.ProgramInline,
+		Kind: domain.RunnerKindGRPC, Target: "executor",
 		Handler: "python", Action: domain.RunnerActionRegistered,
 		Variables: []domain.RunnerVariable{
 			{Key: "REGION", Value: "default"},
 			{Key: "TOKEN", Value: "secret", Secret: true},
 		},
 	}, nil)
-	programs.EXPECT().Resolve(gomock.Any(), spec).Return(program.Resolution{Program: resolved}, nil)
+	programs.EXPECT().Resolve(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, spec *domain.ProgramSpec) (program.Resolution, error) {
+			require.Equal(t, domain.ProgramInline, spec.Kind)
+			require.Equal(t, int64(11), spec.Inline.CodebookID)
+			return program.Resolution{Program: resolved}, nil
+		})
 
 	svc := &service{programSvc: programs, runnerSvc: runners}
 	result, err := svc.prepare(context.Background(), RunCommand{
 		RunnerID: 22,
-		Program:  spec,
 		Variables: []domain.RunnerVariable{
 			{Key: "REGION", Value: "temporary"},
 			{Key: "DEBUG", Value: "true"},
@@ -49,45 +53,43 @@ func TestPrepareMergesTemporaryVariables(t *testing.T) {
 	}, result.variables)
 }
 
-func TestPrepareRejectsRunnerFromAnotherCodebook(t *testing.T) {
+func TestPrepareRejectsRunnerWithoutProgramBinding(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	runners := runnermocks.NewMockService(ctrl)
 	runners.EXPECT().FindForExecution(gomock.Any(), int64(22)).Return(domain.Runner{
-		ID: 22, CodebookID: 99, Kind: domain.RunnerKindGRPC, Target: "executor",
+		ID: 22, Kind: domain.RunnerKindGRPC, Target: "executor",
 		Handler: "ansible", Action: domain.RunnerActionRegistered,
 	}, nil)
 
 	svc := &service{programSvc: programmocks.NewMockService(ctrl), runnerSvc: runners}
 	_, err := svc.prepare(context.Background(), RunCommand{
 		RunnerID: 22,
-		Program: &domain.ProgramSpec{
-			Kind: domain.ProgramProject, Project: &domain.ProjectProgramSpec{EntryCodebookID: 11},
-		},
 	})
 
-	require.ErrorContains(t, err, "未绑定当前 Codebook")
+	require.ErrorContains(t, err, "未绑定程序来源")
 }
 
 func TestPrepareAcceptsProjectProgramAndAnsibleRunner(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	programs := programmocks.NewMockService(ctrl)
 	runners := runnermocks.NewMockService(ctrl)
-	spec := &domain.ProgramSpec{
-		Kind: domain.ProgramProject, Project: &domain.ProjectProgramSpec{EntryCodebookID: 11},
-	}
 	resolved := &domain.Program{Kind: domain.ProgramProject, Project: &domain.ProjectProgram{
 		EntryPoint: "playbooks/site.yml",
 	}}
 	runners.EXPECT().FindForExecution(gomock.Any(), int64(22)).Return(domain.Runner{
-		ID: 22, Name: "Ansible", CodebookID: 11, Kind: domain.RunnerKindKafka, Target: "agent-ansible",
+		ID: 22, Name: "Ansible", CodebookID: 11, ProgramKind: domain.ProgramProject,
+		Kind: domain.RunnerKindKafka, Target: "agent-ansible",
 		Handler: "ansible", Action: domain.RunnerActionRegistered,
 	}, nil)
-	programs.EXPECT().Resolve(gomock.Any(), spec).Return(program.Resolution{
-		Program: resolved, SourceProjectID: 9,
-	}, nil)
+	programs.EXPECT().Resolve(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, spec *domain.ProgramSpec) (program.Resolution, error) {
+			require.Equal(t, domain.ProgramProject, spec.Kind)
+			require.Equal(t, int64(11), spec.Project.EntryCodebookID)
+			return program.Resolution{Program: resolved, SourceProjectID: 9}, nil
+		})
 
 	svc := &service{programSvc: programs, runnerSvc: runners}
-	result, err := svc.prepare(context.Background(), RunCommand{RunnerID: 22, Program: spec})
+	result, err := svc.prepare(context.Background(), RunCommand{RunnerID: 22})
 
 	require.NoError(t, err)
 	require.Same(t, resolved, result.program)
@@ -108,8 +110,4 @@ func TestBuildDraftUsesResolvedProgram(t *testing.T) {
 	require.Same(t, resolved, draft.Program)
 	require.Equal(t, "试运行: Shell", draft.Task.Name)
 	require.NotContains(t, draft.Task.GrpcConfig.Params, "code")
-}
-
-func inlineCode(code string) *domain.ProgramSpec {
-	return &domain.ProgramSpec{Kind: domain.ProgramInline, Inline: &domain.InlineProgramSpec{Code: code}}
 }

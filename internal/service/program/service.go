@@ -41,6 +41,23 @@ type Service interface {
 	OpenSource(ctx context.Context, sourceID int64, digest string) (io.ReadCloser, error)
 }
 
+// SpecFromRunnerBinding 根据执行单元绑定的 Codebook 和程序模式生成程序声明。
+func SpecFromRunnerBinding(codebookID int64, kind domain.ProgramKind) (*domain.ProgramSpec, error) {
+	if codebookID <= 0 {
+		return nil, fmt.Errorf("执行单元未绑定程序来源")
+	}
+	spec := &domain.ProgramSpec{Kind: kind}
+	switch kind {
+	case domain.ProgramInline:
+		spec.Inline = &domain.InlineProgramSpec{CodebookID: codebookID}
+	case domain.ProgramProject:
+		spec.Project = &domain.ProjectProgramSpec{EntryCodebookID: codebookID}
+	default:
+		return nil, fmt.Errorf("执行单元程序类型非法: %s", kind)
+	}
+	return spec, nil
+}
+
 type modeResolver interface {
 	// Resolve 解析当前模式的程序声明。
 	Resolve(context.Context, *domain.ProgramSpec) (Resolution, error)

@@ -53,7 +53,6 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 func (h *Handler) Run(ctx *ginx.Context, req RunReq) (ginx.Result, error) {
 	execution, err := h.svc.Run(ctx, previewSvc.RunCommand{
 		RunnerID:            req.RunnerID,
-		Program:             toDomainProgram(req.resolvedProgram()),
 		Args:                req.Args,
 		MaxExecutionSeconds: req.MaxExecutionSeconds,
 		Variables: slice.Map(req.Variables, func(_ int, variable Variable) domain.RunnerVariable {
@@ -64,20 +63,6 @@ func (h *Handler) Run(ctx *ginx.Context, req RunReq) (ginx.Result, error) {
 		return invalidParameterResult(err), err
 	}
 	return ginx.Result{Data: toExecutionVO(execution), Msg: "试运行已开始"}, nil
-}
-
-func toDomainProgram(src *ProgramSpec) *domain.ProgramSpec {
-	if src == nil {
-		return nil
-	}
-	result := &domain.ProgramSpec{Kind: domain.ProgramKind(src.Kind)}
-	if src.Inline != nil {
-		result.Inline = &domain.InlineProgramSpec{Code: src.Inline.Code, CodebookID: src.Inline.CodebookID}
-	}
-	if src.Project != nil {
-		result.Project = &domain.ProjectProgramSpec{EntryCodebookID: src.Project.EntryCodebookID}
-	}
-	return result
 }
 
 // Status 查询一次程序试运行的最新状态。

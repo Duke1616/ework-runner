@@ -92,7 +92,7 @@ func (s *service) RunRunner(ctx context.Context, command RunRunnerCommand) (RunR
 	if runner.Action != domain.RunnerActionRegistered {
 		return RunResult{}, fmt.Errorf("%w: 执行单元未启用", ErrRejected)
 	}
-	program, err := s.resolveProgram(ctx, runner.CodebookID, runner.ProgramKind)
+	program, err := s.resolveProgram(ctx, runner)
 	if err != nil {
 		return RunResult{}, fmt.Errorf("解析工作流程序失败: %w", err)
 	}
@@ -182,14 +182,10 @@ func validateCommand(command RunRunnerCommand) error {
 	return nil
 }
 
-func (s *service) resolveProgram(ctx context.Context, codebookID int64,
-	kind domain.ProgramKind) (programSvc.Resolution, error) {
-	spec := &domain.ProgramSpec{Kind: kind}
-	switch kind {
-	case domain.ProgramInline:
-		spec.Inline = &domain.InlineProgramSpec{CodebookID: codebookID}
-	case domain.ProgramProject:
-		spec.Project = &domain.ProjectProgramSpec{EntryCodebookID: codebookID}
+func (s *service) resolveProgram(ctx context.Context, runner domain.Runner) (programSvc.Resolution, error) {
+	spec, err := programSvc.SpecFromRunnerBinding(runner.CodebookID, runner.ProgramKind)
+	if err != nil {
+		return programSvc.Resolution{}, err
 	}
 	return s.programs.Resolve(ctx, spec)
 }

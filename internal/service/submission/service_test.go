@@ -51,13 +51,13 @@ func TestValidateCommand(t *testing.T) {
 func TestResolveProgramUsesRunnerCodebook(t *testing.T) {
 	testCases := []struct {
 		name       string
-		kind       domain.ProgramKind
+		runner     domain.Runner
 		wantKind   domain.ProgramKind
 		wantInline int64
 		wantEntry  int64
 	}{
-		{name: "显式 INLINE", kind: domain.ProgramInline, wantKind: domain.ProgramInline, wantInline: 20},
-		{name: "PROJECT", kind: domain.ProgramProject, wantKind: domain.ProgramProject, wantEntry: 20},
+		{name: "显式 INLINE", runner: domain.Runner{CodebookID: 20, ProgramKind: domain.ProgramInline}, wantKind: domain.ProgramInline, wantInline: 20},
+		{name: "PROJECT", runner: domain.Runner{CodebookID: 20, ProgramKind: domain.ProgramProject}, wantKind: domain.ProgramProject, wantEntry: 20},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -75,7 +75,7 @@ func TestResolveProgramUsesRunnerCodebook(t *testing.T) {
 					return programSvc.Resolution{Program: &domain.Program{Kind: testCase.wantKind}}, nil
 				})
 			service := &service{programs: programs}
-			resolved, err := service.resolveProgram(context.Background(), 20, testCase.kind)
+			resolved, err := service.resolveProgram(context.Background(), testCase.runner)
 			require.NoError(t, err)
 			require.Equal(t, testCase.wantKind, resolved.Program.Kind)
 		})

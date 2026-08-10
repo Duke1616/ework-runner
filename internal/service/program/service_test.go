@@ -24,6 +24,43 @@ func (c codebooks) GetByID(_ context.Context, id int64) (domain.Codebook, error)
 	return c.values[id], nil
 }
 
+func TestSpecFromRunnerBinding(t *testing.T) {
+	testCases := []struct {
+		name       string
+		codebookID int64
+		kind       domain.ProgramKind
+		want       *domain.ProgramSpec
+		wantErr    string
+	}{
+		{
+			name:       "inline",
+			codebookID: 11,
+			kind:       domain.ProgramInline,
+			want:       &domain.ProgramSpec{Kind: domain.ProgramInline, Inline: &domain.InlineProgramSpec{CodebookID: 11}},
+		},
+		{
+			name:       "project",
+			codebookID: 12,
+			kind:       domain.ProgramProject,
+			want:       &domain.ProgramSpec{Kind: domain.ProgramProject, Project: &domain.ProjectProgramSpec{EntryCodebookID: 12}},
+		},
+		{name: "missing codebook", kind: domain.ProgramInline, wantErr: "未绑定程序来源"},
+		{name: "invalid kind", codebookID: 11, kind: domain.ProgramKind("UNKNOWN"), wantErr: "程序类型非法"},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			got, err := program.SpecFromRunnerBinding(testCase.codebookID, testCase.kind)
+			if testCase.wantErr != "" {
+				require.ErrorContains(t, err, testCase.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, testCase.want, got)
+		})
+	}
+}
+
 func TestResolveInlineCodebook(t *testing.T) {
 	svc := program.NewService(codebooks{values: map[int64]domain.Codebook{
 		11: {ID: 11, ProjectID: 9, Kind: domain.CodebookKindFile, Code: "print('ok')"},
