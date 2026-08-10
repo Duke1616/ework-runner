@@ -3,6 +3,7 @@ package runner
 type RegisterRunnerReq struct {
 	Name           string     `json:"name"`
 	CodebookID     int64      `json:"codebook_id"`
+	ProgramKind    string     `json:"program_kind"`
 	CodebookSecret string     `json:"codebook_secret"`
 	Kind           string     `json:"kind"`
 	Target         string     `json:"target"`
@@ -16,6 +17,7 @@ type UpdateRunnerReq struct {
 	ID             int64      `json:"id"`
 	Name           string     `json:"name"`
 	CodebookID     int64      `json:"codebook_id"`
+	ProgramKind    string     `json:"program_kind"`
 	CodebookSecret string     `json:"codebook_secret"`
 	Kind           string     `json:"kind"`
 	Target         string     `json:"target"`
@@ -54,17 +56,18 @@ type ListExcludeCodebookIDReq struct {
 }
 
 type RunnerVO struct {
-	ID         int64      `json:"id"`
-	Name       string     `json:"name"`
-	Kind       string     `json:"kind"`
-	CodebookID int64      `json:"codebook_id"`
-	Target     string     `json:"target"`
-	Handler    string     `json:"handler"`
-	Tags       []string   `json:"tags"`
-	Variables  []Variable `json:"variables"`
-	Desc       string     `json:"desc"`
-	CTime      int64      `json:"ctime"`
-	UTime      int64      `json:"utime"`
+	ID          int64      `json:"id"`
+	Name        string     `json:"name"`
+	Kind        string     `json:"kind"`
+	CodebookID  int64      `json:"codebook_id"`
+	ProgramKind string     `json:"program_kind"`
+	Target      string     `json:"target"`
+	Handler     string     `json:"handler"`
+	Tags        []string   `json:"tags"`
+	Variables   []Variable `json:"variables"`
+	Desc        string     `json:"desc"`
+	CTime       int64      `json:"ctime"`
+	UTime       int64      `json:"utime"`
 }
 
 type ListRunnersResp struct {

@@ -197,45 +197,6 @@ func (c *MockRunnerRepositoryDeleteCall) DoAndReturn(f func(context.Context, int
 	return c
 }
 
-// FindByCodebookIDAndTag mocks base method.
-func (m *MockRunnerRepository) FindByCodebookIDAndTag(ctx context.Context, codebookID int64, tag string) (domain.Runner, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindByCodebookIDAndTag", ctx, codebookID, tag)
-	ret0, _ := ret[0].(domain.Runner)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FindByCodebookIDAndTag indicates an expected call of FindByCodebookIDAndTag.
-func (mr *MockRunnerRepositoryMockRecorder) FindByCodebookIDAndTag(ctx, codebookID, tag any) *MockRunnerRepositoryFindByCodebookIDAndTagCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByCodebookIDAndTag", reflect.TypeOf((*MockRunnerRepository)(nil).FindByCodebookIDAndTag), ctx, codebookID, tag)
-	return &MockRunnerRepositoryFindByCodebookIDAndTagCall{Call: call}
-}
-
-// MockRunnerRepositoryFindByCodebookIDAndTagCall wrap *gomock.Call
-type MockRunnerRepositoryFindByCodebookIDAndTagCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockRunnerRepositoryFindByCodebookIDAndTagCall) Return(arg0 domain.Runner, arg1 error) *MockRunnerRepositoryFindByCodebookIDAndTagCall {
-	c.Call = c.Call.Return(arg0, arg1)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockRunnerRepositoryFindByCodebookIDAndTagCall) Do(f func(context.Context, int64, string) (domain.Runner, error)) *MockRunnerRepositoryFindByCodebookIDAndTagCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockRunnerRepositoryFindByCodebookIDAndTagCall) DoAndReturn(f func(context.Context, int64, string) (domain.Runner, error)) *MockRunnerRepositoryFindByCodebookIDAndTagCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // FindByID mocks base method.
 func (m *MockRunnerRepository) FindByID(ctx context.Context, id int64) (domain.Runner, error) {
 	m.ctrl.T.Helper()

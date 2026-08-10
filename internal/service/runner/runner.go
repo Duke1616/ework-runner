@@ -27,8 +27,6 @@ type Service interface {
 	Delete(ctx context.Context, id int64) (int64, error)
 	// List 分页获取执行单元列表和总数。
 	List(ctx context.Context, offset, limit int64, keyword, kind string) ([]domain.Runner, int64, error)
-	// FindByCodebookIDAndTag 根据脚本模板 ID 和标签获取执行单元。
-	FindByCodebookIDAndTag(ctx context.Context, codebookID int64, tag string) (domain.Runner, error)
 	// ListByCodebookID 获取绑定指定脚本模板 ID 的全部执行单元。
 	ListByCodebookID(ctx context.Context, codebookID int64) ([]domain.Runner, error)
 	// ListExcludeCodebookID 获取未绑定指定脚本模板 ID 的执行单元列表。
@@ -139,17 +137,6 @@ func (s *service) List(ctx context.Context, offset, limit int64, keyword, kind s
 		return nil, 0, err
 	}
 	return res, total, nil
-}
-
-// FindByCodebookIDAndTag 根据脚本模板 ID 和标签获取执行单元。
-func (s *service) FindByCodebookIDAndTag(ctx context.Context, codebookID int64, tag string) (domain.Runner, error) {
-	if codebookID <= 0 {
-		return domain.Runner{}, fmt.Errorf("%w: codebook_id = %d", errs.ErrInvalidParameter, codebookID)
-	}
-	if tag == "" {
-		return domain.Runner{}, fmt.Errorf("%w: tag is empty", errs.ErrInvalidParameter)
-	}
-	return s.repo.FindByCodebookIDAndTag(ctx, codebookID, tag)
 }
 
 // ListByCodebookID 获取绑定指定脚本模板 ID 的全部执行单元。

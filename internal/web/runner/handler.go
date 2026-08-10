@@ -160,6 +160,7 @@ func (h *Handler) toDomain(req RegisterRunnerReq) domain.Runner {
 		Name:           req.Name,
 		CodebookSecret: req.CodebookSecret,
 		CodebookID:     req.CodebookID,
+		ProgramKind:    domain.ProgramKind(req.ProgramKind),
 		Tags:           req.Tags,
 		Kind:           domain.RunnerKind(req.Kind),
 		Variables:      h.toVariablesDomain(req.Variables),
@@ -183,6 +184,7 @@ func (h *Handler) toUpdateDomain(ctx *ginx.Context, req UpdateRunnerReq) (domain
 		Name:           req.Name,
 		CodebookSecret: req.CodebookSecret,
 		CodebookID:     req.CodebookID,
+		ProgramKind:    domain.ProgramKind(req.ProgramKind),
 		Tags:           req.Tags,
 		Kind:           domain.RunnerKind(req.Kind),
 		Variables:      h.toUpdateVariablesDomain(oldVars, req.Variables),
@@ -231,16 +233,17 @@ func (h *Handler) toListResp(rs []domain.Runner, total int64) ListRunnersResp {
 
 func (h *Handler) toVO(req domain.Runner) RunnerVO {
 	return RunnerVO{
-		ID:         req.ID,
-		Name:       req.Name,
-		Kind:       req.Kind.String(),
-		CodebookID: req.CodebookID,
-		Tags:       req.Tags,
-		Desc:       req.Desc,
-		Target:     req.Target,
-		Handler:    req.Handler,
-		CTime:      req.CTime,
-		UTime:      req.UTime,
+		ID:          req.ID,
+		Name:        req.Name,
+		Kind:        req.Kind.String(),
+		CodebookID:  req.CodebookID,
+		ProgramKind: string(req.ProgramKind),
+		Tags:        req.Tags,
+		Desc:        req.Desc,
+		Target:      req.Target,
+		Handler:     req.Handler,
+		CTime:       req.CTime,
+		UTime:       req.UTime,
 		Variables: slice.Map(req.Variables, func(_ int, src domain.RunnerVariable) Variable {
 			if src.Secret {
 				return Variable{Key: src.Key, Secret: src.Secret}

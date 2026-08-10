@@ -24,15 +24,7 @@ message Runner {
   repeated Variable variables = 11;
   int64 ctime = 12;
   int64 utime = 13;
-}
-
-message FindRunnerByCodebookIdAndTagRequest {
-  int64 codebook_id = 1;
-  string tag = 2;
-}
-
-message FindRunnerByCodebookIdAndTagResponse {
-  Runner runner = 1;
+  string program_kind = 14;
 }
 
 message FindRunnerByIDRequest {
@@ -43,7 +35,15 @@ message FindRunnerByIDResponse {
   Runner runner = 1;
 }
 
+message ListRunnersByCodebookIDRequest {
+  int64 codebook_id = 1;
+}
+
+message ListRunnersByCodebookIDResponse {
+  repeated Runner runners = 1;
+}
+
 service RunnerService {
-  rpc FindRunnerByCodebookIdAndTag(FindRunnerByCodebookIdAndTagRequest) returns (FindRunnerByCodebookIdAndTagResponse);
   rpc FindRunnerByID(FindRunnerByIDRequest) returns (FindRunnerByIDResponse);
+  rpc ListRunnersByCodebookID(ListRunnersByCodebookIDRequest) returns (ListRunnersByCodebookIDResponse);
 }

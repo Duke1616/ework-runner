@@ -2,7 +2,6 @@ package dao
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/Duke1616/etask/internal/domain"
@@ -16,6 +15,7 @@ type Runner struct {
 	TenantID       int64                     `gorm:"column:tenant_id;type:bigint unsigned;not null;default:0;index;comment:'租户ID'"`
 	Name           string                    `gorm:"column:name;type:varchar(128);not null;comment:'执行单元名称'"`
 	CodebookID     int64                     `gorm:"column:codebook_id;type:bigint;index;comment:'关联脚本模板ID'"`
+	ProgramKind    string                    `gorm:"column:program_kind;type:varchar(16);not null;default:INLINE;comment:'程序来源模式(INLINE/PROJECT)'"`
 	CodebookSecret string                    `gorm:"column:codebook_secret;type:varchar(128);comment:'脚本模板认证密钥'"`
 	Kind           string                    `gorm:"column:kind;type:varchar(32);comment:'派发管道协议(KAFKA/GRPC)'"`
 	Target         string                    `gorm:"column:target;type:varchar(128);comment:'派发物理目标(Topic/ServiceName)'"`
@@ -47,8 +47,6 @@ type RunnerDAO interface {
 	List(ctx context.Context, offset, limit int64, keyword, kind string) ([]Runner, error)
 	// Count 统计匹配条件的执行单元总数。
 	Count(ctx context.Context, keyword, kind string) (int64, error)
-	// FindByCodebookIDAndTag 根据脚本模板 ID 和标签查询执行单元。
-	FindByCodebookIDAndTag(ctx context.Context, codebookID int64, tag string) (Runner, error)
 	// ListByCodebookID 查询绑定指定脚本模板 ID 的全部执行单元。
 	ListByCodebookID(ctx context.Context, codebookID int64) ([]Runner, error)
 	// ListExcludeCodebookID 查询未绑定指定脚本模板 ID 的执行单元。
@@ -99,6 +97,7 @@ func (g *GORMRunnerDAO) Update(ctx context.Context, req Runner) (int64, error) {
 		Updates(map[string]any{
 			"name":            req.Name,
 			"codebook_id":     req.CodebookID,
+			"program_kind":    req.ProgramKind,
 			"codebook_secret": req.CodebookSecret,
 			"kind":            req.Kind,
 			"target":          req.Target,
@@ -119,6 +118,7 @@ func (g *GORMRunnerDAO) UpdateWithVariables(ctx context.Context, req Runner, var
 			Updates(map[string]any{
 				"name":            req.Name,
 				"codebook_id":     req.CodebookID,
+				"program_kind":    req.ProgramKind,
 				"codebook_secret": req.CodebookSecret,
 				"kind":            req.Kind,
 				"target":          req.Target,
@@ -188,15 +188,6 @@ func (g *GORMRunnerDAO) Count(ctx context.Context, keyword, kind string) (int64,
 	}
 	err := query.Count(&count).Error
 	return count, err
-}
-
-// FindByCodebookIDAndTag 根据脚本模板 ID 和标签查询执行单元。
-func (g *GORMRunnerDAO) FindByCodebookIDAndTag(ctx context.Context, codebookID int64, tag string) (Runner, error) {
-	var res Runner
-	err := g.db.WithContext(ctx).
-		Where("codebook_id = ? AND JSON_CONTAINS(tags, ?)", codebookID, fmt.Sprintf("%q", tag)).
-		First(&res).Error
-	return res, err
 }
 
 // ListByCodebookID 查询绑定指定脚本模板 ID 的全部执行单元。

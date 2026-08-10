@@ -77,7 +77,7 @@ func TestCreateNormalizesExecutionPoolTarget(t *testing.T) {
 
 func validRunner(kind domain.RunnerKind, target string) domain.Runner {
 	return domain.Runner{
-		Name: "runner", CodebookID: 8, Kind: kind, Target: target,
+		Name: "runner", CodebookID: 8, ProgramKind: domain.ProgramInline, Kind: kind, Target: target,
 		Handler: "shell", Action: domain.RunnerActionRegistered,
 	}
 }

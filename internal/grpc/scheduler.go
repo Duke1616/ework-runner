@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	schedulerv1 "github.com/Duke1616/etask/api/proto/gen/etask/scheduler/v1"
-	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/service/submission"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -26,11 +25,10 @@ func NewSchedulerServer(svc submission.Service) *SchedulerServer {
 func (s *SchedulerServer) RunRunner(ctx context.Context,
 	req *schedulerv1.RunRunnerRequest) (*schedulerv1.RunRunnerResponse, error) {
 	result, err := s.svc.RunRunner(ctx, submission.RunRunnerCommand{
-		RequestID:   req.GetRequestId(),
-		RunnerID:    req.GetRunnerId(),
-		ProgramKind: toDomainProgramKind(req.GetProgramKind()),
-		Params:      req.GetParams(),
-		Variables:   req.GetVariables(),
+		RequestID: req.GetRequestId(),
+		RunnerID:  req.GetRunnerId(),
+		Params:    req.GetParams(),
+		Variables: req.GetVariables(),
 	})
 	if err != nil {
 		switch {
@@ -46,19 +44,6 @@ func (s *SchedulerServer) RunRunner(ctx context.Context,
 		ExecutionId: result.Execution.ID,
 		Created:     result.Created,
 	}, nil
-}
-
-func toDomainProgramKind(kind schedulerv1.ProgramKind) domain.ProgramKind {
-	switch kind {
-	case schedulerv1.ProgramKind_PROGRAM_KIND_UNSPECIFIED:
-		return domain.ProgramInline
-	case schedulerv1.ProgramKind_PROGRAM_KIND_INLINE:
-		return domain.ProgramInline
-	case schedulerv1.ProgramKind_PROGRAM_KIND_PROJECT:
-		return domain.ProgramProject
-	default:
-		return domain.ProgramKind(kind.String())
-	}
 }
 
 func (s *SchedulerServer) TerminateExecution(ctx context.Context,

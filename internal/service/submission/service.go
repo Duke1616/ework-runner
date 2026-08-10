@@ -33,11 +33,10 @@ var (
 
 // RunRunnerCommand 描述外部工作流提交的一次幂等 Runner 执行。
 type RunRunnerCommand struct {
-	RequestID   string
-	RunnerID    int64
-	ProgramKind domain.ProgramKind
-	Params      map[string]string
-	Variables   map[string]string
+	RequestID string
+	RunnerID  int64
+	Params    map[string]string
+	Variables map[string]string
 }
 
 // TerminateExecutionCommand 描述外部工作流对一次 execution 的幂等终止请求。
@@ -93,7 +92,7 @@ func (s *service) RunRunner(ctx context.Context, command RunRunnerCommand) (RunR
 	if runner.Action != domain.RunnerActionRegistered {
 		return RunResult{}, fmt.Errorf("%w: 执行单元未启用", ErrRejected)
 	}
-	program, err := s.resolveProgram(ctx, runner.CodebookID, command.ProgramKind)
+	program, err := s.resolveProgram(ctx, runner.CodebookID, runner.ProgramKind)
 	if err != nil {
 		return RunResult{}, fmt.Errorf("解析工作流程序失败: %w", err)
 	}
@@ -176,9 +175,6 @@ func validateCommand(command RunRunnerCommand) error {
 	}
 	if command.RunnerID <= 0 {
 		return fmt.Errorf("执行单元 ID 非法: %d", command.RunnerID)
-	}
-	if !command.ProgramKind.Valid() {
-		return fmt.Errorf("程序模式非法: %s", command.ProgramKind)
 	}
 	if args := strings.TrimSpace(command.Params["args"]); args != "" && !json.Valid([]byte(args)) {
 		return fmt.Errorf("工作流执行参数必须是合法 JSON")

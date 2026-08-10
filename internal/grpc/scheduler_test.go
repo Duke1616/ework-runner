@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	schedulerv1 "github.com/Duke1616/etask/api/proto/gen/etask/scheduler/v1"
-	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/service/submission"
 	submissionmocks "github.com/Duke1616/etask/internal/service/submission/mocks"
 	"github.com/stretchr/testify/require"
@@ -39,16 +38,6 @@ func TestSchedulerServerMapsSubmissionErrors(t *testing.T) {
 			require.Equal(t, testCase.wantCode, status.Code(err))
 		})
 	}
-}
-
-func TestSchedulerProgramKindMapping(t *testing.T) {
-	require.Equal(t, domain.ProgramInline,
-		toDomainProgramKind(schedulerv1.ProgramKind_PROGRAM_KIND_UNSPECIFIED))
-	require.Equal(t, domain.ProgramInline,
-		toDomainProgramKind(schedulerv1.ProgramKind_PROGRAM_KIND_INLINE))
-	require.Equal(t, domain.ProgramProject,
-		toDomainProgramKind(schedulerv1.ProgramKind_PROGRAM_KIND_PROJECT))
-	require.False(t, toDomainProgramKind(schedulerv1.ProgramKind(99)).Valid())
 }
 
 func fmtError(target error) error { return errors.Join(target, errors.New("detail")) }

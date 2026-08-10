@@ -27,19 +27,6 @@ func NewRunnerServer(svc runnerSvc.Service) *RunnerServer {
 	}
 }
 
-// FindRunnerByCodebookIdAndTag 根据脚本模板 ID 和派发标签获取执行单元。
-func (s *RunnerServer) FindRunnerByCodebookIdAndTag(ctx context.Context, req *runnerv1.FindRunnerByCodebookIdAndTagRequest) (*runnerv1.FindRunnerByCodebookIdAndTagResponse, error) {
-	r, err := s.svc.FindByCodebookIDAndTag(ctx, req.GetCodebookId(), req.GetTag())
-	if err != nil {
-		s.logger.Error("获取执行单元失败",
-			elog.Any("codebookID", req.GetCodebookId()),
-			elog.String("tag", req.GetTag()),
-			elog.FieldErr(err))
-		return nil, status.Errorf(codes.NotFound, "runner not found: %v", err)
-	}
-	return &runnerv1.FindRunnerByCodebookIdAndTagResponse{Runner: s.toProto(r)}, nil
-}
-
 // FindRunnerByID 根据执行单元 ID 获取执行单元。
 func (s *RunnerServer) FindRunnerByID(ctx context.Context, req *runnerv1.FindRunnerByIDRequest) (*runnerv1.FindRunnerByIDResponse, error) {
 	r, err := s.svc.FindByID(ctx, req.GetId())
@@ -52,11 +39,26 @@ func (s *RunnerServer) FindRunnerByID(ctx context.Context, req *runnerv1.FindRun
 	return &runnerv1.FindRunnerByIDResponse{Runner: s.toProto(r)}, nil
 }
 
+// ListRunnersByCodebookID 获取脚本文件下可用的全部执行单元。
+func (s *RunnerServer) ListRunnersByCodebookID(ctx context.Context,
+	req *runnerv1.ListRunnersByCodebookIDRequest) (*runnerv1.ListRunnersByCodebookIDResponse, error) {
+	runners, err := s.svc.ListByCodebookID(ctx, req.GetCodebookId())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list runners by codebook: %v", err)
+	}
+	return &runnerv1.ListRunnersByCodebookIDResponse{
+		Runners: slice.Map(runners, func(_ int, runner domain.Runner) *runnerv1.Runner {
+			return s.toProto(runner)
+		}),
+	}, nil
+}
+
 func (s *RunnerServer) toProto(r domain.Runner) *runnerv1.Runner {
 	return &runnerv1.Runner{
 		Id:             r.ID,
 		Name:           r.Name,
 		CodebookId:     r.CodebookID,
+		ProgramKind:    string(r.ProgramKind),
 		CodebookSecret: r.CodebookSecret,
 		Kind:           r.Kind.String(),
 		Target:         r.Target,

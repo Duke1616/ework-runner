@@ -43,8 +43,6 @@ type RunnerRepository interface {
 	ListByCodebookIDs(ctx context.Context, codebookIDs []int64) ([]domain.Runner, error)
 	// ListByIDs 根据 ID 列表批量查询执行单元。
 	ListByIDs(ctx context.Context, ids []int64) ([]domain.Runner, error)
-	// FindByCodebookIDAndTag 根据脚本模板 ID 和标签加载执行单元。
-	FindByCodebookIDAndTag(ctx context.Context, codebookID int64, tag string) (domain.Runner, error)
 	// ListMergedVariables 获取执行单元变量，私有变量覆盖全局变量。
 	ListMergedVariables(ctx context.Context, runnerID int64) ([]domain.RunnerVariable, error)
 }
@@ -176,20 +174,6 @@ func (repo *runnerRepository) ListByIDs(ctx context.Context, ids []int64) ([]dom
 	}), nil
 }
 
-// FindByCodebookIDAndTag 根据脚本模板 ID 和标签加载执行单元。
-func (repo *runnerRepository) FindByCodebookIDAndTag(ctx context.Context, codebookID int64, tag string) (domain.Runner, error) {
-	r, err := repo.runnerDAO.FindByCodebookIDAndTag(ctx, codebookID, tag)
-	if err != nil {
-		return domain.Runner{}, err
-	}
-	res := repo.toDomain(r)
-	res.Variables, err = repo.ListMergedVariables(ctx, res.ID)
-	if err != nil {
-		return domain.Runner{}, err
-	}
-	return res, nil
-}
-
 func (repo *runnerRepository) fillMergedVariables(ctx context.Context, runners []domain.Runner) ([]domain.Runner, error) {
 	for idx := range runners {
 		variables, err := repo.ListMergedVariables(ctx, runners[idx].ID)
@@ -230,6 +214,7 @@ func (repo *runnerRepository) toEntity(req domain.Runner) dao.Runner {
 		TenantID:       req.TenantID,
 		Name:           req.Name,
 		CodebookID:     req.CodebookID,
+		ProgramKind:    string(req.ProgramKind),
 		CodebookSecret: req.CodebookSecret,
 		Kind:           req.Kind.String(),
 		Target:         req.Target,
@@ -248,6 +233,7 @@ func (repo *runnerRepository) toDomain(req dao.Runner) domain.Runner {
 		TenantID:       req.TenantID,
 		Name:           req.Name,
 		CodebookID:     req.CodebookID,
+		ProgramKind:    domain.ProgramKind(req.ProgramKind),
 		CodebookSecret: req.CodebookSecret,
 		Kind:           domain.RunnerKind(req.Kind),
 		Target:         req.Target,

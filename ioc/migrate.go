@@ -3,6 +3,8 @@ package ioc
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
+	"errors"
 	"fmt"
 	"time"
 
@@ -14,9 +16,12 @@ import (
 )
 
 const (
-	migrationLockName           = "etask_schema_migration"
-	migrationLockTimeoutSeconds = 300
+	migrationLockName          = "etask_schema_migration"
+	migrationLockWaitTimeout   = 5 * time.Minute
+	migrationLockRetryInterval = time.Second
 )
+
+var errMigrationLockTimeout = errors.New("等待数据库迁移锁超时")
 
 // RunMigrations 在应用启动时初始化表并执行待执行的 SQL 迁移。
 // MySQL advisory lock 保证多个实例启动时不会并发修改数据库结构。
@@ -51,18 +56,96 @@ func withMigrationLock(ctx context.Context, sqlDB *sql.DB, migrate func() error)
 	}
 	defer conn.Close()
 
-	var acquired sql.NullInt64
-	err = conn.QueryRowContext(ctx, "SELECT GET_LOCK(?, ?)",
-		migrationLockName, migrationLockTimeoutSeconds).Scan(&acquired)
+	attempts := 0
+	err = waitForMigrationLock(ctx, migrationLockWaitTimeout, migrationLockRetryInterval,
+		func(ctx context.Context) (bool, error) {
+			acquired, acquireErr := tryAcquireMigrationLock(ctx, conn)
+			if acquireErr != nil || acquired {
+				return acquired, acquireErr
+			}
+			attempts++
+			if attempts == 1 || attempts%30 == 0 {
+				logMigrationLockWait(ctx, conn)
+			}
+			return false, nil
+		})
+	if errors.Is(err, errMigrationLockTimeout) {
+		return migrationLockTimeoutError(conn)
+	}
 	if err != nil {
 		return fmt.Errorf("获取数据库迁移锁失败: %w", err)
-	}
-	if !acquired.Valid || acquired.Int64 != 1 {
-		return fmt.Errorf("等待数据库迁移锁超时: %s", migrationLockName)
 	}
 	defer releaseMigrationLock(conn)
 
 	return migrate()
+}
+
+func waitForMigrationLock(ctx context.Context, timeout, retryInterval time.Duration,
+	tryAcquire func(context.Context) (bool, error)) error {
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	ticker := time.NewTicker(retryInterval)
+	defer ticker.Stop()
+
+	for {
+		acquired, err := tryAcquire(ctx)
+		if err != nil {
+			return err
+		}
+		if acquired {
+			return nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+			return errMigrationLockTimeout
+		case <-ticker.C:
+		}
+	}
+}
+
+func tryAcquireMigrationLock(ctx context.Context, conn *sql.Conn) (bool, error) {
+	var acquired sql.NullInt64
+	if err := conn.QueryRowContext(ctx, "SELECT GET_LOCK(?, 0)", migrationLockName).Scan(&acquired); err != nil {
+		return false, err
+	}
+	if !acquired.Valid {
+		return false, fmt.Errorf("GET_LOCK 返回 NULL")
+	}
+	return acquired.Int64 == 1, nil
+}
+
+func logMigrationLockWait(ctx context.Context, conn *sql.Conn) {
+	var owner sql.NullInt64
+	err := conn.QueryRowContext(ctx, "SELECT IS_USED_LOCK(?)", migrationLockName).Scan(&owner)
+	if err != nil {
+		elog.DefaultLogger.Warn("正在等待数据库迁移锁",
+			elog.String("lockName", migrationLockName), elog.FieldErr(err))
+		return
+	}
+	if owner.Valid {
+		elog.DefaultLogger.Warn("正在等待数据库迁移锁",
+			elog.String("lockName", migrationLockName), elog.Int64("ownerConnectionID", owner.Int64))
+		return
+	}
+	elog.DefaultLogger.Warn("正在等待数据库迁移锁",
+		elog.String("lockName", migrationLockName))
+}
+
+func migrationLockTimeoutError(conn *sql.Conn) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var owner sql.NullInt64
+	if err := conn.QueryRowContext(ctx, "SELECT IS_USED_LOCK(?)", migrationLockName).Scan(&owner); err != nil {
+		return fmt.Errorf("%w: %s（查询持锁连接失败: %v）", errMigrationLockTimeout, migrationLockName, err)
+	}
+	if owner.Valid {
+		return fmt.Errorf("%w: %s（持锁连接 ID: %d）", errMigrationLockTimeout, migrationLockName, owner.Int64)
+	}
+	return fmt.Errorf("%w: %s", errMigrationLockTimeout, migrationLockName)
 }
 
 func releaseMigrationLock(conn *sql.Conn) {
@@ -71,6 +154,20 @@ func releaseMigrationLock(conn *sql.Conn) {
 	var released sql.NullInt64
 	if err := conn.QueryRowContext(ctx, "SELECT RELEASE_LOCK(?)", migrationLockName).Scan(&released); err != nil {
 		elog.DefaultLogger.Error("释放数据库迁移锁失败", elog.FieldErr(err))
+		discardConnection(conn)
+		return
+	}
+	if !released.Valid || released.Int64 != 1 {
+		elog.DefaultLogger.Warn("数据库迁移锁未由当前连接持有",
+			elog.String("lockName", migrationLockName))
+	}
+}
+
+// 锁释放失败时不能将底层连接放回连接池，否则 MySQL 命名锁会继续存活。
+func discardConnection(conn *sql.Conn) {
+	err := conn.Raw(func(any) error { return driver.ErrBadConn })
+	if err != nil && !errors.Is(err, driver.ErrBadConn) {
+		elog.DefaultLogger.Error("销毁迁移锁连接失败", elog.FieldErr(err))
 	}
 }
 

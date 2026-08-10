@@ -62,6 +62,7 @@ type Runner struct {
 	TenantID       int64
 	Name           string
 	CodebookID     int64
+	ProgramKind    ProgramKind
 	CodebookSecret string
 	Kind           RunnerKind
 	Target         string // 执行资源池名称；历史 KAFKA 数据可能暂存 Topic，由仓储兼容解析。
@@ -81,6 +82,9 @@ func (r *Runner) Validate() error {
 	}
 	if r.CodebookID <= 0 {
 		return fmt.Errorf("%w: codebook_id = %d", errs.ErrInvalidParameter, r.CodebookID)
+	}
+	if !r.ProgramKind.Valid() {
+		return fmt.Errorf("%w: unsupported program kind %s", errs.ErrInvalidParameter, r.ProgramKind)
 	}
 	if !r.Kind.IsValid() {
 		return fmt.Errorf("%w: unsupported kind %s", errs.ErrInvalidParameter, r.Kind)

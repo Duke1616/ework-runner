@@ -27,17 +27,13 @@ func TestValidateCommand(t *testing.T) {
 		wantErr string
 	}{
 		{name: "合法请求", command: RunRunnerCommand{RequestID: "eflow:1:1", RunnerID: 10,
-			ProgramKind: domain.ProgramInline, Params: map[string]string{"args": `{"ticket_id":1}`}}},
+			Params: map[string]string{"args": `{"ticket_id":1}`}}},
 		{name: "缺少幂等标识", command: RunRunnerCommand{RunnerID: 10}, wantErr: "幂等请求标识不能为空"},
 		{name: "执行单元非法", command: RunRunnerCommand{RequestID: "eflow:1:1"}, wantErr: "执行单元 ID 非法"},
-		{name: "程序模式不能为空", command: RunRunnerCommand{RequestID: "eflow:1:1", RunnerID: 10},
-			wantErr: "程序模式非法"},
 		{name: "参数不是 JSON", command: RunRunnerCommand{RequestID: "eflow:1:1", RunnerID: 10,
-			ProgramKind: domain.ProgramInline, Params: map[string]string{"args": "{"}}, wantErr: "必须是合法 JSON"},
+			Params: map[string]string{"args": "{"}}, wantErr: "必须是合法 JSON"},
 		{name: "空参数使用默认值", command: RunRunnerCommand{RequestID: "eflow:1:1", RunnerID: 10,
-			ProgramKind: domain.ProgramInline, Params: map[string]string{"args": "  "}}},
-		{name: "程序模式非法", command: RunRunnerCommand{RequestID: "eflow:1:1", RunnerID: 10,
-			ProgramKind: "UNKNOWN"}, wantErr: "程序模式非法"},
+			Params: map[string]string{"args": "  "}}},
 	}
 
 	for _, testCase := range testCases {
@@ -101,7 +97,8 @@ func TestRunRunnerDoesNotInvokeExecutionWithEarlyCancellationIntent(t *testing.T
 	executionInvoker := invokermocks.NewMockInvoker(ctrl)
 	terminations := terminationmocks.NewMockService(ctrl)
 	runner := domain.Runner{
-		ID: 10, Name: "script", CodebookID: 20, Kind: domain.RunnerKindGRPC, Target: "executor",
+		ID: 10, Name: "script", CodebookID: 20, ProgramKind: domain.ProgramInline,
+		Kind: domain.RunnerKindGRPC, Target: "executor",
 		Handler: "shell", Action: domain.RunnerActionRegistered,
 	}
 	execution := domain.TaskExecution{
@@ -143,7 +140,7 @@ func TestRunRunnerDoesNotInvokeExecutionWithEarlyCancellationIntent(t *testing.T
 	service := NewService(runners, programs, executions, routes, executionInvoker, terminations)
 
 	result, err := service.RunRunner(context.Background(), RunRunnerCommand{
-		RequestID: "eflow:1:1", RunnerID: 10, ProgramKind: domain.ProgramInline,
+		RequestID: "eflow:1:1", RunnerID: 10,
 	})
 
 	require.NoError(t, err)
