@@ -12,79 +12,115 @@ type executionRequest struct {
 	input   Input
 }
 
+type resolvedParameters struct {
+	semantic map[executor.ParameterRole]string
+	extras   map[string]string
+}
+
 func resolveRequest(task *executor.Context, adapterName string,
 	parameters []executor.Parameter, config Config) (executionRequest, error) {
 	program := task.Program()
-	if program == nil {
-		return executionRequest{}, fmt.Errorf("[%s] 程序来源不能为空", adapterName)
+	if err := validateProgram(program, adapterName, config); err != nil {
+		return executionRequest{}, err
 	}
-	params := make(map[string]string, len(parameters))
-	args := ""
-	argsResolved := false
-	variables := ""
-	variablesResolved := false
-	for _, parameter := range parameters {
-		role := parameterRole(parameter)
-		if role == executor.ParameterRoleArgs && argsResolved {
-			return executionRequest{}, fmt.Errorf("[%s] 只能声明一个 args 语义参数", adapterName)
-		}
-		if role == executor.ParameterRoleVariables && variablesResolved {
-			return executionRequest{}, fmt.Errorf("[%s] 只能声明一个 variables 语义参数", adapterName)
-		}
-		value := ""
-		var err error
-		if role == executor.ParameterRoleVariables && task.HasVariables() && !task.HasParam(parameter.Key) {
-			encoded, encodeErr := json.Marshal(task.Variables())
-			if encodeErr != nil {
-				return executionRequest{}, fmt.Errorf("序列化执行变量失败: %w", encodeErr)
-			}
-			value = string(encoded)
-		} else {
-			value, err = task.GetResolvedParam(parameter.Key)
-			if err != nil {
-				return executionRequest{}, fmt.Errorf("解析参数 %s 失败: %w", parameter.Key, err)
-			}
-		}
-		limit := config.MaxArgsSize
-		if role == executor.ParameterRoleVariables {
-			limit = config.MaxVariablesSize
-		}
-		if int64(len(value)) > limit {
-			return executionRequest{}, fmt.Errorf("参数 %s 大小超过限制: %d > %d 字节",
-				parameter.Key, len(value), limit)
-		}
-		switch role {
-		case executor.ParameterRoleArgs:
-			args, argsResolved = value, true
-			continue
-		case executor.ParameterRoleVariables:
-			variables, variablesResolved = value, true
-			continue
-		}
-		params[parameter.Key] = value
+	resolved, err := resolveParameters(task, adapterName, parameters, config)
+	if err != nil {
+		return executionRequest{}, err
 	}
-	if program.Kind == executor.ProgramKindInline {
-		if int64(len(program.Inline.Code)) > config.MaxCodeSize {
-			return executionRequest{}, fmt.Errorf("代码大小超过限制: %d > %d 字节",
-				len(program.Inline.Code), config.MaxCodeSize)
-		}
-	}
-	return executionRequest{program: program, input: Input{
-		Args: args, Variables: variables, Params: params,
-	}}, nil
+	return executionRequest{program: program, input: resolved.input()}, nil
 }
 
-func parameterRole(parameter executor.Parameter) executor.ParameterRole {
+func validateProgram(program *executor.Program, adapterName string, config Config) error {
+	if program == nil {
+		return fmt.Errorf("[%s] 程序来源不能为空", adapterName)
+	}
+	if program.Kind == executor.ProgramKindInline && int64(len(program.Inline.Code)) > config.MaxCodeSize {
+		return fmt.Errorf("代码大小超过限制: %d > %d 字节", len(program.Inline.Code), config.MaxCodeSize)
+	}
+	return nil
+}
+
+func resolveParameters(task *executor.Context, adapterName string,
+	parameters []executor.Parameter, config Config) (resolvedParameters, error) {
+	resolved := resolvedParameters{
+		semantic: make(map[executor.ParameterRole]string),
+		extras:   make(map[string]string, len(parameters)),
+	}
+	for _, parameter := range parameters {
+		role, err := parameterRole(parameter)
+		if err != nil {
+			return resolvedParameters{}, err
+		}
+		if role != "" {
+			if _, exists := resolved.semantic[role]; exists {
+				return resolvedParameters{}, fmt.Errorf("[%s] 只能声明一个 %s 语义参数", adapterName, role)
+			}
+		}
+		value, err := resolveParameterValue(task, parameter, role)
+		if err != nil {
+			return resolvedParameters{}, err
+		}
+		limit := parameterSizeLimit(role, config)
+		if int64(len(value)) > limit {
+			return resolvedParameters{}, fmt.Errorf("参数 %s 大小超过限制: %d > %d 字节",
+				parameter.Key, len(value), limit)
+		}
+		if role != "" {
+			resolved.semantic[role] = value
+		} else {
+			resolved.extras[parameter.Key] = value
+		}
+	}
+	return resolved, nil
+}
+
+func resolveParameterValue(task *executor.Context, parameter executor.Parameter,
+	role executor.ParameterRole) (string, error) {
+	if role == executor.ParameterRoleVariables && task.HasVariables() && !task.HasParam(parameter.Key) {
+		encoded, err := json.Marshal(task.Variables())
+		if err != nil {
+			return "", fmt.Errorf("序列化执行变量失败: %w", err)
+		}
+		return string(encoded), nil
+	}
+	value, err := task.GetResolvedParam(parameter.Key)
+	if err != nil {
+		return "", fmt.Errorf("解析参数 %s 失败: %w", parameter.Key, err)
+	}
+	return value, nil
+}
+
+func parameterSizeLimit(role executor.ParameterRole, config Config) int64 {
+	if role == executor.ParameterRoleVariables {
+		return config.MaxVariablesSize
+	}
+	return config.MaxArgsSize
+}
+
+func (r resolvedParameters) input() Input {
+	return Input{
+		Args:      r.semantic[executor.ParameterRoleArgs],
+		Variables: r.semantic[executor.ParameterRoleVariables],
+		Params:    r.extras,
+	}
+}
+
+func parameterRole(parameter executor.Parameter) (executor.ParameterRole, error) {
 	if parameter.Role != "" {
-		return parameter.Role
+		switch parameter.Role {
+		case executor.ParameterRoleArgs, executor.ParameterRoleVariables:
+			return parameter.Role, nil
+		default:
+			return "", fmt.Errorf("参数 %s 声明了不支持的语义角色: %s", parameter.Key, parameter.Role)
+		}
 	}
 	// 固定 Key 仅用于兼容尚未声明 Role 的旧版通用 Handler 元数据。
 	switch executor.ParameterRole(parameter.Key) {
 	case executor.ParameterRoleArgs:
-		return executor.ParameterRoleArgs
+		return executor.ParameterRoleArgs, nil
 	case executor.ParameterRoleVariables:
-		return executor.ParameterRoleVariables
+		return executor.ParameterRoleVariables, nil
 	default:
-		return ""
+		return "", nil
 	}
 }
