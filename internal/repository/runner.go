@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/Duke1616/etask/internal/domain"
@@ -28,13 +29,13 @@ type RunnerRepository interface {
 	// FindByID 根据主键 ID 加载执行单元。
 	FindByID(ctx context.Context, id int64) (domain.Runner, error)
 	// FindForExecution 加载执行单元及其全局和私有有效变量。
-	FindForExecution(ctx context.Context, id int64) (domain.Runner, error)
+	FindForExecution(ctx context.Context, id int64) (domain.RunnerExecutionSpec, error)
 	// List 分页查询执行单元。
 	List(ctx context.Context, offset, limit int64, keyword, kind string) ([]domain.Runner, error)
 	// Count 统计匹配条件的执行单元总数。
 	Count(ctx context.Context, keyword, kind string) (int64, error)
-	// ListByCodebookID 查询绑定指定脚本模板 ID 的全部执行单元。
-	ListByCodebookID(ctx context.Context, codebookID int64) ([]domain.Runner, error)
+	// ListByCodebookID 查询绑定指定脚本模板 ID 的执行单元及其有效变量。
+	ListByCodebookID(ctx context.Context, codebookID int64) ([]domain.RunnerExecutionSpec, error)
 	// ListExcludeCodebookID 查询未绑定指定脚本模板 ID 的执行单元。
 	ListExcludeCodebookID(ctx context.Context, offset, limit int64, codebookID int64, keyword, kind string) ([]domain.Runner, error)
 	// CountExcludeCodebookID 统计未绑定指定脚本模板 ID 的执行单元数量。
@@ -95,17 +96,16 @@ func (repo *runnerRepository) FindByID(ctx context.Context, id int64) (domain.Ru
 	return res, nil
 }
 
-func (repo *runnerRepository) FindForExecution(ctx context.Context, id int64) (domain.Runner, error) {
+func (repo *runnerRepository) FindForExecution(ctx context.Context, id int64) (domain.RunnerExecutionSpec, error) {
 	r, err := repo.runnerDAO.FindByID(ctx, id)
 	if err != nil {
-		return domain.Runner{}, err
+		return domain.RunnerExecutionSpec{}, err
 	}
-	res := repo.toDomain(r)
-	res.Variables, err = repo.ListMergedVariables(ctx, id)
+	variables, err := repo.ListMergedVariables(ctx, id)
 	if err != nil {
-		return domain.Runner{}, err
+		return domain.RunnerExecutionSpec{}, err
 	}
-	return res, nil
+	return domain.RunnerExecutionSpec{Runner: repo.toDomain(r), Variables: variables}, nil
 }
 
 // List 分页查询执行单元。
@@ -125,15 +125,22 @@ func (repo *runnerRepository) Count(ctx context.Context, keyword, kind string) (
 }
 
 // ListByCodebookID 查询绑定指定脚本模板 ID 的全部执行单元。
-func (repo *runnerRepository) ListByCodebookID(ctx context.Context, codebookID int64) ([]domain.Runner, error) {
+func (repo *runnerRepository) ListByCodebookID(ctx context.Context, codebookID int64) ([]domain.RunnerExecutionSpec, error) {
 	rs, err := repo.runnerDAO.ListByCodebookID(ctx, codebookID)
 	if err != nil {
 		return nil, err
 	}
-	runners := slice.Map(rs, func(_ int, src dao.Runner) domain.Runner {
-		return repo.toDomain(src)
-	})
-	return repo.fillMergedVariables(ctx, runners)
+	result := make([]domain.RunnerExecutionSpec, 0, len(rs))
+	for _, src := range rs {
+		variables, err := repo.ListMergedVariables(ctx, src.ID)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, domain.RunnerExecutionSpec{
+			Runner: repo.toDomain(src), Variables: variables,
+		})
+	}
+	return result, nil
 }
 
 // ListExcludeCodebookID 查询未绑定指定脚本模板 ID 的执行单元。
@@ -174,17 +181,6 @@ func (repo *runnerRepository) ListByIDs(ctx context.Context, ids []int64) ([]dom
 	}), nil
 }
 
-func (repo *runnerRepository) fillMergedVariables(ctx context.Context, runners []domain.Runner) ([]domain.Runner, error) {
-	for idx := range runners {
-		variables, err := repo.ListMergedVariables(ctx, runners[idx].ID)
-		if err != nil {
-			return nil, err
-		}
-		runners[idx].Variables = variables
-	}
-	return runners, nil
-}
-
 func (repo *runnerRepository) ListMergedVariables(ctx context.Context, runnerID int64) ([]domain.RunnerVariable, error) {
 	variables, err := repo.variableDAO.ListGlobalAndRunner(ctx, runnerID)
 	if err != nil {
@@ -210,39 +206,41 @@ func mergeVariablesByKey(variables []dao.Variable) []dao.Variable {
 
 func (repo *runnerRepository) toEntity(req domain.Runner) dao.Runner {
 	return dao.Runner{
-		ID:             req.ID,
-		TenantID:       req.TenantID,
-		Name:           req.Name,
-		CodebookID:     req.CodebookID,
-		ProgramKind:    string(req.ProgramKind),
-		CodebookSecret: req.CodebookSecret,
-		Kind:           req.Kind.String(),
-		Target:         req.Target,
-		Handler:        req.Handler,
-		Tags:           sqlx.JSONColumn[[]string]{Val: req.Tags, Valid: true},
-		Action:         req.Action.Uint8(),
-		Desc:           req.Desc,
-		CTime:          req.CTime,
-		UTime:          req.UTime,
+		ID:                req.ID,
+		TenantID:          req.TenantID,
+		Name:              req.Name,
+		CodebookID:        req.CodebookID,
+		ProgramKind:       string(req.ProgramKind),
+		CodebookSecret:    req.CodebookSecret,
+		Kind:              req.Kind.String(),
+		Target:            req.Target,
+		Handler:           req.Handler,
+		Tags:              sqlx.JSONColumn[[]string]{Val: req.Tags, Valid: true},
+		Action:            req.Action.Uint8(),
+		Desc:              req.Desc,
+		ParameterDefaults: sqlx.JSONColumn[map[string]json.RawMessage]{Val: req.ParameterDefaults, Valid: req.ParameterDefaults != nil},
+		CTime:             req.CTime,
+		UTime:             req.UTime,
 	}
 }
 
 func (repo *runnerRepository) toDomain(req dao.Runner) domain.Runner {
 	r := domain.Runner{
-		ID:             req.ID,
-		TenantID:       req.TenantID,
-		Name:           req.Name,
-		CodebookID:     req.CodebookID,
-		ProgramKind:    domain.ProgramKind(req.ProgramKind),
-		CodebookSecret: req.CodebookSecret,
-		Kind:           domain.RunnerKind(req.Kind),
-		Target:         req.Target,
-		Handler:        req.Handler,
-		Tags:           req.Tags.Val,
-		Action:         domain.RunnerAction(req.Action),
-		Desc:           req.Desc,
-		CTime:          req.CTime,
-		UTime:          req.UTime,
+		ID:                req.ID,
+		TenantID:          req.TenantID,
+		Name:              req.Name,
+		CodebookID:        req.CodebookID,
+		ProgramKind:       domain.ProgramKind(req.ProgramKind),
+		CodebookSecret:    req.CodebookSecret,
+		Kind:              domain.RunnerKind(req.Kind),
+		Target:            req.Target,
+		Handler:           req.Handler,
+		Tags:              req.Tags.Val,
+		Action:            domain.RunnerAction(req.Action),
+		Desc:              req.Desc,
+		ParameterDefaults: req.ParameterDefaults.Val,
+		CTime:             req.CTime,
+		UTime:             req.UTime,
 	}
 	if req.Kind == "" {
 		r.Kind = domain.RunnerKindKafka

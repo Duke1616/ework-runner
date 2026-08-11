@@ -49,6 +49,7 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 		Handle(ginx.W(h.Detail)),
 	)
 	g.POST("/update", h.Capability("更新执行单元", "edit").
+		Needs("task:runner:get").
 		Handle(ginx.B[UpdateRunnerReq](h.Update)),
 	)
 	g.DELETE("/delete/:id", h.Capability("删除执行单元", "delete").
@@ -137,7 +138,7 @@ func (h *Handler) ListByCodebookID(ctx *ginx.Context) (ginx.Result, error) {
 	if err != nil {
 		return h.translateError(err), err
 	}
-	return ginx.Result{Msg: "success", Data: h.toListResp(rs, int64(len(rs)))}, nil
+	return ginx.Result{Msg: "success", Data: h.toExecutionListResp(rs)}, nil
 }
 
 func (h *Handler) ListExcludeCodebookID(ctx *ginx.Context, req ListExcludeCodebookIDReq) (ginx.Result, error) {
@@ -157,17 +158,18 @@ func (h *Handler) translateError(err error) ginx.Result {
 
 func (h *Handler) toDomain(req RegisterRunnerReq) domain.Runner {
 	return domain.Runner{
-		Name:           req.Name,
-		CodebookSecret: req.CodebookSecret,
-		CodebookID:     req.CodebookID,
-		ProgramKind:    domain.ProgramKind(req.ProgramKind),
-		Tags:           req.Tags,
-		Kind:           domain.RunnerKind(req.Kind),
-		Variables:      h.toVariablesDomain(req.Variables),
-		Action:         domain.RunnerActionRegistered,
-		Target:         req.Target,
-		Handler:        req.Handler,
-		Desc:           req.Desc,
+		Name:              req.Name,
+		CodebookSecret:    req.CodebookSecret,
+		CodebookID:        req.CodebookID,
+		ProgramKind:       domain.ProgramKind(req.ProgramKind),
+		Tags:              req.Tags,
+		Kind:              domain.RunnerKind(req.Kind),
+		Variables:         h.toVariablesDomain(req.Variables),
+		ParameterDefaults: req.ParameterDefaults,
+		Action:            domain.RunnerActionRegistered,
+		Target:            req.Target,
+		Handler:           req.Handler,
+		Desc:              req.Desc,
 	}
 }
 
@@ -180,18 +182,19 @@ func (h *Handler) toUpdateDomain(ctx *ginx.Context, req UpdateRunnerReq) (domain
 		return element.Key
 	})
 	return domain.Runner{
-		ID:             req.ID,
-		Name:           req.Name,
-		CodebookSecret: req.CodebookSecret,
-		CodebookID:     req.CodebookID,
-		ProgramKind:    domain.ProgramKind(req.ProgramKind),
-		Tags:           req.Tags,
-		Kind:           domain.RunnerKind(req.Kind),
-		Variables:      h.toUpdateVariablesDomain(oldVars, req.Variables),
-		Action:         domain.RunnerActionRegistered,
-		Target:         req.Target,
-		Handler:        req.Handler,
-		Desc:           req.Desc,
+		ID:                req.ID,
+		Name:              req.Name,
+		CodebookSecret:    req.CodebookSecret,
+		CodebookID:        req.CodebookID,
+		ProgramKind:       domain.ProgramKind(req.ProgramKind),
+		Tags:              req.Tags,
+		Kind:              domain.RunnerKind(req.Kind),
+		Variables:         h.toUpdateVariablesDomain(oldVars, req.Variables),
+		ParameterDefaults: req.ParameterDefaults,
+		Action:            domain.RunnerActionRegistered,
+		Target:            req.Target,
+		Handler:           req.Handler,
+		Desc:              req.Desc,
 	}, nil
 }
 
@@ -231,24 +234,40 @@ func (h *Handler) toListResp(rs []domain.Runner, total int64) ListRunnersResp {
 	}
 }
 
-func (h *Handler) toVO(req domain.Runner) RunnerVO {
-	return RunnerVO{
-		ID:          req.ID,
-		Name:        req.Name,
-		Kind:        req.Kind.String(),
-		CodebookID:  req.CodebookID,
-		ProgramKind: string(req.ProgramKind),
-		Tags:        req.Tags,
-		Desc:        req.Desc,
-		Target:      req.Target,
-		Handler:     req.Handler,
-		CTime:       req.CTime,
-		UTime:       req.UTime,
-		Variables: slice.Map(req.Variables, func(_ int, src domain.RunnerVariable) Variable {
-			if src.Secret {
-				return Variable{Key: src.Key, Secret: src.Secret}
-			}
-			return Variable{Key: src.Key, Secret: src.Secret, Value: src.Value}
+func (h *Handler) toExecutionListResp(specs []domain.RunnerExecutionSpec) ListRunnersResp {
+	return ListRunnersResp{
+		Total: int64(len(specs)),
+		Runners: slice.Map(specs, func(_ int, spec domain.RunnerExecutionSpec) RunnerVO {
+			result := h.toVO(spec.Runner)
+			result.Variables = h.toVariablesVO(spec.Variables)
+			return result
 		}),
 	}
+}
+
+func (h *Handler) toVO(req domain.Runner) RunnerVO {
+	return RunnerVO{
+		ID:                req.ID,
+		Name:              req.Name,
+		Kind:              req.Kind.String(),
+		CodebookID:        req.CodebookID,
+		ProgramKind:       string(req.ProgramKind),
+		Tags:              req.Tags,
+		Desc:              req.Desc,
+		Target:            req.Target,
+		Handler:           req.Handler,
+		CTime:             req.CTime,
+		UTime:             req.UTime,
+		Variables:         h.toVariablesVO(req.Variables),
+		ParameterDefaults: req.ParameterDefaults,
+	}
+}
+
+func (h *Handler) toVariablesVO(variables []domain.RunnerVariable) []Variable {
+	return slice.Map(variables, func(_ int, src domain.RunnerVariable) Variable {
+		if src.Secret {
+			return Variable{Key: src.Key, Secret: src.Secret}
+		}
+		return Variable{Key: src.Key, Secret: src.Secret, Value: src.Value}
+	})
 }

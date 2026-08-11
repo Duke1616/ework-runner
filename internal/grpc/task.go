@@ -68,7 +68,7 @@ func (s *TaskServer) CreateTask(ctx context.Context, req *taskv1.CreateTaskReque
 
 // toDomainTask 将 protobuf CreateTaskRequest 转换为 domain.Task
 func (s *TaskServer) toDomainTask(bizID int64, req *taskv1.CreateTaskRequest) domain.Task {
-	return domain.Task{
+	task := domain.Task{
 		BizID:               bizID,
 		Name:                req.GetName(),
 		Type:                s.toDomainTaskType(req.GetType()),
@@ -78,24 +78,32 @@ func (s *TaskServer) toDomainTask(bizID int64, req *taskv1.CreateTaskRequest) do
 		ExecMode:            domain.ExecModeFromProto(req.GetExecMode()),
 		Metadata:            req.GetMetadata(),
 		Program:             s.toDomainProgramSpec(req.GetProgram()),
-		GrpcConfig: &domain.GrpcConfig{
+		RunnerID:            req.GetRunnerId(),
+		Status:              domain.TaskStatusActive,
+		Version:             1,
+	}
+	if req.GrpcConfig != nil {
+		task.GrpcConfig = &domain.GrpcConfig{
 			ServiceName: req.GrpcConfig.GetServiceName(),
 			HandlerName: req.GrpcConfig.GetHandlerName(),
 			Params:      req.GrpcConfig.GetParams(),
-		},
-		HTTPConfig: &domain.HTTPConfig{
+		}
+	}
+	if req.HttpConfig != nil {
+		task.HTTPConfig = &domain.HTTPConfig{
 			Endpoint: req.HttpConfig.GetEndpoint(),
 			Headers:  req.HttpConfig.GetHeaders(),
 			Params:   req.HttpConfig.GetParams(),
-		},
-		RetryConfig: &domain.RetryConfig{
+		}
+	}
+	if req.RetryConfig != nil {
+		task.RetryConfig = &domain.RetryConfig{
 			MaxRetries:      req.RetryConfig.GetMaxRetries(),
 			InitialInterval: req.RetryConfig.GetInitialInterval(),
 			MaxInterval:     req.RetryConfig.GetMaxInterval(),
-		},
-		Status:  domain.TaskStatusActive,
-		Version: 1,
+		}
 	}
+	return task
 }
 
 // toDomainTaskType 将 protobuf TaskType 转换为 domain.TaskType
@@ -184,6 +192,7 @@ func (s *TaskServer) toProtoTask(t domain.Task) *taskv1.Task {
 		ExecMode:            t.ExecMode.ToProto(),
 		Metadata:            t.Metadata,
 		Program:             s.toProtoProgramSpec(t.Program),
+		RunnerId:            t.RunnerID,
 		GrpcConfig:          s.toProtoGrpcConfig(t.GrpcConfig),
 		HttpConfig:          s.toProtoHTTPConfig(t.HTTPConfig),
 		RetryConfig:         s.toProtoRetryConfig(t.RetryConfig),

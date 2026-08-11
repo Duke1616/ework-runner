@@ -1,30 +1,34 @@
 package runner
 
+import "encoding/json"
+
 type RegisterRunnerReq struct {
-	Name           string     `json:"name"`
-	CodebookID     int64      `json:"codebook_id"`
-	ProgramKind    string     `json:"program_kind"`
-	CodebookSecret string     `json:"codebook_secret"`
-	Kind           string     `json:"kind"`
-	Target         string     `json:"target"`
-	Handler        string     `json:"handler"`
-	Tags           []string   `json:"tags"`
-	Desc           string     `json:"desc"`
-	Variables      []Variable `json:"variables"`
+	Name              string                     `json:"name"`
+	CodebookID        int64                      `json:"codebook_id"`
+	ProgramKind       string                     `json:"program_kind"`
+	CodebookSecret    string                     `json:"codebook_secret"`
+	Kind              string                     `json:"kind"`
+	Target            string                     `json:"target"`
+	Handler           string                     `json:"handler"`
+	Tags              []string                   `json:"tags"`
+	Desc              string                     `json:"desc"`
+	ParameterDefaults map[string]json.RawMessage `json:"parameter_defaults"`
+	Variables         []Variable                 `json:"variables"`
 }
 
 type UpdateRunnerReq struct {
-	ID             int64      `json:"id"`
-	Name           string     `json:"name"`
-	CodebookID     int64      `json:"codebook_id"`
-	ProgramKind    string     `json:"program_kind"`
-	CodebookSecret string     `json:"codebook_secret"`
-	Kind           string     `json:"kind"`
-	Target         string     `json:"target"`
-	Handler        string     `json:"handler"`
-	Tags           []string   `json:"tags"`
-	Desc           string     `json:"desc"`
-	Variables      []Variable `json:"variables"`
+	ID                int64                      `json:"id"`
+	Name              string                     `json:"name"`
+	CodebookID        int64                      `json:"codebook_id"`
+	ProgramKind       string                     `json:"program_kind"`
+	CodebookSecret    string                     `json:"codebook_secret"`
+	Kind              string                     `json:"kind"`
+	Target            string                     `json:"target"`
+	Handler           string                     `json:"handler"`
+	Tags              []string                   `json:"tags"`
+	Desc              string                     `json:"desc"`
+	ParameterDefaults map[string]json.RawMessage `json:"parameter_defaults"`
+	Variables         []Variable                 `json:"variables"`
 }
 
 type ListRunnerByIDsReq struct {
@@ -56,18 +60,19 @@ type ListExcludeCodebookIDReq struct {
 }
 
 type RunnerVO struct {
-	ID          int64      `json:"id"`
-	Name        string     `json:"name"`
-	Kind        string     `json:"kind"`
-	CodebookID  int64      `json:"codebook_id"`
-	ProgramKind string     `json:"program_kind"`
-	Target      string     `json:"target"`
-	Handler     string     `json:"handler"`
-	Tags        []string   `json:"tags"`
-	Variables   []Variable `json:"variables"`
-	Desc        string     `json:"desc"`
-	CTime       int64      `json:"ctime"`
-	UTime       int64      `json:"utime"`
+	ID                int64                      `json:"id"`
+	Name              string                     `json:"name"`
+	Kind              string                     `json:"kind"`
+	CodebookID        int64                      `json:"codebook_id"`
+	ProgramKind       string                     `json:"program_kind"`
+	Target            string                     `json:"target"`
+	Handler           string                     `json:"handler"`
+	Tags              []string                   `json:"tags"`
+	Variables         []Variable                 `json:"variables"`
+	ParameterDefaults map[string]json.RawMessage `json:"parameter_defaults"`
+	Desc              string                     `json:"desc"`
+	CTime             int64                      `json:"ctime"`
+	UTime             int64                      `json:"utime"`
 }
 
 type ListRunnersResp struct {

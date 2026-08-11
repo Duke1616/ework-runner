@@ -71,7 +71,7 @@ func (a *Adapter) Metadata() []executor.Parameter {
 		ansibleParameter("limit", "执行范围", "", "input", "例如 web:&staging", nil),
 		ansibleParameter("tags", "执行标签", "", "input", "例如 deploy,restart", nil),
 		{
-			Key: "vars", Desc: "剧本变量", Default: "[]",
+			Key: "vars", Role: executor.ParameterRoleVariables, Desc: "剧本变量", Default: "[]",
 			Bindings: map[string]executor.Binding{
 				"manual": &executor.BindingOption{
 					Label: "手动配置", Placeholder: `[{"key":"environment","value":"staging","secret":false}]`,
@@ -112,7 +112,12 @@ func ansibleParameter(key, desc, defaultValue, component, placeholder string,
 // Prepare 创建受控输入文件并构造 ansible-playbook 命令。
 func (a *Adapter) Prepare(ctx context.Context, workspace engine.Workspace,
 	input engine.Input) (engine.PreparedCommand, error) {
-	variables, err := buildExtraVars(input.Params["vars"])
+	variablesInput := input.Variables
+	// 兼容旧执行快照；新执行通过统一变量字段传入。
+	if strings.TrimSpace(variablesInput) == "" {
+		variablesInput = input.Params["vars"]
+	}
+	variables, err := buildExtraVars(variablesInput)
 	if err != nil {
 		return engine.PreparedCommand{}, err
 	}

@@ -8,9 +8,23 @@ type Variable struct {
 	Secret bool   `json:"secret"`
 }
 
+// VariableSet 表示一次执行提供的完整变量快照。
+type VariableSet struct {
+	Items []Variable `json:"items"`
+}
+
+// ParameterRole 描述参数在执行协议中的语义用途。
+type ParameterRole string
+
+const (
+	// ParameterRoleVariables 表示参数承载统一变量集合。
+	ParameterRoleVariables ParameterRole = "variables"
+)
+
 // Parameter 描述任务处理器支持的一个参数。
 type Parameter struct {
 	Key      string             `json:"key"`
+	Role     ParameterRole      `json:"role,omitempty"`
 	Desc     string             `json:"desc"`
 	Secret   bool               `json:"secret"`
 	Required bool               `json:"required"`

@@ -111,9 +111,10 @@ func (s *AgentServer) PullTask(ctx context.Context, req *executorv1.PullTaskRequ
 					// 在 PULL (拉取) 模式下，因为 Agent 边缘节点的长轮询请求是系统级无租户背景发起的，
 					// gRPC 链路请求头中无法携带租户 Metadata。因此必须将任务所属的 TenantID
 					// 显式塞入 proto Payload 消息体中下发，供 Agent 侧反向提取并重建租户 context 树。
-					TenantId:  exec.TenantID,
-					Artifacts: artifacts,
-					Program:   program,
+					TenantId:    exec.TenantID,
+					Artifacts:   artifacts,
+					Program:     program,
+					VariableSet: exec.Variables.ToProto(),
 				},
 			}, nil
 		}

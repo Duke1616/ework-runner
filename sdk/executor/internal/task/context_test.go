@@ -102,6 +102,25 @@ func TestContextReportProgress(t *testing.T) {
 	require.Equal(t, int64(10), reporter.task.ExecutionID)
 }
 
+func TestContextCopiesVariableSet(t *testing.T) {
+	input := &VariableSet{Items: []Variable{{Key: "TOKEN", Value: "original", Secret: true}}}
+	ctx := NewContext(ContextOptions{Variables: input, ExecutionLogger: &executionLoggerStub{}})
+	input.Items[0].Value = "changed"
+
+	variables := ctx.Variables()
+	require.True(t, ctx.HasVariables())
+	require.Equal(t, "original", variables[0].Value)
+	variables[0].Value = "changed again"
+	require.Equal(t, "original", ctx.Variables()[0].Value)
+
+	empty := NewContext(ContextOptions{
+		Variables: &VariableSet{Items: []Variable{}}, ExecutionLogger: &executionLoggerStub{},
+	})
+	require.True(t, empty.HasVariables())
+	require.NotNil(t, empty.Variables())
+	require.Empty(t, empty.Variables())
+}
+
 func TestContextResultRejectsUnsupportedValue(t *testing.T) {
 	ctx := NewContext(ContextOptions{ExecutionLogger: &executionLoggerStub{}})
 	ctx.SetResult("invalid", func() {})
@@ -113,7 +132,7 @@ func TestSecretMasksIncludesAnsibleVars(t *testing.T) {
 	masks := secretMasks(map[string]string{
 		"variables": `[{"key":"TOKEN","value":"shell-secret","secret":true}]`,
 		"vars":      `[{"key":"API_KEY","value":"ansible-secret","secret":true}]`,
-	})
+	}, nil)
 	require.ElementsMatch(t, []string{"shell-secret", "ansible-secret"}, masks)
 }
 

@@ -653,6 +653,7 @@ type Task struct {
 	ExecMode            ExecMode               `protobuf:"varint,16,opt,name=exec_mode,json=execMode,proto3,enum=etask.task.v1.ExecMode" json:"exec_mode,omitempty"`                                                                // 执行模式 (PUSH 或 PULL)
 	Metadata            map[string]string      `protobuf:"bytes,17,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`                                   // 任务参数元数据(存储绑定关系等)
 	Program             *ProgramSpec           `protobuf:"bytes,18,opt,name=program,proto3" json:"program,omitempty"`                                                                                                               // 用户声明的程序来源
+	RunnerId            int64                  `protobuf:"varint,19,opt,name=runner_id,json=runnerId,proto3" json:"runner_id,omitempty"`                                                                                            // 可选的执行单元引用
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -813,6 +814,13 @@ func (x *Task) GetProgram() *ProgramSpec {
 	return nil
 }
 
+func (x *Task) GetRunnerId() int64 {
+	if x != nil {
+		return x.RunnerId
+	}
+	return 0
+}
+
 // CreateTaskRequest 创建任务请求
 type CreateTaskRequest struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
@@ -827,6 +835,7 @@ type CreateTaskRequest struct {
 	ExecMode            ExecMode               `protobuf:"varint,9,opt,name=exec_mode,json=execMode,proto3,enum=etask.task.v1.ExecMode" json:"exec_mode,omitempty"`                                                                // 执行模式
 	Metadata            map[string]string      `protobuf:"bytes,10,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`                                  // 任务参数元数据
 	Program             *ProgramSpec           `protobuf:"bytes,11,opt,name=program,proto3" json:"program,omitempty"`                                                                                                              // 用户声明的程序来源
+	RunnerId            int64                  `protobuf:"varint,12,opt,name=runner_id,json=runnerId,proto3" json:"runner_id,omitempty"`                                                                                           // 可选的执行单元引用
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -936,6 +945,13 @@ func (x *CreateTaskRequest) GetProgram() *ProgramSpec {
 		return x.Program
 	}
 	return nil
+}
+
+func (x *CreateTaskRequest) GetRunnerId() int64 {
+	if x != nil {
+		return x.RunnerId
+	}
+	return 0
 }
 
 type CreateTaskResponse struct {
@@ -1280,7 +1296,7 @@ const file_etask_task_v1_task_proto_rawDesc = "" +
 	"\vmax_retries\x18\x01 \x01(\x05R\n" +
 	"maxRetries\x12)\n" +
 	"\x10initial_interval\x18\x02 \x01(\x03R\x0finitialInterval\x12!\n" +
-	"\fmax_interval\x18\x03 \x01(\x03R\vmaxInterval\"\x9c\a\n" +
+	"\fmax_interval\x18\x03 \x01(\x03R\vmaxInterval\"\xb9\a\n" +
 	"\x04Task\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12+\n" +
@@ -1302,13 +1318,14 @@ const file_etask_task_v1_task_proto_rawDesc = "" +
 	"\x05utime\x18\x0f \x01(\x03R\x05utime\x124\n" +
 	"\texec_mode\x18\x10 \x01(\x0e2\x17.etask.task.v1.ExecModeR\bexecMode\x12=\n" +
 	"\bmetadata\x18\x11 \x03(\v2!.etask.task.v1.Task.MetadataEntryR\bmetadata\x124\n" +
-	"\aprogram\x18\x12 \x01(\v2\x1a.etask.task.v1.ProgramSpecR\aprogram\x1aA\n" +
+	"\aprogram\x18\x12 \x01(\v2\x1a.etask.task.v1.ProgramSpecR\aprogram\x12\x1b\n" +
+	"\trunner_id\x18\x13 \x01(\x03R\brunnerId\x1aA\n" +
 	"\x13ScheduleParamsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xf3\x05\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x90\x06\n" +
 	"\x11CreateTaskRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12+\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x17.etask.task.v1.TaskTypeR\x04type\x12\x1b\n" +
@@ -1323,7 +1340,8 @@ const file_etask_task_v1_task_proto_rawDesc = "" +
 	"\texec_mode\x18\t \x01(\x0e2\x17.etask.task.v1.ExecModeR\bexecMode\x12J\n" +
 	"\bmetadata\x18\n" +
 	" \x03(\v2..etask.task.v1.CreateTaskRequest.MetadataEntryR\bmetadata\x124\n" +
-	"\aprogram\x18\v \x01(\v2\x1a.etask.task.v1.ProgramSpecR\aprogram\x1aA\n" +
+	"\aprogram\x18\v \x01(\v2\x1a.etask.task.v1.ProgramSpecR\aprogram\x12\x1b\n" +
+	"\trunner_id\x18\f \x01(\x03R\brunnerId\x1aA\n" +
 	"\x13ScheduleParamsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a;\n" +

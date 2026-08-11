@@ -40,3 +40,18 @@ func TestTaskExecutionProjectProgramRoundTrip(t *testing.T) {
 	restored := repository.toDomain(repository.toEntity(execution))
 	require.Equal(t, execution.Program, restored.Program)
 }
+
+func TestTaskExecutionVariablesRoundTrip(t *testing.T) {
+	repository := &taskExecutionRepository{}
+	execution := domain.TaskExecution{
+		Task: domain.Task{RunnerID: 9},
+		Variables: &domain.ExecutionVariableSet{Items: []domain.RunnerVariable{
+			{Key: "region", Value: "cn"},
+			{Key: "token", Value: "secret", Secret: true},
+		}},
+	}
+
+	restored := repository.toDomain(repository.toEntity(execution))
+	require.Equal(t, int64(9), restored.Task.RunnerID)
+	require.Equal(t, execution.Variables, restored.Variables)
+}

@@ -14,8 +14,10 @@ import (
 func TestRunnerServerListsRunnersByCodebookID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	service := runnermocks.NewMockService(ctrl)
-	service.EXPECT().ListByCodebookID(gomock.Any(), int64(12)).Return([]domain.Runner{
-		{ID: 3, Name: "linux-runner", CodebookID: 12, ProgramKind: domain.ProgramInline, Tags: []string{"linux"}},
+	service.EXPECT().ListByCodebookID(gomock.Any(), int64(12)).Return([]domain.RunnerExecutionSpec{
+		{Runner: domain.Runner{
+			ID: 3, Name: "linux-runner", CodebookID: 12, ProgramKind: domain.ProgramInline, Tags: []string{"linux"},
+		}},
 	}, nil)
 	server := NewRunnerServer(service)
 

@@ -96,6 +96,7 @@ message Task {
   ExecMode exec_mode = 16; // 执行模式 (PUSH 或 PULL)
   map<string, string> metadata = 17; // 任务参数元数据(存储绑定关系等)
   ProgramSpec program = 18; // 用户声明的程序来源
+  int64 runner_id = 19; // 可选的执行单元引用
 }
 
 // CreateTaskRequest 创建任务请求
@@ -111,6 +112,7 @@ message CreateTaskRequest {
   ExecMode exec_mode = 9; // 执行模式
   map<string, string> metadata = 10; // 任务参数元数据
   ProgramSpec program = 11; // 用户声明的程序来源
+  int64 runner_id = 12; // 可选的执行单元引用
 }
 
 message CreateTaskResponse {

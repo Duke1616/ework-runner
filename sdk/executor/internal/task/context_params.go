@@ -12,6 +12,12 @@ func (c *Context) Param(key string) string {
 	return c.params[key]
 }
 
+// HasParam 判断参数快照中是否显式包含指定参数。
+func (c *Context) HasParam(key string) bool {
+	_, exists := c.params[key]
+	return exists
+}
+
 // GetResolvedParam 根据参数选择的绑定模式返回最终值。
 func (c *Context) GetResolvedParam(key string) (string, error) {
 	rawValue := c.params[key]

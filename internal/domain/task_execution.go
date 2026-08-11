@@ -146,27 +146,47 @@ func NonTerminalTaskExecutionStatuses() []TaskExecutionStatus {
 	}
 }
 
+// ExecutionVariableSet 保存本次执行固定使用的变量集合。
+type ExecutionVariableSet struct {
+	Items []RunnerVariable `json:"items"`
+}
+
+// ToProto 转换为执行器协议使用的变量快照。
+func (s *ExecutionVariableSet) ToProto() *executorv1.VariableSet {
+	if s == nil {
+		return nil
+	}
+	items := make([]*executorv1.Variable, 0, len(s.Items))
+	for _, variable := range s.Items {
+		items = append(items, &executorv1.Variable{
+			Key: variable.Key, Value: variable.Value, Secret: variable.Secret,
+		})
+	}
+	return &executorv1.VariableSet{Items: items}
+}
+
 // TaskExecution 任务执行记录
 type TaskExecution struct {
 	ID              int64
-	TenantID        int64               // 租户ID，多租户隔离
-	Source          TaskExecutionSource // 执行来源，区分正式任务与临时试运行
-	RequestID       string              // 外部来源提供的幂等请求标识
-	Deadline        int64               // 任务执行截止时间（毫秒时间戳）
-	ExecutorNodeID  string              // 执行节点的 nodeID，用于记录是哪个节点处理了任务
-	StartTime       int64               // 开始时间
-	EndTime         int64               // 结束时间
-	RetryCount      int64               // 已重试次数
-	NextRetryTime   int64               // 下次重试时间
-	RunningProgress int32               // 进度 0-100，RUNNING 状态才有意义
-	Status          TaskExecutionStatus // 执行状态
-	TaskResult      string              // 任务执行的结构化结果（JSON格式）
-	CTime           int64               // 创建时间
-	UTime           int64               // 更新时间
-	Task            Task                // 创建时刻从Task冗余的信息
+	TenantID        int64                 // 租户ID，多租户隔离
+	Source          TaskExecutionSource   // 执行来源，区分正式任务与临时试运行
+	RequestID       string                // 外部来源提供的幂等请求标识
+	Deadline        int64                 // 任务执行截止时间（毫秒时间戳）
+	ExecutorNodeID  string                // 执行节点的 nodeID，用于记录是哪个节点处理了任务
+	StartTime       int64                 // 开始时间
+	EndTime         int64                 // 结束时间
+	RetryCount      int64                 // 已重试次数
+	NextRetryTime   int64                 // 下次重试时间
+	RunningProgress int32                 // 进度 0-100，RUNNING 状态才有意义
+	Status          TaskExecutionStatus   // 执行状态
+	TaskResult      string                // 任务执行的结构化结果（JSON格式）
+	CTime           int64                 // 创建时间
+	UTime           int64                 // 更新时间
+	Task            Task                  // 创建时刻从Task冗余的信息
 	Program         *Program              // 本次执行固定的程序来源；非程序型 Handler 为空
-	Artifacts       []ArtifactRef       // 本次执行固定的 SYSTEM 和具名依赖制品层
-	Route           ExecutionRoute      // 创建时固定的传输和派发路由
+	Artifacts       []ArtifactRef         // 本次执行固定的 SYSTEM 和具名依赖制品层
+	Variables       *ExecutionVariableSet // 本次执行固定的变量快照；nil 表示兼容旧参数协议
+	Route           ExecutionRoute        // 创建时固定的传输和派发路由
 }
 
 func (te *TaskExecution) MergeTaskScheduleParams(scheduleParams map[string]string) {

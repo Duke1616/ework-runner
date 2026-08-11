@@ -137,7 +137,8 @@ func (s *service) Receive(ctx context.Context, request ExecutionRequest) (domain
 			Name: execution.Task.Name, Handler: execution.Task.GrpcConfig.HandlerName,
 		},
 		Params: execution.GRPCParams(), Parameters: s.handlerMetadata(execution.Task.GrpcConfig.HandlerName),
-		Program: program, ProjectSource: projectSource,
+		Variables: toExecutorVariables(execution.Variables),
+		Program:   program, ProjectSource: projectSource,
 		Artifacts: refs, ExecutionLogger: request.ExecutionLogger,
 	})
 	output := domain.ExecutionOutput{Result: result.Value}
@@ -167,6 +168,19 @@ func (s *service) handlerMetadata(name string) []executor.Parameter {
 		return nil
 	}
 	return handler.Metadata()
+}
+
+func toExecutorVariables(variables *internaldomain.ExecutionVariableSet) *executor.VariableSet {
+	if variables == nil {
+		return nil
+	}
+	result := make([]executor.Variable, 0, len(variables.Items))
+	for _, variable := range variables.Items {
+		result = append(result, executor.Variable{
+			Key: variable.Key, Value: variable.Value, Secret: variable.Secret,
+		})
+	}
+	return &executor.VariableSet{Items: result}
 }
 
 func (s *service) begin(ctx context.Context, dispatchID string,

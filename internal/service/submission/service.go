@@ -85,10 +85,11 @@ func (s *service) RunRunner(ctx context.Context, command RunRunnerCommand) (RunR
 	if err := validateCommand(command); err != nil {
 		return RunResult{}, fmt.Errorf("%w: %v", ErrInvalidCommand, err)
 	}
-	runner, err := s.runners.FindForExecution(ctx, command.RunnerID)
+	spec, err := s.runners.FindForExecution(ctx, command.RunnerID)
 	if err != nil {
 		return RunResult{}, fmt.Errorf("查询执行单元失败: %w", err)
 	}
+	runner := spec.Runner
 	if runner.Action != domain.RunnerActionRegistered {
 		return RunResult{}, fmt.Errorf("%w: 执行单元未启用", ErrRejected)
 	}
@@ -100,11 +101,16 @@ func (s *service) RunRunner(ctx context.Context, command RunRunnerCommand) (RunR
 	if err != nil {
 		return RunResult{}, err
 	}
+	variables, err := mergeVariables(spec.Variables, command.Variables)
+	if err != nil {
+		return RunResult{}, err
+	}
 	draft := domain.TaskExecution{
 		RequestID: command.RequestID,
 		Status:    domain.TaskExecutionStatusPrepare,
 		StartTime: time.Now().UnixMilli(),
 		Task: domain.Task{
+			RunnerID:            runner.ID,
 			Name:                "工作流执行: " + runner.Name,
 			MaxExecutionSeconds: defaultTimeoutSeconds,
 			RetryConfig:         &domain.RetryConfig{MaxRetries: 0},
@@ -114,7 +120,8 @@ func (s *service) RunRunner(ctx context.Context, command RunRunnerCommand) (RunR
 				Params:      params,
 			},
 		},
-		Program: program.Program,
+		Program:   program.Program,
+		Variables: &domain.ExecutionVariableSet{Items: variables},
 	}
 
 	route, err := s.routes.Plan(ctx, draft.Task)
@@ -191,32 +198,20 @@ func (s *service) resolveProgram(ctx context.Context, runner domain.Runner) (pro
 }
 
 func (s *service) buildParams(runner domain.Runner, command RunRunnerCommand) (map[string]string, error) {
-	variables, err := mergeVariables(runner.Variables, command.Variables)
+	params, err := runnerSvc.MergeParameterDefaults(runner.ParameterDefaults, command.Params)
 	if err != nil {
 		return nil, err
-	}
-	variablesJSON, err := json.Marshal(variables)
-	if err != nil {
-		return nil, fmt.Errorf("序列化执行单元变量失败: %w", err)
-	}
-	params := make(map[string]string, len(command.Params)+1)
-	for key, value := range command.Params {
-		params[key] = value
 	}
 	if strings.TrimSpace(params["args"]) == "" {
 		params["args"] = "{}"
 	}
-	params["variables"] = string(variablesJSON)
+	if !json.Valid([]byte(params["args"])) {
+		return nil, fmt.Errorf("工作流执行参数必须是合法 JSON")
+	}
 	return params, nil
 }
 
-type runtimeVariable struct {
-	Key    string `json:"key"`
-	Value  string `json:"value"`
-	Secret bool   `json:"secret"`
-}
-
-func mergeVariables(defaults []domain.RunnerVariable, overrides map[string]string) ([]runtimeVariable, error) {
+func mergeVariables(defaults []domain.RunnerVariable, overrides map[string]string) ([]domain.RunnerVariable, error) {
 	values := make(map[string]domain.RunnerVariable, len(defaults)+len(overrides))
 	keys := make([]string, 0, len(defaults)+len(overrides))
 	for _, variable := range defaults {
@@ -236,12 +231,9 @@ func mergeVariables(defaults []domain.RunnerVariable, overrides map[string]strin
 		variable.Value = value
 		values[key] = variable
 	}
-	result := make([]runtimeVariable, 0, len(keys))
+	result := make([]domain.RunnerVariable, 0, len(keys))
 	for _, key := range keys {
-		variable := values[key]
-		result = append(result, runtimeVariable{
-			Key: variable.Key, Value: variable.Value, Secret: variable.Secret,
-		})
+		result = append(result, values[key])
 	}
 	return result, nil
 }

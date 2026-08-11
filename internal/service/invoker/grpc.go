@@ -65,6 +65,7 @@ func (r *GRPCInvoker) Run(ctx context.Context, exec domain.TaskExecution) (domai
 		TenantId:        exec.Task.TenantID,
 		Artifacts:       artifacts,
 		Program:         program,
+		VariableSet:     exec.Variables.ToProto(),
 	})
 
 	if err != nil {

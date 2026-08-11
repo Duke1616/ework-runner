@@ -186,6 +186,11 @@ func (r *taskRepository) toEntity(task domain.Task) dao.Task {
 		scheduleNodeID = sql.NullString{String: task.ScheduleNodeID, Valid: true}
 	}
 
+	var runnerID sql.NullInt64
+	if task.RunnerID > 0 {
+		runnerID = sql.NullInt64{Int64: task.RunnerID, Valid: true}
+	}
+
 	var grpcConfig sqlx.JSONColumn[domain.GrpcConfig]
 	if task.GrpcConfig != nil {
 		grpcConfig = sqlx.JSONColumn[domain.GrpcConfig]{Val: *task.GrpcConfig, Valid: true}
@@ -222,6 +227,7 @@ func (r *taskRepository) toEntity(task domain.Task) dao.Task {
 		BizID:               task.BizID,
 		BizKey:              task.BizKey,
 		Name:                task.Name,
+		RunnerID:            runnerID,
 		Type:                task.Type.String(),
 		CronExpr:            task.CronExpr,
 		GrpcConfig:          grpcConfig,
@@ -246,6 +252,10 @@ func (r *taskRepository) toDomain(daoTask *dao.Task) domain.Task {
 	var scheduleNodeID string
 	if daoTask.ScheduleNodeID.Valid {
 		scheduleNodeID = daoTask.ScheduleNodeID.String
+	}
+	var runnerID int64
+	if daoTask.RunnerID.Valid {
+		runnerID = daoTask.RunnerID.Int64
 	}
 
 	var grpcConfig *domain.GrpcConfig
@@ -284,6 +294,7 @@ func (r *taskRepository) toDomain(daoTask *dao.Task) domain.Task {
 		BizID:               daoTask.BizID,
 		BizKey:              daoTask.BizKey,
 		Name:                daoTask.Name,
+		RunnerID:            runnerID,
 		Type:                domain.TaskType(daoTask.Type),
 		CronExpr:            daoTask.CronExpr,
 		GrpcConfig:          grpcConfig,

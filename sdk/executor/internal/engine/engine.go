@@ -14,6 +14,7 @@ import (
 type Command struct {
 	Task            task.TaskInfo
 	Params          map[string]string
+	Variables       *task.VariableSet
 	Metadata        map[string]string
 	Parameters      []task.Parameter
 	Program         *task.Program
@@ -74,7 +75,8 @@ func (e *Engine) Execute(ctx context.Context, command Command) (result Result, e
 	// 执行引擎持有执行日志器，并保证所有返回路径都会关闭它。
 	taskCtx := task.NewContext(task.ContextOptions{
 		Context: ctx, Task: command.Task, Params: command.Params,
-		Metadata: command.Metadata, Parameters: command.Parameters,
+		Variables: command.Variables,
+		Metadata:  command.Metadata, Parameters: command.Parameters,
 		SystemLogger: scopedSystemLogger(e.systemLogger, command.Task), ExecutionLogger: executionLogger,
 		Progress: e.progress,
 	})

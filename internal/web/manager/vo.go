@@ -2,6 +2,7 @@ package manager
 
 type CreateTaskReq struct {
 	Name                string            `json:"name"`
+	RunnerID            int64             `json:"runner_id"`
 	Type                string            `json:"type"`      // 任务类型: RECURRING-定时任务, ONE_TIME-一次性任务
 	CronExpr            string            `json:"cron_expr"` // cron 表达式（定时任务必填，一次性任务可选用于定时触发）
 	GrpcConfig          *GrpcConfig       `json:"grpc_config"`
@@ -62,6 +63,7 @@ type RunTaskReq struct {
 
 type UpdateTaskReq struct {
 	ID                  int64             `json:"id"`
+	RunnerID            int64             `json:"runner_id"`
 	Name                string            `json:"name"`
 	Type                string            `json:"type"`      // 任务类型: RECURRING-定时任务, ONE_TIME-一次性任务
 	CronExpr            string            `json:"cron_expr"` // cron 表达式（定时任务必填，一次性任务可选用于定时触发）
@@ -76,6 +78,7 @@ type UpdateTaskReq struct {
 
 type TaskVO struct {
 	ID                  int64             `json:"id"`
+	RunnerID            int64             `json:"runner_id"`
 	Name                string            `json:"name"`
 	Type                string            `json:"type"`
 	CronExpr            string            `json:"cron_expr"`

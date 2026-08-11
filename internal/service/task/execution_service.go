@@ -15,6 +15,7 @@ import (
 	"github.com/Duke1616/etask/internal/service/acquirer"
 	artifactSvc "github.com/Duke1616/etask/internal/service/artifact"
 	programSvc "github.com/Duke1616/etask/internal/service/program"
+	runnerSvc "github.com/Duke1616/etask/internal/service/runner"
 	taskbinding "github.com/Duke1616/etask/internal/service/task/binding"
 	"github.com/Duke1616/etask/internal/sse"
 	"github.com/Duke1616/etask/pkg/grpc/registry"
@@ -93,6 +94,7 @@ type executionService struct {
 	resolvers    *taskbinding.Registry
 	artifactSvc  artifactSvc.Service
 	programSvc   programSvc.Service
+	runnerSvc    runnerSvc.Service
 	events       *sse.Hubs
 	logger       *elog.Component
 }
@@ -108,6 +110,7 @@ func NewExecutionService(
 	resolvers *taskbinding.Registry,
 	artifactSvc artifactSvc.Service,
 	programSvc programSvc.Service,
+	runnerService runnerSvc.Service,
 	events *sse.Hubs,
 ) ExecutionService {
 	return &executionService{
@@ -120,6 +123,7 @@ func NewExecutionService(
 		resolvers:   resolvers,
 		artifactSvc: artifactSvc,
 		programSvc:  programSvc,
+		runnerSvc:   runnerService,
 		events:      events,
 		logger:      elog.DefaultLogger.With(elog.FieldComponentName("service.execution")),
 	}
@@ -131,13 +135,14 @@ func (s *executionService) Create(ctx context.Context, execution domain.TaskExec
 		return domain.TaskExecution{}, fmt.Errorf("执行路由非法: %w", err)
 	}
 	// 执行记录保存完整任务快照，后续编辑任务不会改变本次运行语义。
-	snapshot, selection, err := s.buildTaskSnapshot(ctx, execution.Task)
+	snapshot, selection, variables, err := s.buildTaskSnapshot(ctx, execution.Task)
 	if err != nil {
 		return domain.TaskExecution{}, err
 	}
 	// 路由中的派发模式属于本次执行快照，不能被任务表里的上一次模式覆盖。
 	snapshot.ExecMode = execution.Route.DispatchMode
 	execution.Task = snapshot
+	execution.Variables = variables
 	execution.Program = selection.Program
 	// 执行记录同时固定项目源码和依赖制品，运行时不会漂移到新版本。
 	if err = s.resolveArtifacts(ctx, &execution, selection.SourceProjectID); err != nil {
@@ -241,34 +246,38 @@ func (s *executionService) resolveArtifacts(ctx context.Context, execution *doma
 }
 
 func (s *executionService) buildTaskSnapshot(ctx context.Context,
-	task domain.Task) (domain.Task, programSvc.Resolution, error) {
+	task domain.Task) (domain.Task, programSvc.Resolution, *domain.ExecutionVariableSet, error) {
 	// 重新读取持久化任务，调度列表中的旧对象只提供本次动态调度参数。
 	snapshot, err := s.taskSvc.GetByID(ctx, task.ID)
 	if err != nil {
-		return domain.Task{}, programSvc.Resolution{}, fmt.Errorf("获取Task信息失败: %w", err)
+		return domain.Task{}, programSvc.Resolution{}, nil, fmt.Errorf("获取Task信息失败: %w", err)
 	}
 
 	snapshot.UpdateScheduleParams(task.ScheduleParams)
+	variables, err := s.applyRunnerDefaults(ctx, &snapshot)
+	if err != nil {
+		return domain.Task{}, programSvc.Resolution{}, nil, err
+	}
 	if err = s.taskSvc.AuthorizeExecutionPool(ctx, snapshot); err != nil {
-		return domain.Task{}, programSvc.Resolution{}, err
+		return domain.Task{}, programSvc.Resolution{}, nil, err
 	}
 	selection, err := s.programSvc.Resolve(ctx, snapshot.Program)
 	if err != nil {
-		return domain.Task{}, programSvc.Resolution{}, err
+		return domain.Task{}, programSvc.Resolution{}, nil, err
 	}
 
 	if snapshot.GrpcConfig == nil {
-		return snapshot, selection, nil
+		return snapshot, selection, variables, nil
 	}
 
 	// Codebook 等绑定在执行创建阶段解析，并写入私有参数副本。
 	resolved, err := s.resolvers.Resolve(ctx, snapshot.GrpcConfig.HandlerName,
 		snapshot.GrpcConfig.Params, snapshot.Metadata)
 	if err != nil {
-		return domain.Task{}, programSvc.Resolution{}, err
+		return domain.Task{}, programSvc.Resolution{}, nil, err
 	}
 	if len(resolved) == 0 {
-		return snapshot, selection, nil
+		return snapshot, selection, variables, nil
 	}
 
 	resolvedParams := make(map[string]string, len(snapshot.GrpcConfig.Params)+len(resolved))
@@ -279,7 +288,37 @@ func (s *executionService) buildTaskSnapshot(ctx context.Context,
 		resolvedParams[k] = v
 	}
 	snapshot.GrpcConfig.Params = resolvedParams
-	return snapshot, selection, nil
+	return snapshot, selection, variables, nil
+}
+
+// applyRunnerDefaults 在创建执行快照时读取最新默认参数，任务参数覆盖同名默认值。
+func (s *executionService) applyRunnerDefaults(ctx context.Context,
+	task *domain.Task) (*domain.ExecutionVariableSet, error) {
+	if task.RunnerID == 0 {
+		return nil, nil
+	}
+	if s.runnerSvc == nil {
+		return nil, fmt.Errorf("执行单元服务不可用")
+	}
+	if task.GrpcConfig == nil {
+		return nil, fmt.Errorf("引用执行单元的任务缺少 gRPC 配置")
+	}
+	spec, err := s.runnerSvc.FindForExecution(ctx, task.RunnerID)
+	if err != nil {
+		return nil, fmt.Errorf("查询执行单元失败: %w", err)
+	}
+	runner := spec.Runner
+	if runner.Action != domain.RunnerActionRegistered {
+		return nil, fmt.Errorf("执行单元未启用")
+	}
+	params, err := runnerSvc.MergeParameterDefaults(runner.ParameterDefaults, task.GrpcConfig.Params)
+	if err != nil {
+		return nil, err
+	}
+	config := *task.GrpcConfig
+	config.Params = params
+	task.GrpcConfig = &config
+	return &domain.ExecutionVariableSet{Items: spec.Variables}, nil
 }
 
 func (s *executionService) FindByID(ctx context.Context, id int64) (domain.TaskExecution, error) {

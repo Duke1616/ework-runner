@@ -10,16 +10,17 @@ import (
 
 // Command 是调度中心发送给独立 Agent 的不可变执行命令。
 type Command struct {
-	DispatchID  string                     `json:"dispatch_id"`
-	ExecutionID int64                      `json:"execution_id"`
-	TaskID      int64                      `json:"task_id"`
-	TenantID    int64                      `json:"tenant_id"`
-	Source      domain.TaskExecutionSource `json:"source"`
-	TaskName    string                     `json:"task_name"`
-	Handler     string                     `json:"handler"`
-	Params      map[string]string          `json:"params"`
-	Artifacts   []domain.ArtifactRef       `json:"artifacts"`
-	Program     *domain.Program            `json:"program,omitempty"`
+	DispatchID  string                       `json:"dispatch_id"`
+	ExecutionID int64                        `json:"execution_id"`
+	TaskID      int64                        `json:"task_id"`
+	TenantID    int64                        `json:"tenant_id"`
+	Source      domain.TaskExecutionSource   `json:"source"`
+	TaskName    string                       `json:"task_name"`
+	Handler     string                       `json:"handler"`
+	Params      map[string]string            `json:"params"`
+	Variables   *domain.ExecutionVariableSet `json:"variables,omitempty"`
+	Artifacts   []domain.ArtifactRef         `json:"artifacts"`
+	Program     *domain.Program              `json:"program,omitempty"`
 }
 
 // NewCommand 将领域执行快照转换为 Kafka 协议，并在发布前校验协议约束。
@@ -36,6 +37,7 @@ func NewCommand(execution domain.TaskExecution, dispatchID string) (Command, err
 		TaskName:    execution.Task.Name,
 		Handler:     execution.Task.GrpcConfig.HandlerName,
 		Params:      execution.GRPCParams(),
+		Variables:   execution.Variables,
 		Artifacts:   execution.Artifacts,
 		Program:     execution.Program,
 	}
@@ -69,7 +71,8 @@ func (c Command) Validate() error {
 // Execution 将消息协议转换为 Agent 执行引擎使用的领域快照。
 func (c Command) Execution() domain.TaskExecution {
 	return domain.TaskExecution{
-		ID: c.ExecutionID, TenantID: c.TenantID, Source: c.Source, Artifacts: c.Artifacts, Program: c.Program,
+		ID: c.ExecutionID, TenantID: c.TenantID, Source: c.Source,
+		Artifacts: c.Artifacts, Program: c.Program, Variables: c.Variables,
 		Task: domain.Task{
 			ID: c.TaskID, TenantID: c.TenantID, Name: c.TaskName,
 			GrpcConfig: &domain.GrpcConfig{HandlerName: c.Handler, Params: c.Params},

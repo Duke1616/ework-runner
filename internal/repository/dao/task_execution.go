@@ -33,20 +33,22 @@ type TaskExecution struct {
 	// RequestID 仅供外部来源幂等提交使用；NULL 不参与唯一约束。
 	RequestID sql.NullString `gorm:"type:varchar(128);uniqueIndex:uk_execution_request,priority:3;comment:'外部幂等请求标识'"`
 	// 下面都是创建当前 TaskExecution 时从对应的Task直接拷贝过来的冗余信息
-	TaskID                  int64                                  `gorm:"type:bigint;not null;comment:'任务ID'"`
-	TaskName                string                                 `gorm:"type:varchar(255);not null;comment:'任务名称'"`
-	TaskType                string                                 `gorm:"type:ENUM('RECURRING', 'ONE_TIME');not null;default:'RECURRING';comment:'任务类型: RECURRING-定时任务(循环执行), ONE_TIME-一次性任务(执行一次后停止)'"`
-	TaskCronExpr            string                                 `gorm:"type:varchar(100);not null;comment:'cron表达式'"`
-	TaskGrpcConfig          sqlx.JSONColumn[domain.GrpcConfig]     `gorm:"type:json;comment:'gRPC配置：{\"serviceName\": \"user-service\"}'"`
-	TaskHTTPConfig          sqlx.JSONColumn[domain.HTTPConfig]     `gorm:"type:json;comment:'HTTP配置：{\"endpoint\": \"https://host:port/api\"}'"`
-	TaskRetryConfig         sqlx.JSONColumn[domain.RetryConfig]    `gorm:"type:json;comment:'重试配置'"`
-	TaskMaxExecutionSeconds int64                                  `gorm:"type:bigint;not null;default:86400;comment:'最大执行秒数，默认24小时'"`
-	TaskVersion             int64                                  `gorm:"type:bigint;not null;comment:'创建时Task的版本号'"`
-	TaskScheduleNodeID      string                                 `gorm:"type:varchar(255);not null;comment:'创建此执行的调度节点ID'"`
-	TaskScheduleParams      sqlx.JSONColumn[map[string]string]     `gorm:"type:json;comment:'创建时Task的调度参数快照'"`
-	Artifact                sqlx.JSONColumn[[]domain.ArtifactRef]  `gorm:"type:json;comment:'本次执行固定的代码制品层'"`
-	Program                 sqlx.JSONColumn[domain.Program]        `gorm:"type:json;comment:'本次执行固定的程序来源'"`
-	ExecutionRoute          sqlx.JSONColumn[domain.ExecutionRoute] `gorm:"type:json;comment:'本次执行固定的传输和派发路由'"`
+	TaskID                  int64                                        `gorm:"type:bigint;not null;comment:'任务ID'"`
+	TaskRunnerID            int64                                        `gorm:"type:bigint;not null;default:0;comment:'创建时Task引用的执行单元ID'"`
+	TaskName                string                                       `gorm:"type:varchar(255);not null;comment:'任务名称'"`
+	TaskType                string                                       `gorm:"type:ENUM('RECURRING', 'ONE_TIME');not null;default:'RECURRING';comment:'任务类型: RECURRING-定时任务(循环执行), ONE_TIME-一次性任务(执行一次后停止)'"`
+	TaskCronExpr            string                                       `gorm:"type:varchar(100);not null;comment:'cron表达式'"`
+	TaskGrpcConfig          sqlx.JSONColumn[domain.GrpcConfig]           `gorm:"type:json;comment:'gRPC配置：{\"serviceName\": \"user-service\"}'"`
+	TaskHTTPConfig          sqlx.JSONColumn[domain.HTTPConfig]           `gorm:"type:json;comment:'HTTP配置：{\"endpoint\": \"https://host:port/api\"}'"`
+	TaskRetryConfig         sqlx.JSONColumn[domain.RetryConfig]          `gorm:"type:json;comment:'重试配置'"`
+	TaskMaxExecutionSeconds int64                                        `gorm:"type:bigint;not null;default:86400;comment:'最大执行秒数，默认24小时'"`
+	TaskVersion             int64                                        `gorm:"type:bigint;not null;comment:'创建时Task的版本号'"`
+	TaskScheduleNodeID      string                                       `gorm:"type:varchar(255);not null;comment:'创建此执行的调度节点ID'"`
+	TaskScheduleParams      sqlx.JSONColumn[map[string]string]           `gorm:"type:json;comment:'创建时Task的调度参数快照'"`
+	Artifact                sqlx.JSONColumn[[]domain.ArtifactRef]        `gorm:"type:json;comment:'本次执行固定的代码制品层'"`
+	Variables               sqlx.JSONColumn[domain.ExecutionVariableSet] `gorm:"type:json;comment:'本次执行固定的变量快照'"`
+	Program                 sqlx.JSONColumn[domain.Program]              `gorm:"type:json;comment:'本次执行固定的程序来源'"`
+	ExecutionRoute          sqlx.JSONColumn[domain.ExecutionRoute]       `gorm:"type:json;comment:'本次执行固定的传输和派发路由'"`
 
 	// 下面这些是 TaskExecution 的自身信息
 	ExecutorNodeID  sql.NullString `gorm:"type:varchar(255);comment:'执行节点的 nodeID，用于记录是哪个节点处理了任务'"`

@@ -220,7 +220,9 @@ type ExecuteRequest struct {
 	// 可选的 SYSTEM 和具名依赖制品层。
 	Artifacts []*v1.ArtifactRef `protobuf:"bytes,7,rep,name=artifacts,proto3" json:"artifacts,omitempty"`
 	// 可选的程序来源；非程序型 Handler 不需要设置。
-	Program       *ProgramSource `protobuf:"bytes,8,opt,name=program,proto3" json:"program,omitempty"`
+	Program *ProgramSource `protobuf:"bytes,8,opt,name=program,proto3" json:"program,omitempty"`
+	// 本次执行已经解析并固定的变量快照；message presence 用于区分旧协议与显式空变量。
+	VariableSet   *VariableSet `protobuf:"bytes,9,opt,name=variable_set,json=variableSet,proto3" json:"variable_set,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -311,6 +313,117 @@ func (x *ExecuteRequest) GetProgram() *ProgramSource {
 	return nil
 }
 
+func (x *ExecuteRequest) GetVariableSet() *VariableSet {
+	if x != nil {
+		return x.VariableSet
+	}
+	return nil
+}
+
+type Variable struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Value         string                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	Secret        bool                   `protobuf:"varint,3,opt,name=secret,proto3" json:"secret,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Variable) Reset() {
+	*x = Variable{}
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Variable) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Variable) ProtoMessage() {}
+
+func (x *Variable) ProtoReflect() protoreflect.Message {
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Variable.ProtoReflect.Descriptor instead.
+func (*Variable) Descriptor() ([]byte, []int) {
+	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *Variable) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *Variable) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+func (x *Variable) GetSecret() bool {
+	if x != nil {
+		return x.Secret
+	}
+	return false
+}
+
+type VariableSet struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*Variable            `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VariableSet) Reset() {
+	*x = VariableSet{}
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VariableSet) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VariableSet) ProtoMessage() {}
+
+func (x *VariableSet) ProtoReflect() protoreflect.Message {
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VariableSet.ProtoReflect.Descriptor instead.
+func (*VariableSet) Descriptor() ([]byte, []int) {
+	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *VariableSet) GetItems() []*Variable {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
 // ProgramSource 使用 oneof 明确表达 INLINE 与 PROJECT 两种互斥来源。
 type ProgramSource struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -325,7 +438,7 @@ type ProgramSource struct {
 
 func (x *ProgramSource) Reset() {
 	*x = ProgramSource{}
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[2]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -337,7 +450,7 @@ func (x *ProgramSource) String() string {
 func (*ProgramSource) ProtoMessage() {}
 
 func (x *ProgramSource) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[2]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -350,7 +463,7 @@ func (x *ProgramSource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProgramSource.ProtoReflect.Descriptor instead.
 func (*ProgramSource) Descriptor() ([]byte, []int) {
-	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{2}
+	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ProgramSource) GetSource() isProgramSource_Source {
@@ -403,7 +516,7 @@ type InlineProgramSource struct {
 
 func (x *InlineProgramSource) Reset() {
 	*x = InlineProgramSource{}
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[3]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -415,7 +528,7 @@ func (x *InlineProgramSource) String() string {
 func (*InlineProgramSource) ProtoMessage() {}
 
 func (x *InlineProgramSource) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[3]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -428,7 +541,7 @@ func (x *InlineProgramSource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InlineProgramSource.ProtoReflect.Descriptor instead.
 func (*InlineProgramSource) Descriptor() ([]byte, []int) {
-	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{3}
+	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *InlineProgramSource) GetCode() string {
@@ -448,7 +561,7 @@ type ProjectProgramSource struct {
 
 func (x *ProjectProgramSource) Reset() {
 	*x = ProjectProgramSource{}
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[4]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -460,7 +573,7 @@ func (x *ProjectProgramSource) String() string {
 func (*ProjectProgramSource) ProtoMessage() {}
 
 func (x *ProjectProgramSource) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[4]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -473,7 +586,7 @@ func (x *ProjectProgramSource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProjectProgramSource.ProtoReflect.Descriptor instead.
 func (*ProjectProgramSource) Descriptor() ([]byte, []int) {
-	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{4}
+	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ProjectProgramSource) GetSource() *ProjectSourceRef {
@@ -507,7 +620,7 @@ type ProjectSourceRef struct {
 
 func (x *ProjectSourceRef) Reset() {
 	*x = ProjectSourceRef{}
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[5]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -519,7 +632,7 @@ func (x *ProjectSourceRef) String() string {
 func (*ProjectSourceRef) ProtoMessage() {}
 
 func (x *ProjectSourceRef) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[5]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -532,7 +645,7 @@ func (x *ProjectSourceRef) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProjectSourceRef.ProtoReflect.Descriptor instead.
 func (*ProjectSourceRef) Descriptor() ([]byte, []int) {
-	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{5}
+	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ProjectSourceRef) GetSourceId() int64 {
@@ -600,7 +713,7 @@ type ExecuteResponse struct {
 
 func (x *ExecuteResponse) Reset() {
 	*x = ExecuteResponse{}
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[6]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -612,7 +725,7 @@ func (x *ExecuteResponse) String() string {
 func (*ExecuteResponse) ProtoMessage() {}
 
 func (x *ExecuteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[6]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -625,7 +738,7 @@ func (x *ExecuteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecuteResponse.ProtoReflect.Descriptor instead.
 func (*ExecuteResponse) Descriptor() ([]byte, []int) {
-	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{6}
+	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ExecuteResponse) GetExecutionState() *ExecutionState {
@@ -644,7 +757,7 @@ type InterruptRequest struct {
 
 func (x *InterruptRequest) Reset() {
 	*x = InterruptRequest{}
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[7]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -656,7 +769,7 @@ func (x *InterruptRequest) String() string {
 func (*InterruptRequest) ProtoMessage() {}
 
 func (x *InterruptRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[7]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -669,7 +782,7 @@ func (x *InterruptRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InterruptRequest.ProtoReflect.Descriptor instead.
 func (*InterruptRequest) Descriptor() ([]byte, []int) {
-	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{7}
+	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *InterruptRequest) GetEid() int64 {
@@ -689,7 +802,7 @@ type InterruptResponse struct {
 
 func (x *InterruptResponse) Reset() {
 	*x = InterruptResponse{}
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[8]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -701,7 +814,7 @@ func (x *InterruptResponse) String() string {
 func (*InterruptResponse) ProtoMessage() {}
 
 func (x *InterruptResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[8]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -714,7 +827,7 @@ func (x *InterruptResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InterruptResponse.ProtoReflect.Descriptor instead.
 func (*InterruptResponse) Descriptor() ([]byte, []int) {
-	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{8}
+	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *InterruptResponse) GetSuccess() bool {
@@ -741,7 +854,7 @@ type TerminateRequest struct {
 
 func (x *TerminateRequest) Reset() {
 	*x = TerminateRequest{}
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[9]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -753,7 +866,7 @@ func (x *TerminateRequest) String() string {
 func (*TerminateRequest) ProtoMessage() {}
 
 func (x *TerminateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[9]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -766,7 +879,7 @@ func (x *TerminateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TerminateRequest.ProtoReflect.Descriptor instead.
 func (*TerminateRequest) Descriptor() ([]byte, []int) {
-	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{9}
+	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *TerminateRequest) GetEid() int64 {
@@ -793,7 +906,7 @@ type TerminateResponse struct {
 
 func (x *TerminateResponse) Reset() {
 	*x = TerminateResponse{}
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[10]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -805,7 +918,7 @@ func (x *TerminateResponse) String() string {
 func (*TerminateResponse) ProtoMessage() {}
 
 func (x *TerminateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[10]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -818,7 +931,7 @@ func (x *TerminateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TerminateResponse.ProtoReflect.Descriptor instead.
 func (*TerminateResponse) Descriptor() ([]byte, []int) {
-	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{10}
+	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *TerminateResponse) GetSuccess() bool {
@@ -844,7 +957,7 @@ type QueryRequest struct {
 
 func (x *QueryRequest) Reset() {
 	*x = QueryRequest{}
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[11]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -856,7 +969,7 @@ func (x *QueryRequest) String() string {
 func (*QueryRequest) ProtoMessage() {}
 
 func (x *QueryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[11]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -869,7 +982,7 @@ func (x *QueryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryRequest.ProtoReflect.Descriptor instead.
 func (*QueryRequest) Descriptor() ([]byte, []int) {
-	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{11}
+	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *QueryRequest) GetEid() int64 {
@@ -888,7 +1001,7 @@ type QueryResponse struct {
 
 func (x *QueryResponse) Reset() {
 	*x = QueryResponse{}
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[12]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -900,7 +1013,7 @@ func (x *QueryResponse) String() string {
 func (*QueryResponse) ProtoMessage() {}
 
 func (x *QueryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[12]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -913,7 +1026,7 @@ func (x *QueryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryResponse.ProtoReflect.Descriptor instead.
 func (*QueryResponse) Descriptor() ([]byte, []int) {
-	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{12}
+	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *QueryResponse) GetExecutionState() *ExecutionState {
@@ -935,7 +1048,7 @@ type PullTaskRequest struct {
 
 func (x *PullTaskRequest) Reset() {
 	*x = PullTaskRequest{}
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[13]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -947,7 +1060,7 @@ func (x *PullTaskRequest) String() string {
 func (*PullTaskRequest) ProtoMessage() {}
 
 func (x *PullTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[13]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -960,7 +1073,7 @@ func (x *PullTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PullTaskRequest.ProtoReflect.Descriptor instead.
 func (*PullTaskRequest) Descriptor() ([]byte, []int) {
-	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{13}
+	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *PullTaskRequest) GetServiceName() string {
@@ -995,7 +1108,7 @@ type PullTaskResponse struct {
 
 func (x *PullTaskResponse) Reset() {
 	*x = PullTaskResponse{}
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[14]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1007,7 +1120,7 @@ func (x *PullTaskResponse) String() string {
 func (*PullTaskResponse) ProtoMessage() {}
 
 func (x *PullTaskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[14]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1020,7 +1133,7 @@ func (x *PullTaskResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PullTaskResponse.ProtoReflect.Descriptor instead.
 func (*PullTaskResponse) Descriptor() ([]byte, []int) {
-	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{14}
+	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *PullTaskResponse) GetHasTask() bool {
@@ -1046,7 +1159,7 @@ type GetTaskExecutionRequest struct {
 
 func (x *GetTaskExecutionRequest) Reset() {
 	*x = GetTaskExecutionRequest{}
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[15]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1058,7 +1171,7 @@ func (x *GetTaskExecutionRequest) String() string {
 func (*GetTaskExecutionRequest) ProtoMessage() {}
 
 func (x *GetTaskExecutionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[15]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1071,7 +1184,7 @@ func (x *GetTaskExecutionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTaskExecutionRequest.ProtoReflect.Descriptor instead.
 func (*GetTaskExecutionRequest) Descriptor() ([]byte, []int) {
-	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{15}
+	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *GetTaskExecutionRequest) GetExecutionId() int64 {
@@ -1090,7 +1203,7 @@ type GetTaskExecutionResponse struct {
 
 func (x *GetTaskExecutionResponse) Reset() {
 	*x = GetTaskExecutionResponse{}
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[16]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1102,7 +1215,7 @@ func (x *GetTaskExecutionResponse) String() string {
 func (*GetTaskExecutionResponse) ProtoMessage() {}
 
 func (x *GetTaskExecutionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[16]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1115,7 +1228,7 @@ func (x *GetTaskExecutionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTaskExecutionResponse.ProtoReflect.Descriptor instead.
 func (*GetTaskExecutionResponse) Descriptor() ([]byte, []int) {
-	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{16}
+	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *GetTaskExecutionResponse) GetExecution() *TaskExecution {
@@ -1134,7 +1247,7 @@ type ListTaskExecutionsRequest struct {
 
 func (x *ListTaskExecutionsRequest) Reset() {
 	*x = ListTaskExecutionsRequest{}
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[17]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1146,7 +1259,7 @@ func (x *ListTaskExecutionsRequest) String() string {
 func (*ListTaskExecutionsRequest) ProtoMessage() {}
 
 func (x *ListTaskExecutionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[17]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1159,7 +1272,7 @@ func (x *ListTaskExecutionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTaskExecutionsRequest.ProtoReflect.Descriptor instead.
 func (*ListTaskExecutionsRequest) Descriptor() ([]byte, []int) {
-	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{17}
+	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ListTaskExecutionsRequest) GetTaskId() int64 {
@@ -1178,7 +1291,7 @@ type BatchListTaskExecutionsRequest struct {
 
 func (x *BatchListTaskExecutionsRequest) Reset() {
 	*x = BatchListTaskExecutionsRequest{}
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[18]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1190,7 +1303,7 @@ func (x *BatchListTaskExecutionsRequest) String() string {
 func (*BatchListTaskExecutionsRequest) ProtoMessage() {}
 
 func (x *BatchListTaskExecutionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[18]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1203,7 +1316,7 @@ func (x *BatchListTaskExecutionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BatchListTaskExecutionsRequest.ProtoReflect.Descriptor instead.
 func (*BatchListTaskExecutionsRequest) Descriptor() ([]byte, []int) {
-	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{18}
+	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *BatchListTaskExecutionsRequest) GetTaskIds() []int64 {
@@ -1230,7 +1343,7 @@ type TaskExecution struct {
 
 func (x *TaskExecution) Reset() {
 	*x = TaskExecution{}
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[19]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1242,7 +1355,7 @@ func (x *TaskExecution) String() string {
 func (*TaskExecution) ProtoMessage() {}
 
 func (x *TaskExecution) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[19]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1255,7 +1368,7 @@ func (x *TaskExecution) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TaskExecution.ProtoReflect.Descriptor instead.
 func (*TaskExecution) Descriptor() ([]byte, []int) {
-	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{19}
+	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *TaskExecution) GetId() int64 {
@@ -1330,7 +1443,7 @@ type ListTaskExecutionsResponse struct {
 
 func (x *ListTaskExecutionsResponse) Reset() {
 	*x = ListTaskExecutionsResponse{}
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[20]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1342,7 +1455,7 @@ func (x *ListTaskExecutionsResponse) String() string {
 func (*ListTaskExecutionsResponse) ProtoMessage() {}
 
 func (x *ListTaskExecutionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[20]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1355,7 +1468,7 @@ func (x *ListTaskExecutionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTaskExecutionsResponse.ProtoReflect.Descriptor instead.
 func (*ListTaskExecutionsResponse) Descriptor() ([]byte, []int) {
-	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{20}
+	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ListTaskExecutionsResponse) GetExecutions() []*TaskExecution {
@@ -1374,7 +1487,7 @@ type TaskExecutionList struct {
 
 func (x *TaskExecutionList) Reset() {
 	*x = TaskExecutionList{}
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[21]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1386,7 +1499,7 @@ func (x *TaskExecutionList) String() string {
 func (*TaskExecutionList) ProtoMessage() {}
 
 func (x *TaskExecutionList) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[21]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1399,7 +1512,7 @@ func (x *TaskExecutionList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TaskExecutionList.ProtoReflect.Descriptor instead.
 func (*TaskExecutionList) Descriptor() ([]byte, []int) {
-	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{21}
+	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *TaskExecutionList) GetExecutions() []*TaskExecution {
@@ -1418,7 +1531,7 @@ type BatchListTaskExecutionsResponse struct {
 
 func (x *BatchListTaskExecutionsResponse) Reset() {
 	*x = BatchListTaskExecutionsResponse{}
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[22]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1430,7 +1543,7 @@ func (x *BatchListTaskExecutionsResponse) String() string {
 func (*BatchListTaskExecutionsResponse) ProtoMessage() {}
 
 func (x *BatchListTaskExecutionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[22]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1443,7 +1556,7 @@ func (x *BatchListTaskExecutionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BatchListTaskExecutionsResponse.ProtoReflect.Descriptor instead.
 func (*BatchListTaskExecutionsResponse) Descriptor() ([]byte, []int) {
-	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{22}
+	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *BatchListTaskExecutionsResponse) GetResults() map[int64]*TaskExecutionList {
@@ -1464,7 +1577,7 @@ type GetExecutionLogsRequest struct {
 
 func (x *GetExecutionLogsRequest) Reset() {
 	*x = GetExecutionLogsRequest{}
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[23]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1476,7 +1589,7 @@ func (x *GetExecutionLogsRequest) String() string {
 func (*GetExecutionLogsRequest) ProtoMessage() {}
 
 func (x *GetExecutionLogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[23]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1489,7 +1602,7 @@ func (x *GetExecutionLogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetExecutionLogsRequest.ProtoReflect.Descriptor instead.
 func (*GetExecutionLogsRequest) Descriptor() ([]byte, []int) {
-	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{23}
+	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *GetExecutionLogsRequest) GetExecutionId() int64 {
@@ -1524,7 +1637,7 @@ type ExecutionLog struct {
 
 func (x *ExecutionLog) Reset() {
 	*x = ExecutionLog{}
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[24]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1536,7 +1649,7 @@ func (x *ExecutionLog) String() string {
 func (*ExecutionLog) ProtoMessage() {}
 
 func (x *ExecutionLog) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[24]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1549,7 +1662,7 @@ func (x *ExecutionLog) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecutionLog.ProtoReflect.Descriptor instead.
 func (*ExecutionLog) Descriptor() ([]byte, []int) {
-	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{24}
+	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *ExecutionLog) GetId() int64 {
@@ -1583,7 +1696,7 @@ type GetExecutionLogsResponse struct {
 
 func (x *GetExecutionLogsResponse) Reset() {
 	*x = GetExecutionLogsResponse{}
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[25]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1595,7 +1708,7 @@ func (x *GetExecutionLogsResponse) String() string {
 func (*GetExecutionLogsResponse) ProtoMessage() {}
 
 func (x *GetExecutionLogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_etask_executor_v1_executor_proto_msgTypes[25]
+	mi := &file_etask_executor_v1_executor_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1608,7 +1721,7 @@ func (x *GetExecutionLogsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetExecutionLogsResponse.ProtoReflect.Descriptor instead.
 func (*GetExecutionLogsResponse) Descriptor() ([]byte, []int) {
-	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{25}
+	return file_etask_executor_v1_executor_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *GetExecutionLogsResponse) GetLogs() []*ExecutionLog {
@@ -1643,7 +1756,7 @@ const file_etask_executor_v1_executor_proto_rawDesc = "" +
 	"taskResult\x1aD\n" +
 	"\x16RescheduledParamsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x9d\x03\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe0\x03\n" +
 	"\x0eExecuteRequest\x12\x10\n" +
 	"\x03eid\x18\x01 \x01(\x03R\x03eid\x12\x17\n" +
 	"\atask_id\x18\x02 \x01(\x03R\x06taskId\x12\x1b\n" +
@@ -1652,10 +1765,17 @@ const file_etask_executor_v1_executor_proto_rawDesc = "" +
 	"\x06params\x18\x05 \x03(\v2-.etask.executor.v1.ExecuteRequest.ParamsEntryR\x06params\x12\x1b\n" +
 	"\ttenant_id\x18\x06 \x01(\x03R\btenantId\x12<\n" +
 	"\tartifacts\x18\a \x03(\v2\x1e.etask.artifact.v1.ArtifactRefR\tartifacts\x12:\n" +
-	"\aprogram\x18\b \x01(\v2 .etask.executor.v1.ProgramSourceR\aprogram\x1a9\n" +
+	"\aprogram\x18\b \x01(\v2 .etask.executor.v1.ProgramSourceR\aprogram\x12A\n" +
+	"\fvariable_set\x18\t \x01(\v2\x1e.etask.executor.v1.VariableSetR\vvariableSet\x1a9\n" +
 	"\vParamsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa0\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"J\n" +
+	"\bVariable\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value\x12\x16\n" +
+	"\x06secret\x18\x03 \x01(\bR\x06secret\"@\n" +
+	"\vVariableSet\x121\n" +
+	"\x05items\x18\x01 \x03(\v2\x1b.etask.executor.v1.VariableR\x05items\"\xa0\x01\n" +
 	"\rProgramSource\x12@\n" +
 	"\x06inline\x18\x01 \x01(\v2&.etask.executor.v1.InlineProgramSourceH\x00R\x06inline\x12C\n" +
 	"\aproject\x18\x02 \x01(\v2'.etask.executor.v1.ProjectProgramSourceH\x00R\aprojectB\b\n" +
@@ -1780,84 +1900,88 @@ func file_etask_executor_v1_executor_proto_rawDescGZIP() []byte {
 }
 
 var file_etask_executor_v1_executor_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_etask_executor_v1_executor_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
+var file_etask_executor_v1_executor_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
 var file_etask_executor_v1_executor_proto_goTypes = []any{
 	(ExecutionStatus)(0),                    // 0: etask.executor.v1.ExecutionStatus
 	(*ExecutionState)(nil),                  // 1: etask.executor.v1.ExecutionState
 	(*ExecuteRequest)(nil),                  // 2: etask.executor.v1.ExecuteRequest
-	(*ProgramSource)(nil),                   // 3: etask.executor.v1.ProgramSource
-	(*InlineProgramSource)(nil),             // 4: etask.executor.v1.InlineProgramSource
-	(*ProjectProgramSource)(nil),            // 5: etask.executor.v1.ProjectProgramSource
-	(*ProjectSourceRef)(nil),                // 6: etask.executor.v1.ProjectSourceRef
-	(*ExecuteResponse)(nil),                 // 7: etask.executor.v1.ExecuteResponse
-	(*InterruptRequest)(nil),                // 8: etask.executor.v1.InterruptRequest
-	(*InterruptResponse)(nil),               // 9: etask.executor.v1.InterruptResponse
-	(*TerminateRequest)(nil),                // 10: etask.executor.v1.TerminateRequest
-	(*TerminateResponse)(nil),               // 11: etask.executor.v1.TerminateResponse
-	(*QueryRequest)(nil),                    // 12: etask.executor.v1.QueryRequest
-	(*QueryResponse)(nil),                   // 13: etask.executor.v1.QueryResponse
-	(*PullTaskRequest)(nil),                 // 14: etask.executor.v1.PullTaskRequest
-	(*PullTaskResponse)(nil),                // 15: etask.executor.v1.PullTaskResponse
-	(*GetTaskExecutionRequest)(nil),         // 16: etask.executor.v1.GetTaskExecutionRequest
-	(*GetTaskExecutionResponse)(nil),        // 17: etask.executor.v1.GetTaskExecutionResponse
-	(*ListTaskExecutionsRequest)(nil),       // 18: etask.executor.v1.ListTaskExecutionsRequest
-	(*BatchListTaskExecutionsRequest)(nil),  // 19: etask.executor.v1.BatchListTaskExecutionsRequest
-	(*TaskExecution)(nil),                   // 20: etask.executor.v1.TaskExecution
-	(*ListTaskExecutionsResponse)(nil),      // 21: etask.executor.v1.ListTaskExecutionsResponse
-	(*TaskExecutionList)(nil),               // 22: etask.executor.v1.TaskExecutionList
-	(*BatchListTaskExecutionsResponse)(nil), // 23: etask.executor.v1.BatchListTaskExecutionsResponse
-	(*GetExecutionLogsRequest)(nil),         // 24: etask.executor.v1.GetExecutionLogsRequest
-	(*ExecutionLog)(nil),                    // 25: etask.executor.v1.ExecutionLog
-	(*GetExecutionLogsResponse)(nil),        // 26: etask.executor.v1.GetExecutionLogsResponse
-	nil,                                     // 27: etask.executor.v1.ExecutionState.RescheduledParamsEntry
-	nil,                                     // 28: etask.executor.v1.ExecuteRequest.ParamsEntry
-	nil,                                     // 29: etask.executor.v1.BatchListTaskExecutionsResponse.ResultsEntry
-	(*v1.ArtifactRef)(nil),                  // 30: etask.artifact.v1.ArtifactRef
+	(*Variable)(nil),                        // 3: etask.executor.v1.Variable
+	(*VariableSet)(nil),                     // 4: etask.executor.v1.VariableSet
+	(*ProgramSource)(nil),                   // 5: etask.executor.v1.ProgramSource
+	(*InlineProgramSource)(nil),             // 6: etask.executor.v1.InlineProgramSource
+	(*ProjectProgramSource)(nil),            // 7: etask.executor.v1.ProjectProgramSource
+	(*ProjectSourceRef)(nil),                // 8: etask.executor.v1.ProjectSourceRef
+	(*ExecuteResponse)(nil),                 // 9: etask.executor.v1.ExecuteResponse
+	(*InterruptRequest)(nil),                // 10: etask.executor.v1.InterruptRequest
+	(*InterruptResponse)(nil),               // 11: etask.executor.v1.InterruptResponse
+	(*TerminateRequest)(nil),                // 12: etask.executor.v1.TerminateRequest
+	(*TerminateResponse)(nil),               // 13: etask.executor.v1.TerminateResponse
+	(*QueryRequest)(nil),                    // 14: etask.executor.v1.QueryRequest
+	(*QueryResponse)(nil),                   // 15: etask.executor.v1.QueryResponse
+	(*PullTaskRequest)(nil),                 // 16: etask.executor.v1.PullTaskRequest
+	(*PullTaskResponse)(nil),                // 17: etask.executor.v1.PullTaskResponse
+	(*GetTaskExecutionRequest)(nil),         // 18: etask.executor.v1.GetTaskExecutionRequest
+	(*GetTaskExecutionResponse)(nil),        // 19: etask.executor.v1.GetTaskExecutionResponse
+	(*ListTaskExecutionsRequest)(nil),       // 20: etask.executor.v1.ListTaskExecutionsRequest
+	(*BatchListTaskExecutionsRequest)(nil),  // 21: etask.executor.v1.BatchListTaskExecutionsRequest
+	(*TaskExecution)(nil),                   // 22: etask.executor.v1.TaskExecution
+	(*ListTaskExecutionsResponse)(nil),      // 23: etask.executor.v1.ListTaskExecutionsResponse
+	(*TaskExecutionList)(nil),               // 24: etask.executor.v1.TaskExecutionList
+	(*BatchListTaskExecutionsResponse)(nil), // 25: etask.executor.v1.BatchListTaskExecutionsResponse
+	(*GetExecutionLogsRequest)(nil),         // 26: etask.executor.v1.GetExecutionLogsRequest
+	(*ExecutionLog)(nil),                    // 27: etask.executor.v1.ExecutionLog
+	(*GetExecutionLogsResponse)(nil),        // 28: etask.executor.v1.GetExecutionLogsResponse
+	nil,                                     // 29: etask.executor.v1.ExecutionState.RescheduledParamsEntry
+	nil,                                     // 30: etask.executor.v1.ExecuteRequest.ParamsEntry
+	nil,                                     // 31: etask.executor.v1.BatchListTaskExecutionsResponse.ResultsEntry
+	(*v1.ArtifactRef)(nil),                  // 32: etask.artifact.v1.ArtifactRef
 }
 var file_etask_executor_v1_executor_proto_depIdxs = []int32{
 	0,  // 0: etask.executor.v1.ExecutionState.status:type_name -> etask.executor.v1.ExecutionStatus
-	27, // 1: etask.executor.v1.ExecutionState.rescheduled_params:type_name -> etask.executor.v1.ExecutionState.RescheduledParamsEntry
-	28, // 2: etask.executor.v1.ExecuteRequest.params:type_name -> etask.executor.v1.ExecuteRequest.ParamsEntry
-	30, // 3: etask.executor.v1.ExecuteRequest.artifacts:type_name -> etask.artifact.v1.ArtifactRef
-	3,  // 4: etask.executor.v1.ExecuteRequest.program:type_name -> etask.executor.v1.ProgramSource
-	4,  // 5: etask.executor.v1.ProgramSource.inline:type_name -> etask.executor.v1.InlineProgramSource
-	5,  // 6: etask.executor.v1.ProgramSource.project:type_name -> etask.executor.v1.ProjectProgramSource
-	6,  // 7: etask.executor.v1.ProjectProgramSource.source:type_name -> etask.executor.v1.ProjectSourceRef
-	1,  // 8: etask.executor.v1.ExecuteResponse.execution_state:type_name -> etask.executor.v1.ExecutionState
-	1,  // 9: etask.executor.v1.InterruptResponse.execution_state:type_name -> etask.executor.v1.ExecutionState
-	1,  // 10: etask.executor.v1.TerminateResponse.execution_state:type_name -> etask.executor.v1.ExecutionState
-	1,  // 11: etask.executor.v1.QueryResponse.execution_state:type_name -> etask.executor.v1.ExecutionState
-	2,  // 12: etask.executor.v1.PullTaskResponse.task_req:type_name -> etask.executor.v1.ExecuteRequest
-	20, // 13: etask.executor.v1.GetTaskExecutionResponse.execution:type_name -> etask.executor.v1.TaskExecution
-	0,  // 14: etask.executor.v1.TaskExecution.status:type_name -> etask.executor.v1.ExecutionStatus
-	20, // 15: etask.executor.v1.ListTaskExecutionsResponse.executions:type_name -> etask.executor.v1.TaskExecution
-	20, // 16: etask.executor.v1.TaskExecutionList.executions:type_name -> etask.executor.v1.TaskExecution
-	29, // 17: etask.executor.v1.BatchListTaskExecutionsResponse.results:type_name -> etask.executor.v1.BatchListTaskExecutionsResponse.ResultsEntry
-	25, // 18: etask.executor.v1.GetExecutionLogsResponse.logs:type_name -> etask.executor.v1.ExecutionLog
-	22, // 19: etask.executor.v1.BatchListTaskExecutionsResponse.ResultsEntry.value:type_name -> etask.executor.v1.TaskExecutionList
-	2,  // 20: etask.executor.v1.ExecutorService.Execute:input_type -> etask.executor.v1.ExecuteRequest
-	8,  // 21: etask.executor.v1.ExecutorService.Interrupt:input_type -> etask.executor.v1.InterruptRequest
-	10, // 22: etask.executor.v1.ExecutorService.Terminate:input_type -> etask.executor.v1.TerminateRequest
-	12, // 23: etask.executor.v1.ExecutorService.Query:input_type -> etask.executor.v1.QueryRequest
-	14, // 24: etask.executor.v1.AgentService.PullTask:input_type -> etask.executor.v1.PullTaskRequest
-	16, // 25: etask.executor.v1.TaskExecutionService.GetTaskExecution:input_type -> etask.executor.v1.GetTaskExecutionRequest
-	18, // 26: etask.executor.v1.TaskExecutionService.ListTaskExecutions:input_type -> etask.executor.v1.ListTaskExecutionsRequest
-	24, // 27: etask.executor.v1.TaskExecutionService.GetExecutionLogs:input_type -> etask.executor.v1.GetExecutionLogsRequest
-	19, // 28: etask.executor.v1.TaskExecutionService.BatchListTaskExecutions:input_type -> etask.executor.v1.BatchListTaskExecutionsRequest
-	7,  // 29: etask.executor.v1.ExecutorService.Execute:output_type -> etask.executor.v1.ExecuteResponse
-	9,  // 30: etask.executor.v1.ExecutorService.Interrupt:output_type -> etask.executor.v1.InterruptResponse
-	11, // 31: etask.executor.v1.ExecutorService.Terminate:output_type -> etask.executor.v1.TerminateResponse
-	13, // 32: etask.executor.v1.ExecutorService.Query:output_type -> etask.executor.v1.QueryResponse
-	15, // 33: etask.executor.v1.AgentService.PullTask:output_type -> etask.executor.v1.PullTaskResponse
-	17, // 34: etask.executor.v1.TaskExecutionService.GetTaskExecution:output_type -> etask.executor.v1.GetTaskExecutionResponse
-	21, // 35: etask.executor.v1.TaskExecutionService.ListTaskExecutions:output_type -> etask.executor.v1.ListTaskExecutionsResponse
-	26, // 36: etask.executor.v1.TaskExecutionService.GetExecutionLogs:output_type -> etask.executor.v1.GetExecutionLogsResponse
-	23, // 37: etask.executor.v1.TaskExecutionService.BatchListTaskExecutions:output_type -> etask.executor.v1.BatchListTaskExecutionsResponse
-	29, // [29:38] is the sub-list for method output_type
-	20, // [20:29] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	29, // 1: etask.executor.v1.ExecutionState.rescheduled_params:type_name -> etask.executor.v1.ExecutionState.RescheduledParamsEntry
+	30, // 2: etask.executor.v1.ExecuteRequest.params:type_name -> etask.executor.v1.ExecuteRequest.ParamsEntry
+	32, // 3: etask.executor.v1.ExecuteRequest.artifacts:type_name -> etask.artifact.v1.ArtifactRef
+	5,  // 4: etask.executor.v1.ExecuteRequest.program:type_name -> etask.executor.v1.ProgramSource
+	4,  // 5: etask.executor.v1.ExecuteRequest.variable_set:type_name -> etask.executor.v1.VariableSet
+	3,  // 6: etask.executor.v1.VariableSet.items:type_name -> etask.executor.v1.Variable
+	6,  // 7: etask.executor.v1.ProgramSource.inline:type_name -> etask.executor.v1.InlineProgramSource
+	7,  // 8: etask.executor.v1.ProgramSource.project:type_name -> etask.executor.v1.ProjectProgramSource
+	8,  // 9: etask.executor.v1.ProjectProgramSource.source:type_name -> etask.executor.v1.ProjectSourceRef
+	1,  // 10: etask.executor.v1.ExecuteResponse.execution_state:type_name -> etask.executor.v1.ExecutionState
+	1,  // 11: etask.executor.v1.InterruptResponse.execution_state:type_name -> etask.executor.v1.ExecutionState
+	1,  // 12: etask.executor.v1.TerminateResponse.execution_state:type_name -> etask.executor.v1.ExecutionState
+	1,  // 13: etask.executor.v1.QueryResponse.execution_state:type_name -> etask.executor.v1.ExecutionState
+	2,  // 14: etask.executor.v1.PullTaskResponse.task_req:type_name -> etask.executor.v1.ExecuteRequest
+	22, // 15: etask.executor.v1.GetTaskExecutionResponse.execution:type_name -> etask.executor.v1.TaskExecution
+	0,  // 16: etask.executor.v1.TaskExecution.status:type_name -> etask.executor.v1.ExecutionStatus
+	22, // 17: etask.executor.v1.ListTaskExecutionsResponse.executions:type_name -> etask.executor.v1.TaskExecution
+	22, // 18: etask.executor.v1.TaskExecutionList.executions:type_name -> etask.executor.v1.TaskExecution
+	31, // 19: etask.executor.v1.BatchListTaskExecutionsResponse.results:type_name -> etask.executor.v1.BatchListTaskExecutionsResponse.ResultsEntry
+	27, // 20: etask.executor.v1.GetExecutionLogsResponse.logs:type_name -> etask.executor.v1.ExecutionLog
+	24, // 21: etask.executor.v1.BatchListTaskExecutionsResponse.ResultsEntry.value:type_name -> etask.executor.v1.TaskExecutionList
+	2,  // 22: etask.executor.v1.ExecutorService.Execute:input_type -> etask.executor.v1.ExecuteRequest
+	10, // 23: etask.executor.v1.ExecutorService.Interrupt:input_type -> etask.executor.v1.InterruptRequest
+	12, // 24: etask.executor.v1.ExecutorService.Terminate:input_type -> etask.executor.v1.TerminateRequest
+	14, // 25: etask.executor.v1.ExecutorService.Query:input_type -> etask.executor.v1.QueryRequest
+	16, // 26: etask.executor.v1.AgentService.PullTask:input_type -> etask.executor.v1.PullTaskRequest
+	18, // 27: etask.executor.v1.TaskExecutionService.GetTaskExecution:input_type -> etask.executor.v1.GetTaskExecutionRequest
+	20, // 28: etask.executor.v1.TaskExecutionService.ListTaskExecutions:input_type -> etask.executor.v1.ListTaskExecutionsRequest
+	26, // 29: etask.executor.v1.TaskExecutionService.GetExecutionLogs:input_type -> etask.executor.v1.GetExecutionLogsRequest
+	21, // 30: etask.executor.v1.TaskExecutionService.BatchListTaskExecutions:input_type -> etask.executor.v1.BatchListTaskExecutionsRequest
+	9,  // 31: etask.executor.v1.ExecutorService.Execute:output_type -> etask.executor.v1.ExecuteResponse
+	11, // 32: etask.executor.v1.ExecutorService.Interrupt:output_type -> etask.executor.v1.InterruptResponse
+	13, // 33: etask.executor.v1.ExecutorService.Terminate:output_type -> etask.executor.v1.TerminateResponse
+	15, // 34: etask.executor.v1.ExecutorService.Query:output_type -> etask.executor.v1.QueryResponse
+	17, // 35: etask.executor.v1.AgentService.PullTask:output_type -> etask.executor.v1.PullTaskResponse
+	19, // 36: etask.executor.v1.TaskExecutionService.GetTaskExecution:output_type -> etask.executor.v1.GetTaskExecutionResponse
+	23, // 37: etask.executor.v1.TaskExecutionService.ListTaskExecutions:output_type -> etask.executor.v1.ListTaskExecutionsResponse
+	28, // 38: etask.executor.v1.TaskExecutionService.GetExecutionLogs:output_type -> etask.executor.v1.GetExecutionLogsResponse
+	25, // 39: etask.executor.v1.TaskExecutionService.BatchListTaskExecutions:output_type -> etask.executor.v1.BatchListTaskExecutionsResponse
+	31, // [31:40] is the sub-list for method output_type
+	22, // [22:31] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_etask_executor_v1_executor_proto_init() }
@@ -1865,7 +1989,7 @@ func file_etask_executor_v1_executor_proto_init() {
 	if File_etask_executor_v1_executor_proto != nil {
 		return
 	}
-	file_etask_executor_v1_executor_proto_msgTypes[2].OneofWrappers = []any{
+	file_etask_executor_v1_executor_proto_msgTypes[4].OneofWrappers = []any{
 		(*ProgramSource_Inline)(nil),
 		(*ProgramSource_Project)(nil),
 	}
@@ -1875,7 +1999,7 @@ func file_etask_executor_v1_executor_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_etask_executor_v1_executor_proto_rawDesc), len(file_etask_executor_v1_executor_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   29,
+			NumMessages:   31,
 			NumExtensions: 0,
 			NumServices:   3,
 		},

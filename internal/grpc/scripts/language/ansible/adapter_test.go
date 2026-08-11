@@ -260,6 +260,7 @@ func TestAdapterMetadataDeclaresCommonOptions(t *testing.T) {
 	require.NotContains(t, components, "options")
 	require.NotContains(t, components, "args")
 	require.Equal(t, "kv-input", components["vars"])
+	require.Equal(t, executor.ParameterRoleVariables, vars.Role)
 	require.Contains(t, vars.Bindings, "manual")
 	require.Contains(t, vars.Bindings, "runner")
 }

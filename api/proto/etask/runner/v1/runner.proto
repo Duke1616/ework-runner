@@ -25,6 +25,7 @@ message Runner {
   int64 ctime = 12;
   int64 utime = 13;
   string program_kind = 14;
+  map<string, bytes> parameter_defaults = 15; // 参数值为对应 JSON 类型的原始字节
 }
 
 message FindRunnerByIDRequest {

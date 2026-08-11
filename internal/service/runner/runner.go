@@ -22,13 +22,13 @@ type Service interface {
 	// FindByID 根据主键 ID 获取执行单元。
 	FindByID(ctx context.Context, id int64) (domain.Runner, error)
 	// FindForExecution 获取执行单元及其全局和私有有效变量。
-	FindForExecution(ctx context.Context, id int64) (domain.Runner, error)
+	FindForExecution(ctx context.Context, id int64) (domain.RunnerExecutionSpec, error)
 	// Delete 根据主键 ID 删除执行单元。
 	Delete(ctx context.Context, id int64) (int64, error)
 	// List 分页获取执行单元列表和总数。
 	List(ctx context.Context, offset, limit int64, keyword, kind string) ([]domain.Runner, int64, error)
-	// ListByCodebookID 获取绑定指定脚本模板 ID 的全部执行单元。
-	ListByCodebookID(ctx context.Context, codebookID int64) ([]domain.Runner, error)
+	// ListByCodebookID 获取绑定指定脚本模板 ID 的执行单元及其有效变量。
+	ListByCodebookID(ctx context.Context, codebookID int64) ([]domain.RunnerExecutionSpec, error)
 	// ListExcludeCodebookID 获取未绑定指定脚本模板 ID 的执行单元列表。
 	ListExcludeCodebookID(ctx context.Context, offset, limit int64, codebookID int64, keyword, kind string) ([]domain.Runner, int64, error)
 	// ListByCodebookIDs 获取绑定任一脚本模板 ID 的执行单元列表。
@@ -101,9 +101,9 @@ func (s *service) FindByID(ctx context.Context, id int64) (domain.Runner, error)
 	return s.repo.FindByID(ctx, id)
 }
 
-func (s *service) FindForExecution(ctx context.Context, id int64) (domain.Runner, error) {
+func (s *service) FindForExecution(ctx context.Context, id int64) (domain.RunnerExecutionSpec, error) {
 	if id <= 0 {
-		return domain.Runner{}, fmt.Errorf("%w: id = %d", errs.ErrInvalidParameter, id)
+		return domain.RunnerExecutionSpec{}, fmt.Errorf("%w: id = %d", errs.ErrInvalidParameter, id)
 	}
 	return s.repo.FindForExecution(ctx, id)
 }
@@ -140,7 +140,7 @@ func (s *service) List(ctx context.Context, offset, limit int64, keyword, kind s
 }
 
 // ListByCodebookID 获取绑定指定脚本模板 ID 的全部执行单元。
-func (s *service) ListByCodebookID(ctx context.Context, codebookID int64) ([]domain.Runner, error) {
+func (s *service) ListByCodebookID(ctx context.Context, codebookID int64) ([]domain.RunnerExecutionSpec, error) {
 	if codebookID <= 0 {
 		return nil, fmt.Errorf("%w: codebook_id = %d", errs.ErrInvalidParameter, codebookID)
 	}

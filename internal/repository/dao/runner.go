@@ -2,6 +2,7 @@ package dao
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/Duke1616/etask/internal/domain"
@@ -11,20 +12,21 @@ import (
 
 // Runner 映射脚本执行单元持久化表。
 type Runner struct {
-	ID             int64                     `gorm:"primaryKey;column:id;type:bigint;autoIncrement;comment:'执行单元自增ID'"`
-	TenantID       int64                     `gorm:"column:tenant_id;type:bigint unsigned;not null;default:0;index;comment:'租户ID'"`
-	Name           string                    `gorm:"column:name;type:varchar(128);not null;comment:'执行单元名称'"`
-	CodebookID     int64                     `gorm:"column:codebook_id;type:bigint;index;comment:'关联脚本模板ID'"`
-	ProgramKind    string                    `gorm:"column:program_kind;type:varchar(16);not null;default:INLINE;comment:'程序来源模式(INLINE/PROJECT)'"`
-	CodebookSecret string                    `gorm:"column:codebook_secret;type:varchar(128);comment:'脚本模板认证密钥'"`
-	Kind           string                    `gorm:"column:kind;type:varchar(32);comment:'派发管道协议(KAFKA/GRPC)'"`
-	Target         string                    `gorm:"column:target;type:varchar(128);comment:'派发物理目标(Topic/ServiceName)'"`
-	Handler        string                    `gorm:"column:handler;type:varchar(128);comment:'执行器承载业务方法'"`
-	Tags           sqlx.JSONColumn[[]string] `gorm:"column:tags;type:json;comment:'匹配标签JSON'"`
-	Action         uint8                     `gorm:"column:action;type:tinyint unsigned;comment:'活跃动作状态 1:REGISTER 2:UNREGISTER'"`
-	Desc           string                    `gorm:"column:desc;type:text;comment:'备注说明'"`
-	CTime          int64                     `gorm:"column:ctime;type:bigint;comment:'创建时间(毫秒)'"`
-	UTime          int64                     `gorm:"column:utime;type:bigint;comment:'更新时间(毫秒)'"`
+	ID                int64                                       `gorm:"primaryKey;column:id;type:bigint;autoIncrement;comment:'执行单元自增ID'"`
+	TenantID          int64                                       `gorm:"column:tenant_id;type:bigint unsigned;not null;default:0;index;comment:'租户ID'"`
+	Name              string                                      `gorm:"column:name;type:varchar(128);not null;comment:'执行单元名称'"`
+	CodebookID        int64                                       `gorm:"column:codebook_id;type:bigint;index;comment:'关联脚本模板ID'"`
+	ProgramKind       string                                      `gorm:"column:program_kind;type:varchar(16);not null;default:INLINE;comment:'程序来源模式(INLINE/PROJECT)'"`
+	CodebookSecret    string                                      `gorm:"column:codebook_secret;type:varchar(128);comment:'脚本模板认证密钥'"`
+	Kind              string                                      `gorm:"column:kind;type:varchar(32);comment:'派发管道协议(KAFKA/GRPC)'"`
+	Target            string                                      `gorm:"column:target;type:varchar(128);comment:'派发物理目标(Topic/ServiceName)'"`
+	Handler           string                                      `gorm:"column:handler;type:varchar(128);comment:'执行器承载业务方法'"`
+	Tags              sqlx.JSONColumn[[]string]                   `gorm:"column:tags;type:json;comment:'匹配标签JSON'"`
+	Action            uint8                                       `gorm:"column:action;type:tinyint unsigned;comment:'活跃动作状态 1:REGISTER 2:UNREGISTER'"`
+	Desc              string                                      `gorm:"column:desc;type:text;comment:'备注说明'"`
+	ParameterDefaults sqlx.JSONColumn[map[string]json.RawMessage] `gorm:"column:parameter_defaults;type:json;comment:'Handler 参数默认值'"`
+	CTime             int64                                       `gorm:"column:ctime;type:bigint;comment:'创建时间(毫秒)'"`
+	UTime             int64                                       `gorm:"column:utime;type:bigint;comment:'更新时间(毫秒)'"`
 }
 
 // RunnerDAO 定义脚本执行单元的数据访问操作。
@@ -95,16 +97,17 @@ func (g *GORMRunnerDAO) Update(ctx context.Context, req Runner) (int64, error) {
 		Model(&Runner{}).
 		Where("id = ?", req.ID).
 		Updates(map[string]any{
-			"name":            req.Name,
-			"codebook_id":     req.CodebookID,
-			"program_kind":    req.ProgramKind,
-			"codebook_secret": req.CodebookSecret,
-			"kind":            req.Kind,
-			"target":          req.Target,
-			"handler":         req.Handler,
-			"tags":            req.Tags,
-			"desc":            req.Desc,
-			"utime":           time.Now().UnixMilli(),
+			"name":               req.Name,
+			"codebook_id":        req.CodebookID,
+			"program_kind":       req.ProgramKind,
+			"codebook_secret":    req.CodebookSecret,
+			"kind":               req.Kind,
+			"target":             req.Target,
+			"handler":            req.Handler,
+			"tags":               req.Tags,
+			"desc":               req.Desc,
+			"parameter_defaults": req.ParameterDefaults,
+			"utime":              time.Now().UnixMilli(),
 		})
 	return res.RowsAffected, res.Error
 }
@@ -116,16 +119,17 @@ func (g *GORMRunnerDAO) UpdateWithVariables(ctx context.Context, req Runner, var
 			Model(&Runner{}).
 			Where("id = ?", req.ID).
 			Updates(map[string]any{
-				"name":            req.Name,
-				"codebook_id":     req.CodebookID,
-				"program_kind":    req.ProgramKind,
-				"codebook_secret": req.CodebookSecret,
-				"kind":            req.Kind,
-				"target":          req.Target,
-				"handler":         req.Handler,
-				"tags":            req.Tags,
-				"desc":            req.Desc,
-				"utime":           time.Now().UnixMilli(),
+				"name":               req.Name,
+				"codebook_id":        req.CodebookID,
+				"program_kind":       req.ProgramKind,
+				"codebook_secret":    req.CodebookSecret,
+				"kind":               req.Kind,
+				"target":             req.Target,
+				"handler":            req.Handler,
+				"tags":               req.Tags,
+				"desc":               req.Desc,
+				"parameter_defaults": req.ParameterDefaults,
+				"utime":              time.Now().UnixMilli(),
 			})
 		if res.Error != nil {
 			return res.Error

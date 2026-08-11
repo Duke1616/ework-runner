@@ -9,6 +9,7 @@ import (
 
 	"github.com/Duke1616/etask/internal/domain"
 	programSvc "github.com/Duke1616/etask/internal/service/program"
+	runnerSvc "github.com/Duke1616/etask/internal/service/runner"
 )
 
 type prepareResult struct {
@@ -16,27 +17,34 @@ type prepareResult struct {
 	program         *domain.Program
 	sourceProjectID int64
 	args            string
+	params          map[string]string
 	timeout         int64
-	variables       []previewVariable
+	variables       []domain.RunnerVariable
 }
 
 func (s *service) prepare(ctx context.Context, command RunCommand) (prepareResult, error) {
 	if err := validateCommand(command); err != nil {
 		return prepareResult{}, err
 	}
-	runner, err := s.resolveRunner(ctx, command.RunnerID)
+	spec, err := s.resolveRunner(ctx, command.RunnerID)
 	if err != nil {
 		return prepareResult{}, err
 	}
-	args, err := normalizeArgs(command.Args)
+	runner := spec.Runner
+	params, err := runnerSvc.MergeParameterDefaults(runner.ParameterDefaults, nil)
 	if err != nil {
 		return prepareResult{}, err
 	}
+	args, err := normalizeArgs(command.Args, runner.ParameterDefaults)
+	if err != nil {
+		return prepareResult{}, err
+	}
+	params["args"] = args
 	timeout, err := normalizeTimeout(command.MaxExecutionSeconds)
 	if err != nil {
 		return prepareResult{}, err
 	}
-	variables, err := mergeVariables(runner.Variables, command.Variables)
+	variables, err := mergeVariables(spec.Variables, command.Variables)
 	if err != nil {
 		return prepareResult{}, err
 	}
@@ -49,7 +57,7 @@ func (s *service) prepare(ctx context.Context, command RunCommand) (prepareResul
 	}
 	return prepareResult{
 		runner: runner, program: resolution.Program, sourceProjectID: resolution.SourceProjectID,
-		args: args, timeout: timeout, variables: variables,
+		args: args, params: params, timeout: timeout, variables: variables,
 	}, nil
 }
 
@@ -60,27 +68,28 @@ func validateCommand(command RunCommand) error {
 	return nil
 }
 
-func (s *service) resolveRunner(ctx context.Context, id int64) (domain.Runner, error) {
-	runner, err := s.runnerSvc.FindForExecution(ctx, id)
+func (s *service) resolveRunner(ctx context.Context, id int64) (domain.RunnerExecutionSpec, error) {
+	spec, err := s.runnerSvc.FindForExecution(ctx, id)
 	if err != nil {
-		return domain.Runner{}, fmt.Errorf("查询执行单元失败: %w", err)
+		return domain.RunnerExecutionSpec{}, fmt.Errorf("查询执行单元失败: %w", err)
 	}
+	runner := spec.Runner
 	if runner.CodebookID <= 0 {
-		return domain.Runner{}, fmt.Errorf("执行单元未绑定程序来源")
+		return domain.RunnerExecutionSpec{}, fmt.Errorf("执行单元未绑定程序来源")
 	}
 	if !runner.ProgramKind.Valid() {
-		return domain.Runner{}, fmt.Errorf("执行单元程序类型非法: %s", runner.ProgramKind)
+		return domain.RunnerExecutionSpec{}, fmt.Errorf("执行单元程序类型非法: %s", runner.ProgramKind)
 	}
 	if !runner.Kind.IsValid() {
-		return domain.Runner{}, fmt.Errorf("执行单元类型非法: %s", runner.Kind)
+		return domain.RunnerExecutionSpec{}, fmt.Errorf("执行单元类型非法: %s", runner.Kind)
 	}
 	if strings.TrimSpace(runner.Handler) == "" {
-		return domain.Runner{}, fmt.Errorf("执行单元未配置 Handler")
+		return domain.RunnerExecutionSpec{}, fmt.Errorf("执行单元未配置 Handler")
 	}
 	if runner.Action != domain.RunnerActionRegistered {
-		return domain.Runner{}, fmt.Errorf("当前执行单元未启用")
+		return domain.RunnerExecutionSpec{}, fmt.Errorf("当前执行单元未启用")
 	}
-	return runner, nil
+	return spec, nil
 }
 
 func (s *service) resolveProgram(ctx context.Context, runner domain.Runner) (programSvc.Resolution, error) {
@@ -91,10 +100,20 @@ func (s *service) resolveProgram(ctx context.Context, runner domain.Runner) (pro
 	return s.programSvc.Resolve(ctx, spec)
 }
 
-func normalizeArgs(raw string) (string, error) {
+func normalizeArgs(raw string, defaults map[string]json.RawMessage) (string, error) {
 	args := strings.TrimSpace(raw)
 	if args == "" {
-		return "{}", nil
+		if value, exists := defaults["args"]; exists {
+			var err error
+			args, err = runnerSvc.ParameterDefaultValue(value)
+			if err != nil {
+				return "", fmt.Errorf("Runner 默认 args 非法: %w", err)
+			}
+			args = strings.TrimSpace(args)
+		}
+		if args == "" {
+			return "{}", nil
+		}
 	}
 	if !json.Valid([]byte(args)) {
 		return "", fmt.Errorf("试运行参数必须是合法 JSON")
@@ -113,7 +132,7 @@ func normalizeTimeout(seconds int64) (int64, error) {
 }
 
 // mergeVariables 保留默认变量顺序；临时变量覆盖同名值，新变量追加到末尾。
-func mergeVariables(defaults, overrides []domain.RunnerVariable) ([]previewVariable, error) {
+func mergeVariables(defaults, overrides []domain.RunnerVariable) ([]domain.RunnerVariable, error) {
 	values := make(map[string]domain.RunnerVariable, len(defaults)+len(overrides))
 	keys := make([]string, 0, len(defaults)+len(overrides))
 	for _, variable := range defaults {
@@ -130,34 +149,32 @@ func mergeVariables(defaults, overrides []domain.RunnerVariable) ([]previewVaria
 		}
 		values[variable.Key] = variable
 	}
-	result := make([]previewVariable, 0, len(keys))
+	result := make([]domain.RunnerVariable, 0, len(keys))
 	for _, key := range keys {
-		variable := values[key]
-		result = append(result, previewVariable{Key: key, Value: variable.Value, Secret: variable.Secret})
+		result = append(result, values[key])
 	}
 	return result, nil
 }
 
-func (s *service) buildDraft(prepared prepareResult, variablesJSON []byte) domain.TaskExecution {
+func (s *service) buildDraft(prepared prepareResult) domain.TaskExecution {
+	params := make(map[string]string, len(prepared.params))
+	for key, value := range prepared.params {
+		params[key] = value
+	}
+	variables := append([]domain.RunnerVariable(nil), prepared.variables...)
 	return domain.TaskExecution{
 		Status: domain.TaskExecutionStatusPrepare, StartTime: time.Now().UnixMilli(),
 		Task: domain.Task{
+			RunnerID:            prepared.runner.ID,
 			Name:                "试运行: " + prepared.runner.Name,
 			MaxExecutionSeconds: prepared.timeout,
 			RetryConfig:         &domain.RetryConfig{MaxRetries: 0},
 			GrpcConfig: &domain.GrpcConfig{
 				ServiceName: prepared.runner.Target, HandlerName: prepared.runner.Handler,
-				Params: map[string]string{
-					"args": prepared.args, "variables": string(variablesJSON),
-				},
+				Params: params,
 			},
 		},
-		Program: prepared.program,
+		Program:   prepared.program,
+		Variables: &domain.ExecutionVariableSet{Items: variables},
 	}
-}
-
-type previewVariable struct {
-	Key    string `json:"key"`
-	Value  string `json:"value"`
-	Secret bool   `json:"secret"`
 }

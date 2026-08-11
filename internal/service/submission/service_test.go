@@ -115,7 +115,8 @@ func TestRunRunnerDoesNotInvokeExecutionWithEarlyCancellationIntent(t *testing.T
 	cancelled := execution
 	cancelled.Status = domain.TaskExecutionStatusCancelled
 	gomock.InOrder(
-		runners.EXPECT().FindForExecution(gomock.Any(), int64(10)).Return(runner, nil),
+		runners.EXPECT().FindForExecution(gomock.Any(), int64(10)).Return(
+			domain.RunnerExecutionSpec{Runner: runner}, nil),
 		programs.EXPECT().Resolve(gomock.Any(), gomock.Any()).DoAndReturn(
 			func(_ context.Context, spec *domain.ProgramSpec) (programSvc.Resolution, error) {
 				require.Equal(t, domain.ProgramInline, spec.Kind)

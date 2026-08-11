@@ -237,10 +237,10 @@ func (c *MockRunnerRepositoryFindByIDCall) DoAndReturn(f func(context.Context, i
 }
 
 // FindForExecution mocks base method.
-func (m *MockRunnerRepository) FindForExecution(ctx context.Context, id int64) (domain.Runner, error) {
+func (m *MockRunnerRepository) FindForExecution(ctx context.Context, id int64) (domain.RunnerExecutionSpec, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindForExecution", ctx, id)
-	ret0, _ := ret[0].(domain.Runner)
+	ret0, _ := ret[0].(domain.RunnerExecutionSpec)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -258,19 +258,19 @@ type MockRunnerRepositoryFindForExecutionCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockRunnerRepositoryFindForExecutionCall) Return(arg0 domain.Runner, arg1 error) *MockRunnerRepositoryFindForExecutionCall {
+func (c *MockRunnerRepositoryFindForExecutionCall) Return(arg0 domain.RunnerExecutionSpec, arg1 error) *MockRunnerRepositoryFindForExecutionCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockRunnerRepositoryFindForExecutionCall) Do(f func(context.Context, int64) (domain.Runner, error)) *MockRunnerRepositoryFindForExecutionCall {
+func (c *MockRunnerRepositoryFindForExecutionCall) Do(f func(context.Context, int64) (domain.RunnerExecutionSpec, error)) *MockRunnerRepositoryFindForExecutionCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockRunnerRepositoryFindForExecutionCall) DoAndReturn(f func(context.Context, int64) (domain.Runner, error)) *MockRunnerRepositoryFindForExecutionCall {
+func (c *MockRunnerRepositoryFindForExecutionCall) DoAndReturn(f func(context.Context, int64) (domain.RunnerExecutionSpec, error)) *MockRunnerRepositoryFindForExecutionCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -315,10 +315,10 @@ func (c *MockRunnerRepositoryListCall) DoAndReturn(f func(context.Context, int64
 }
 
 // ListByCodebookID mocks base method.
-func (m *MockRunnerRepository) ListByCodebookID(ctx context.Context, codebookID int64) ([]domain.Runner, error) {
+func (m *MockRunnerRepository) ListByCodebookID(ctx context.Context, codebookID int64) ([]domain.RunnerExecutionSpec, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListByCodebookID", ctx, codebookID)
-	ret0, _ := ret[0].([]domain.Runner)
+	ret0, _ := ret[0].([]domain.RunnerExecutionSpec)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -336,19 +336,19 @@ type MockRunnerRepositoryListByCodebookIDCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockRunnerRepositoryListByCodebookIDCall) Return(arg0 []domain.Runner, arg1 error) *MockRunnerRepositoryListByCodebookIDCall {
+func (c *MockRunnerRepositoryListByCodebookIDCall) Return(arg0 []domain.RunnerExecutionSpec, arg1 error) *MockRunnerRepositoryListByCodebookIDCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockRunnerRepositoryListByCodebookIDCall) Do(f func(context.Context, int64) ([]domain.Runner, error)) *MockRunnerRepositoryListByCodebookIDCall {
+func (c *MockRunnerRepositoryListByCodebookIDCall) Do(f func(context.Context, int64) ([]domain.RunnerExecutionSpec, error)) *MockRunnerRepositoryListByCodebookIDCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockRunnerRepositoryListByCodebookIDCall) DoAndReturn(f func(context.Context, int64) ([]domain.Runner, error)) *MockRunnerRepositoryListByCodebookIDCall {
+func (c *MockRunnerRepositoryListByCodebookIDCall) DoAndReturn(f func(context.Context, int64) ([]domain.RunnerExecutionSpec, error)) *MockRunnerRepositoryListByCodebookIDCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

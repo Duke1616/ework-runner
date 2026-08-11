@@ -38,6 +38,7 @@ type ContextOptions struct {
 	Context         context.Context
 	Task            TaskInfo
 	Params          map[string]string
+	Variables       *VariableSet
 	Metadata        map[string]string
 	Parameters      []Parameter
 	Progress        ProgressReporter
@@ -50,6 +51,7 @@ type Context struct {
 	ctx           context.Context
 	task          TaskInfo
 	params        map[string]string
+	variables     *VariableSet
 	metadata      map[string]string
 	parameters    map[string]Parameter
 	artifactRoots ArtifactRoots
@@ -88,6 +90,12 @@ func NewContext(options ContextOptions) *Context {
 	if params == nil {
 		params = make(map[string]string)
 	}
+	var variables *VariableSet
+	if options.Variables != nil {
+		items := make([]Variable, len(options.Variables.Items))
+		copy(items, options.Variables.Items)
+		variables = &VariableSet{Items: items}
+	}
 	metadata := maps.Clone(options.Metadata)
 	if metadata == nil {
 		metadata = make(map[string]string)
@@ -101,12 +109,33 @@ func NewContext(options ContextOptions) *Context {
 	if executionLogger == nil {
 		executionLogger = noopExecutionLogger{}
 	}
-	executionLogger = newMaskingExecutionLogger(executionLogger, secretMasks(params))
+	executionLogger = newMaskingExecutionLogger(executionLogger, secretMasks(params, variableItems(variables)))
 	return &Context{
-		ctx: ctx, task: options.Task, params: params, metadata: metadata, parameters: parameters,
+		ctx: ctx, task: options.Task, params: params, variables: variables,
+		metadata: metadata, parameters: parameters,
 		results: make(map[string]any), systemLogger: systemLogger, executionLogger: executionLogger,
 		progress: options.Progress,
 	}
+}
+
+// Variables 返回本次执行独立的变量快照。
+func (c *Context) Variables() []Variable {
+	if c.variables == nil {
+		return nil
+	}
+	result := make([]Variable, len(c.variables.Items))
+	copy(result, c.variables.Items)
+	return result
+}
+
+// HasVariables 判断本次执行是否提供了独立变量快照。
+func (c *Context) HasVariables() bool { return c.variables != nil }
+
+func variableItems(set *VariableSet) []Variable {
+	if set == nil {
+		return nil
+	}
+	return set.Items
 }
 
 // Context 返回承载取消信号和租户信息的原生上下文。
@@ -216,8 +245,13 @@ func (c *Context) Close() {
 	}
 }
 
-func secretMasks(params map[string]string) []string {
+func secretMasks(params map[string]string, executionVariables []Variable) []string {
 	masks := make([]string, 0)
+	for _, variable := range executionVariables {
+		if variable.Secret && variable.Value != "" {
+			masks = append(masks, variable.Value)
+		}
+	}
 	for _, parameter := range []string{"variables", "vars"} {
 		var variables []Variable
 		if json.Unmarshal([]byte(params[parameter]), &variables) != nil {

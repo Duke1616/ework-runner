@@ -47,33 +47,40 @@ func (s *RunnerServer) ListRunnersByCodebookID(ctx context.Context,
 		return nil, status.Errorf(codes.Internal, "list runners by codebook: %v", err)
 	}
 	return &runnerv1.ListRunnersByCodebookIDResponse{
-		Runners: slice.Map(runners, func(_ int, runner domain.Runner) *runnerv1.Runner {
-			return s.toProto(runner)
+		Runners: slice.Map(runners, func(_ int, spec domain.RunnerExecutionSpec) *runnerv1.Runner {
+			result := s.toProto(spec.Runner)
+			result.Variables = toProtoVariables(spec.Variables)
+			return result
 		}),
 	}, nil
 }
 
 func (s *RunnerServer) toProto(r domain.Runner) *runnerv1.Runner {
 	return &runnerv1.Runner{
-		Id:             r.ID,
-		Name:           r.Name,
-		CodebookId:     r.CodebookID,
-		ProgramKind:    string(r.ProgramKind),
-		CodebookSecret: r.CodebookSecret,
-		Kind:           r.Kind.String(),
-		Target:         r.Target,
-		Handler:        r.Handler,
-		Tags:           r.Tags,
-		Action:         uint32(r.Action),
-		Desc:           r.Desc,
-		Ctime:          r.CTime,
-		Utime:          r.UTime,
-		Variables: slice.Map(r.Variables, func(_ int, src domain.RunnerVariable) *runnerv1.Variable {
-			return &runnerv1.Variable{
-				Key:    src.Key,
-				Value:  src.Value,
-				Secret: src.Secret,
-			}
-		}),
+		Id:                r.ID,
+		Name:              r.Name,
+		CodebookId:        r.CodebookID,
+		ProgramKind:       string(r.ProgramKind),
+		ParameterDefaults: runnerSvc.ParameterDefaultsBytes(r.ParameterDefaults),
+		CodebookSecret:    r.CodebookSecret,
+		Kind:              r.Kind.String(),
+		Target:            r.Target,
+		Handler:           r.Handler,
+		Tags:              r.Tags,
+		Action:            uint32(r.Action),
+		Desc:              r.Desc,
+		Ctime:             r.CTime,
+		Utime:             r.UTime,
+		Variables:         toProtoVariables(r.Variables),
 	}
+}
+
+func toProtoVariables(variables []domain.RunnerVariable) []*runnerv1.Variable {
+	return slice.Map(variables, func(_ int, src domain.RunnerVariable) *runnerv1.Variable {
+		return &runnerv1.Variable{
+			Key:    src.Key,
+			Value:  src.Value,
+			Secret: src.Secret,
+		}
+	})
 }

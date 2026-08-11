@@ -1,7 +1,9 @@
 package domain
 
 import (
+	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/Duke1616/etask/internal/errs"
 )
@@ -51,9 +53,16 @@ func (a RunnerAction) Uint8() uint8 {
 
 // RunnerVariable 表示执行脚本时透传的默认变量。
 type RunnerVariable struct {
-	Key    string
-	Value  string
-	Secret bool
+	Key    string `json:"key"`
+	Value  string `json:"value"`
+	Secret bool   `json:"secret"`
+}
+
+// RunnerExecutionSpec 是执行阶段使用的 Runner 投影。
+// Runner.Variables 始终表示 Runner 私有变量，Variables 则是全局变量与私有变量合并后的有效值。
+type RunnerExecutionSpec struct {
+	Runner    Runner
+	Variables []RunnerVariable
 }
 
 // Runner 描述脚本模板由哪个执行资源池、哪个 handler、哪些标签承载执行。
@@ -70,9 +79,12 @@ type Runner struct {
 	Tags           []string
 	Action         RunnerAction
 	Desc           string
-	Variables      []RunnerVariable
-	CTime          int64
-	UTime          int64
+	// ParameterDefaults 保存 Handler 参数的可复用默认值；本次调用参数可以覆盖它们。
+	ParameterDefaults map[string]json.RawMessage
+	// Variables 仅保存 Runner 私有变量；执行时的有效变量由 RunnerExecutionSpec 提供。
+	Variables []RunnerVariable
+	CTime     int64
+	UTime     int64
 }
 
 // Validate 校验执行单元持久化前的必要字段。
@@ -94,6 +106,14 @@ func (r *Runner) Validate() error {
 	}
 	if r.Handler == "" {
 		return fmt.Errorf("%w: handler is empty", errs.ErrInvalidParameter)
+	}
+	for key, value := range r.ParameterDefaults {
+		if strings.TrimSpace(key) == "" {
+			return fmt.Errorf("%w: parameter default key is empty", errs.ErrInvalidParameter)
+		}
+		if !json.Valid(value) {
+			return fmt.Errorf("%w: parameter default %s is not valid JSON", errs.ErrInvalidParameter, key)
+		}
 	}
 	return nil
 }

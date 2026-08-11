@@ -9,6 +9,8 @@ import (
 	"github.com/Duke1616/etask/internal/errs"
 	"github.com/Duke1616/etask/internal/repository"
 	poolSvc "github.com/Duke1616/etask/internal/service/pool"
+	programSvc "github.com/Duke1616/etask/internal/service/program"
+	runnerSvc "github.com/Duke1616/etask/internal/service/runner"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -47,17 +49,23 @@ type Service interface {
 type service struct {
 	repo       repository.TaskRepository
 	bindingSvc poolSvc.BindingService
+	runnerSvc  runnerSvc.Service
 }
 
 // NewService 创建任务服务实例
-func NewService(repo repository.TaskRepository, bindingSvc poolSvc.BindingService) Service {
+func NewService(repo repository.TaskRepository, bindingSvc poolSvc.BindingService,
+	runnerService runnerSvc.Service) Service {
 	return &service{
 		repo:       repo,
 		bindingSvc: bindingSvc,
+		runnerSvc:  runnerService,
 	}
 }
 
 func (s *service) Create(ctx context.Context, task domain.Task) (domain.Task, error) {
+	if err := s.bindRunner(ctx, &task); err != nil {
+		return domain.Task{}, err
+	}
 	if err := validateProgramConfig(task); err != nil {
 		return domain.Task{}, err
 	}
@@ -175,6 +183,9 @@ func (s *service) Update(ctx context.Context, task domain.Task) error {
 	if task.TenantID == 0 {
 		task.TenantID = oldTask.TenantID
 	}
+	if err = s.bindRunner(ctx, &task); err != nil {
+		return err
+	}
 	if err = validateProgramConfig(task); err != nil {
 		return err
 	}
@@ -192,6 +203,44 @@ func (s *service) Update(ctx context.Context, task domain.Task) error {
 	}
 
 	return s.repo.Update(ctx, task)
+}
+
+// bindRunner 将执行单元提供的程序和执行路由固化到任务配置，任务参数只作为覆盖值保留。
+func (s *service) bindRunner(ctx context.Context, task *domain.Task) error {
+	if task.RunnerID == 0 {
+		return nil
+	}
+	if task.RunnerID < 0 {
+		return fmt.Errorf("%w: runner_id = %d", errs.ErrInvalidParameter, task.RunnerID)
+	}
+	if task.HTTPConfig != nil {
+		return fmt.Errorf("%w: 指定执行单元时不能同时配置 HTTP 执行目标", errs.ErrInvalidParameter)
+	}
+	if s.runnerSvc == nil {
+		return fmt.Errorf("执行单元服务不可用")
+	}
+	runner, err := s.runnerSvc.FindByID(ctx, task.RunnerID)
+	if err != nil {
+		return fmt.Errorf("查询执行单元失败: %w", err)
+	}
+	if runner.Action != domain.RunnerActionRegistered {
+		return fmt.Errorf("%w: 执行单元未启用", errs.ErrInvalidParameter)
+	}
+	program, err := programSvc.SpecFromRunnerBinding(runner.CodebookID, runner.ProgramKind)
+	if err != nil {
+		return err
+	}
+	var overrides map[string]string
+	if task.GrpcConfig != nil {
+		overrides = task.GrpcConfig.Params
+	}
+	task.Program = program
+	task.GrpcConfig = &domain.GrpcConfig{
+		ServiceName: runner.Target,
+		HandlerName: runner.Handler,
+		Params:      overrides,
+	}
+	return nil
 }
 
 func validateProgramConfig(task domain.Task) error {

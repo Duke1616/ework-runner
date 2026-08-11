@@ -280,6 +280,11 @@ func (r *taskExecutionRepository) toEntity(execution domain.TaskExecution) dao.T
 		artifact = sqlx.JSONColumn[[]domain.ArtifactRef]{Val: execution.Artifacts, Valid: true}
 	}
 
+	var variables sqlx.JSONColumn[domain.ExecutionVariableSet]
+	if execution.Variables != nil {
+		variables = sqlx.JSONColumn[domain.ExecutionVariableSet]{Val: *execution.Variables, Valid: true}
+	}
+
 	var executionRoute sqlx.JSONColumn[domain.ExecutionRoute]
 	if execution.Route.Transport != "" {
 		executionRoute = sqlx.JSONColumn[domain.ExecutionRoute]{Val: execution.Route, Valid: true}
@@ -302,6 +307,7 @@ func (r *taskExecutionRepository) toEntity(execution domain.TaskExecution) dao.T
 		RequestID: requestID,
 		// 从Task展开的冗余字段
 		TaskID:                  execution.Task.ID,
+		TaskRunnerID:            execution.Task.RunnerID,
 		TaskName:                execution.Task.Name,
 		TaskType:                execution.Task.Type.String(),
 		TaskCronExpr:            execution.Task.CronExpr,
@@ -313,6 +319,7 @@ func (r *taskExecutionRepository) toEntity(execution domain.TaskExecution) dao.T
 		TaskScheduleNodeID:      execution.Task.ScheduleNodeID,
 		TaskScheduleParams:      taskScheduleParams,
 		Artifact:                artifact,
+		Variables:               variables,
 		Program:                 program,
 		ExecutionRoute:          executionRoute,
 		// TaskExecution自身字段
@@ -357,6 +364,11 @@ func (r *taskExecutionRepository) toDomain(daoExecution dao.TaskExecution) domai
 		artifacts = daoExecution.Artifact.Val
 	}
 
+	var variables *domain.ExecutionVariableSet
+	if daoExecution.Variables.Valid {
+		variables = &daoExecution.Variables.Val
+	}
+
 	var executionRoute domain.ExecutionRoute
 	if daoExecution.ExecutionRoute.Valid {
 		executionRoute = daoExecution.ExecutionRoute.Val
@@ -379,6 +391,7 @@ func (r *taskExecutionRepository) toDomain(daoExecution dao.TaskExecution) domai
 		RequestID: daoExecution.RequestID.String,
 		Task: domain.Task{
 			ID:                  daoExecution.TaskID,
+			RunnerID:            daoExecution.TaskRunnerID,
 			TenantID:            daoExecution.TenantID,
 			Name:                daoExecution.TaskName,
 			Type:                domain.TaskType(daoExecution.TaskType),
@@ -403,6 +416,7 @@ func (r *taskExecutionRepository) toDomain(daoExecution dao.TaskExecution) domai
 		Status:          domain.TaskExecutionStatus(daoExecution.Status),
 		TaskResult:      daoExecution.TaskResult,
 		Artifacts:       artifacts,
+		Variables:       variables,
 		Program:         program,
 		Route:           executionRoute,
 		CTime:           daoExecution.Ctime,

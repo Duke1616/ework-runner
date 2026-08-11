@@ -2,7 +2,6 @@ package preview
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/Duke1616/etask/internal/domain"
@@ -73,12 +72,7 @@ func (s *service) Run(ctx context.Context, command RunCommand) (domain.TaskExecu
 		return domain.TaskExecution{}, err
 	}
 
-	variablesJSON, err := json.Marshal(prepared.variables)
-	if err != nil {
-		return domain.TaskExecution{}, fmt.Errorf("序列化试运行变量失败: %w", err)
-	}
-
-	draft := s.buildDraft(prepared, variablesJSON)
+	draft := s.buildDraft(prepared)
 
 	route, err := s.routes.Plan(ctx, draft.Task)
 	if err != nil {

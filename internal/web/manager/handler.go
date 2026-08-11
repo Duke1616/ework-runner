@@ -323,6 +323,7 @@ func sliceMap[T, R any](data []T, f func(src T) R) []R {
 func toVO(src domain.Task) TaskVO {
 	vo := TaskVO{
 		ID:                  src.ID,
+		RunnerID:            src.RunnerID,
 		Name:                src.Name,
 		Type:                src.Type.String(),
 		CronExpr:            src.CronExpr,
@@ -366,6 +367,7 @@ func toVO(src domain.Task) TaskVO {
 func toDomain(req CreateTaskReq) domain.Task {
 	t := domain.Task{
 		Name:                req.Name,
+		RunnerID:            req.RunnerID,
 		Type:                domain.TaskType(req.Type),
 		CronExpr:            req.CronExpr,
 		MaxExecutionSeconds: req.MaxExecutionSeconds,
@@ -406,6 +408,7 @@ func toDomain(req CreateTaskReq) domain.Task {
 func toUpdateDomain(req UpdateTaskReq) domain.Task {
 	t := domain.Task{
 		ID:                  req.ID,
+		RunnerID:            req.RunnerID,
 		Name:                req.Name,
 		Type:                domain.TaskType(req.Type),
 		CronExpr:            req.CronExpr,

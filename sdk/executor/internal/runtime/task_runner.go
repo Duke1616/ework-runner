@@ -88,10 +88,27 @@ func (e *Executor) runTask(ctx context.Context, req *executorv1.ExecuteRequest) 
 			ExecutorNodeID: e.config.Server.ServiceId,
 		},
 		Params: req.GetParams(), Parameters: e.handlerMetadata(req.GetTaskHandlerName()),
-		Program: program, ProjectSource: projectSource, Artifacts: artifactRefs(req.GetArtifacts()),
+		Variables: variablesFromProto(req.GetVariableSet()),
+		Program:   program, ProjectSource: projectSource, Artifacts: artifactRefs(req.GetArtifacts()),
 		ExecutionLogger: e.newExecutionLogger(ctx, executionID),
 	})
 	e.finishTask(ctx, executionID, result.Value, logger, err)
+}
+
+func variablesFromProto(set *executorv1.VariableSet) *task.VariableSet {
+	if set == nil {
+		return nil
+	}
+	result := make([]task.Variable, 0, len(set.GetItems()))
+	for _, variable := range set.GetItems() {
+		if variable == nil {
+			continue
+		}
+		result = append(result, task.Variable{
+			Key: variable.GetKey(), Value: variable.GetValue(), Secret: variable.GetSecret(),
+		})
+	}
+	return &task.VariableSet{Items: result}
 }
 
 func (e *Executor) finishTask(ctx context.Context, executionID int64, result string,

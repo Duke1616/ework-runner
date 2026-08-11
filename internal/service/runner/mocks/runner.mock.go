@@ -159,10 +159,10 @@ func (c *MockServiceFindByIDCall) DoAndReturn(f func(context.Context, int64) (do
 }
 
 // FindForExecution mocks base method.
-func (m *MockService) FindForExecution(ctx context.Context, id int64) (domain.Runner, error) {
+func (m *MockService) FindForExecution(ctx context.Context, id int64) (domain.RunnerExecutionSpec, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindForExecution", ctx, id)
-	ret0, _ := ret[0].(domain.Runner)
+	ret0, _ := ret[0].(domain.RunnerExecutionSpec)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -180,19 +180,19 @@ type MockServiceFindForExecutionCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockServiceFindForExecutionCall) Return(arg0 domain.Runner, arg1 error) *MockServiceFindForExecutionCall {
+func (c *MockServiceFindForExecutionCall) Return(arg0 domain.RunnerExecutionSpec, arg1 error) *MockServiceFindForExecutionCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockServiceFindForExecutionCall) Do(f func(context.Context, int64) (domain.Runner, error)) *MockServiceFindForExecutionCall {
+func (c *MockServiceFindForExecutionCall) Do(f func(context.Context, int64) (domain.RunnerExecutionSpec, error)) *MockServiceFindForExecutionCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockServiceFindForExecutionCall) DoAndReturn(f func(context.Context, int64) (domain.Runner, error)) *MockServiceFindForExecutionCall {
+func (c *MockServiceFindForExecutionCall) DoAndReturn(f func(context.Context, int64) (domain.RunnerExecutionSpec, error)) *MockServiceFindForExecutionCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -238,10 +238,10 @@ func (c *MockServiceListCall) DoAndReturn(f func(context.Context, int64, int64, 
 }
 
 // ListByCodebookID mocks base method.
-func (m *MockService) ListByCodebookID(ctx context.Context, codebookID int64) ([]domain.Runner, error) {
+func (m *MockService) ListByCodebookID(ctx context.Context, codebookID int64) ([]domain.RunnerExecutionSpec, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListByCodebookID", ctx, codebookID)
-	ret0, _ := ret[0].([]domain.Runner)
+	ret0, _ := ret[0].([]domain.RunnerExecutionSpec)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -259,19 +259,19 @@ type MockServiceListByCodebookIDCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockServiceListByCodebookIDCall) Return(arg0 []domain.Runner, arg1 error) *MockServiceListByCodebookIDCall {
+func (c *MockServiceListByCodebookIDCall) Return(arg0 []domain.RunnerExecutionSpec, arg1 error) *MockServiceListByCodebookIDCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockServiceListByCodebookIDCall) Do(f func(context.Context, int64) ([]domain.Runner, error)) *MockServiceListByCodebookIDCall {
+func (c *MockServiceListByCodebookIDCall) Do(f func(context.Context, int64) ([]domain.RunnerExecutionSpec, error)) *MockServiceListByCodebookIDCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockServiceListByCodebookIDCall) DoAndReturn(f func(context.Context, int64) ([]domain.Runner, error)) *MockServiceListByCodebookIDCall {
+func (c *MockServiceListByCodebookIDCall) DoAndReturn(f func(context.Context, int64) ([]domain.RunnerExecutionSpec, error)) *MockServiceListByCodebookIDCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

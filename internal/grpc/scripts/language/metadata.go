@@ -15,7 +15,7 @@ func Metadata() []executor.Parameter {
 			},
 		},
 		{
-			Key: "variables", Desc: "环境变量",
+			Key: "variables", Role: executor.ParameterRoleVariables, Desc: "环境变量",
 			Bindings: map[string]executor.Binding{
 				"static": &executor.BindingOption{
 					Label: "手动输入", Placeholder: `[{"key": "K1", "value": "V1", "secret": false}]`,

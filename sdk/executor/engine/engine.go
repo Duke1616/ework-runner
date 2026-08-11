@@ -15,6 +15,7 @@ import (
 type Command struct {
 	Task            executor.TaskInfo
 	Params          map[string]string
+	Variables       *executor.VariableSet
 	Metadata        map[string]string
 	Parameters      []executor.Parameter
 	Program         *executor.Program
@@ -76,7 +77,8 @@ func WithSystemLogger(logger executor.SystemLogger) Option {
 func (e *Engine) Execute(ctx context.Context, command Command) (Result, error) {
 	result, err := e.inner.Execute(ctx, internalengine.Command{
 		Task: command.Task, Params: command.Params,
-		Metadata: command.Metadata, Parameters: command.Parameters, Program: command.Program,
+		Variables: command.Variables,
+		Metadata:  command.Metadata, Parameters: command.Parameters, Program: command.Program,
 		ProjectSource:   command.ProjectSource,
 		Artifacts:       command.Artifacts,
 		ExecutionLogger: command.ExecutionLogger,
