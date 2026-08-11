@@ -38,7 +38,7 @@ func TestScriptBindingResolversResolve(t *testing.T) {
 		t.Fatalf("args should not be materialized")
 	}
 
-	var variables []variable
+	var variables []domain.RunnerVariable
 	if err = json.Unmarshal([]byte(params["variables"]), &variables); err != nil {
 		t.Fatalf("variables should be json: %v", err)
 	}

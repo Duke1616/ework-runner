@@ -101,7 +101,7 @@ func (s *service) RunRunner(ctx context.Context, command RunRunnerCommand) (RunR
 	if err != nil {
 		return RunResult{}, err
 	}
-	variables, err := mergeVariables(spec.Variables, command.Variables)
+	variables, err := runnerSvc.MergeVariableValues(spec.Variables, command.Variables)
 	if err != nil {
 		return RunResult{}, err
 	}
@@ -183,7 +183,7 @@ func validateCommand(command RunRunnerCommand) error {
 	if command.RunnerID <= 0 {
 		return fmt.Errorf("执行单元 ID 非法: %d", command.RunnerID)
 	}
-	if args := strings.TrimSpace(command.Params["args"]); args != "" && !json.Valid([]byte(args)) {
+	if args := strings.TrimSpace(command.Params[runnerSvc.ParameterKeyArgs]); args != "" && !json.Valid([]byte(args)) {
 		return fmt.Errorf("工作流执行参数必须是合法 JSON")
 	}
 	return nil
@@ -202,40 +202,13 @@ func (s *service) buildParams(runner domain.Runner, command RunRunnerCommand) (m
 	if err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(params["args"]) == "" {
-		params["args"] = "{}"
+	if strings.TrimSpace(params[runnerSvc.ParameterKeyArgs]) == "" {
+		params[runnerSvc.ParameterKeyArgs] = "{}"
 	}
-	if !json.Valid([]byte(params["args"])) {
+	if !json.Valid([]byte(params[runnerSvc.ParameterKeyArgs])) {
 		return nil, fmt.Errorf("工作流执行参数必须是合法 JSON")
 	}
 	return params, nil
-}
-
-func mergeVariables(defaults []domain.RunnerVariable, overrides map[string]string) ([]domain.RunnerVariable, error) {
-	values := make(map[string]domain.RunnerVariable, len(defaults)+len(overrides))
-	keys := make([]string, 0, len(defaults)+len(overrides))
-	for _, variable := range defaults {
-		values[variable.Key] = variable
-		keys = append(keys, variable.Key)
-	}
-	for key, value := range overrides {
-		key = strings.TrimSpace(key)
-		if key == "" {
-			return nil, fmt.Errorf("临时变量名称不能为空")
-		}
-		variable, exists := values[key]
-		if !exists {
-			keys = append(keys, key)
-		}
-		variable.Key = key
-		variable.Value = value
-		values[key] = variable
-	}
-	result := make([]domain.RunnerVariable, 0, len(keys))
-	for _, key := range keys {
-		result = append(result, values[key])
-	}
-	return result, nil
 }
 
 func (s *service) invoke(ctx context.Context, execution domain.TaskExecution) {

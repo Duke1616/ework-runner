@@ -77,9 +77,13 @@ func (s *RunnerServer) toProto(r domain.Runner) *runnerv1.Runner {
 
 func toProtoVariables(variables []domain.RunnerVariable) []*runnerv1.Variable {
 	return slice.Map(variables, func(_ int, src domain.RunnerVariable) *runnerv1.Variable {
+		value := src.Value
+		if src.Secret {
+			value = ""
+		}
 		return &runnerv1.Variable{
 			Key:    src.Key,
-			Value:  src.Value,
+			Value:  value,
 			Secret: src.Secret,
 		}
 	})

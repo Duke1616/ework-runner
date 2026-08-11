@@ -109,7 +109,8 @@ func NewContext(options ContextOptions) *Context {
 	if executionLogger == nil {
 		executionLogger = noopExecutionLogger{}
 	}
-	executionLogger = newMaskingExecutionLogger(executionLogger, secretMasks(params, variableItems(variables)))
+	executionLogger = newMaskingExecutionLogger(executionLogger,
+		secretMasks(params, variableItems(variables), options.Parameters))
 	return &Context{
 		ctx: ctx, task: options.Task, params: params, variables: variables,
 		metadata: metadata, parameters: parameters,
@@ -245,16 +246,20 @@ func (c *Context) Close() {
 	}
 }
 
-func secretMasks(params map[string]string, executionVariables []Variable) []string {
+func secretMasks(params map[string]string, executionVariables []Variable,
+	parameters []Parameter) []string {
 	masks := make([]string, 0)
 	for _, variable := range executionVariables {
 		if variable.Secret && variable.Value != "" {
 			masks = append(masks, variable.Value)
 		}
 	}
-	for _, parameter := range []string{"variables", "vars"} {
+	for _, parameter := range parameters {
+		if parameter.Role != ParameterRoleVariables {
+			continue
+		}
 		var variables []Variable
-		if json.Unmarshal([]byte(params[parameter]), &variables) != nil {
+		if json.Unmarshal([]byte(params[parameter.Key]), &variables) != nil {
 			continue
 		}
 		for _, variable := range variables {

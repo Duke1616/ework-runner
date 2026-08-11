@@ -266,7 +266,8 @@ func (s *executionService) buildTaskSnapshot(ctx context.Context,
 		return domain.Task{}, programSvc.Resolution{}, nil, err
 	}
 
-	if snapshot.GrpcConfig == nil {
+	// Runner 任务的默认参数和变量已经由执行单元快照解析完成，不再运行旧参数绑定。
+	if snapshot.GrpcConfig == nil || snapshot.RunnerID != 0 {
 		return snapshot, selection, variables, nil
 	}
 

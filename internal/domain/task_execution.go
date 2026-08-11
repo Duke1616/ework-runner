@@ -185,7 +185,7 @@ type TaskExecution struct {
 	Task            Task                  // 创建时刻从Task冗余的信息
 	Program         *Program              // 本次执行固定的程序来源；非程序型 Handler 为空
 	Artifacts       []ArtifactRef         // 本次执行固定的 SYSTEM 和具名依赖制品层
-	Variables       *ExecutionVariableSet // 本次执行固定的变量快照；nil 表示兼容旧参数协议
+	Variables       *ExecutionVariableSet // 本次执行固定的变量快照；普通 Handler 可不提供
 	Route           ExecutionRoute        // 创建时固定的传输和派发路由
 }
 

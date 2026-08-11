@@ -31,7 +31,7 @@ func TestResolveRequestUsesIndependentVariablesForSemanticParameter(t *testing.T
 	require.NotContains(t, request.input.Params, "vars")
 }
 
-func TestResolveRequestKeepsExplicitVariableParameterCompatible(t *testing.T) {
+func TestResolveRequestPrefersIndependentVariableSnapshot(t *testing.T) {
 	task := executor.NewContext(executor.ContextOptions{
 		Params:    map[string]string{"vars": `[{"key":"source","value":"manual"}]`},
 		Variables: &executor.VariableSet{Items: []executor.Variable{{Key: "source", Value: "runner"}}},
@@ -43,7 +43,21 @@ func TestResolveRequestKeepsExplicitVariableParameterCompatible(t *testing.T) {
 	}, Config{MaxArgsSize: 1024, MaxVariablesSize: 1024})
 
 	require.NoError(t, err)
-	require.JSONEq(t, `[{"key":"source","value":"manual"}]`, request.input.Variables)
+	require.JSONEq(t, `[{"key":"source","value":"runner","secret":false}]`, request.input.Variables)
+}
+
+func TestResolveRequestUsesHandlerVariableParameterWithoutSnapshot(t *testing.T) {
+	task := executor.NewContext(executor.ContextOptions{
+		Params: map[string]string{"vars": `[{"key":"source","value":"legacy"}]`},
+	})
+	task.SetProgram(&executor.Program{Kind: executor.ProgramKindProject, Project: &executor.ProjectProgram{}})
+
+	request, err := resolveRequest(task, "ansible", []executor.Parameter{
+		{Key: "vars", Role: executor.ParameterRoleVariables},
+	}, Config{MaxArgsSize: 1024, MaxVariablesSize: 1024})
+
+	require.NoError(t, err)
+	require.JSONEq(t, `[{"key":"source","value":"legacy"}]`, request.input.Variables)
 }
 
 func TestResolveRequestPreservesExplicitEmptyVariableSet(t *testing.T) {

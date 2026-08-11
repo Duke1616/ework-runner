@@ -235,6 +235,8 @@ func (s *service) bindRunner(ctx context.Context, task *domain.Task) error {
 		overrides = task.GrpcConfig.Params
 	}
 	task.Program = program
+	// Runner 模式不使用普通 gRPC 任务的参数绑定；清除切换协议时可能残留的旧 metadata。
+	task.Metadata = nil
 	task.GrpcConfig = &domain.GrpcConfig{
 		ServiceName: runner.Target,
 		HandlerName: runner.Handler,

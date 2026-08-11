@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/Duke1616/etask/internal/domain"
 	runnerSvc "github.com/Duke1616/etask/internal/service/runner"
-	"github.com/samber/lo"
 )
 
 const (
@@ -34,15 +32,7 @@ func (r RunnerResolver) Resolve(ctx context.Context, req ResolveRequest) (string
 		return "", fmt.Errorf("获取执行器变量失败: %w", err)
 	}
 
-	variables := lo.Map(vars, func(v domain.RunnerVariable, _ int) variable {
-		return variable{
-			Key:    v.Key,
-			Value:  v.Value,
-			Secret: v.Secret,
-		}
-	})
-
-	bytes, err := json.Marshal(variables)
+	bytes, err := json.Marshal(vars)
 	if err != nil {
 		return "", fmt.Errorf("序列化执行器变量失败: %w", err)
 	}
@@ -55,12 +45,6 @@ func parseID(rawID string, param string) (int64, error) {
 		return 0, fmt.Errorf("参数 %s 的绑定 ID 非法: %q", param, rawID)
 	}
 	return id, nil
-}
-
-type variable struct {
-	Key    string `json:"key"`
-	Value  string `json:"value"`
-	Secret bool   `json:"secret"`
 }
 
 var _ Resolver = RunnerResolver{}

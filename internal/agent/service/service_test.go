@@ -142,6 +142,9 @@ func TestServiceReceive(t *testing.T) {
 			name: "敏感变量不会进入 Kafka 结果日志",
 			before: func(t *testing.T) (*serviceFixture, func()) {
 				fixture := newServiceFixture(t)
+				fixture.handler.parameters = []executor.Parameter{{
+					Key: string(executor.ParameterRoleVariables), Role: executor.ParameterRoleVariables,
+				}}
 				fixture.execution.Task.GrpcConfig.Params = map[string]string{
 					"variables": `[{"key":"TOKEN","value":"top-secret","secret":true}]`,
 				}
@@ -217,11 +220,12 @@ type serviceHandlerFake struct {
 	block      chan struct{}
 	roots      atomic.Value
 	logMessage string
+	parameters []executor.Parameter
 }
 
 func (h *serviceHandlerFake) Name() string                   { return "test" }
 func (h *serviceHandlerFake) Desc() string                   { return "测试处理器" }
-func (h *serviceHandlerFake) Metadata() []executor.Parameter { return nil }
+func (h *serviceHandlerFake) Metadata() []executor.Parameter { return h.parameters }
 func (h *serviceHandlerFake) Run(ctx *executor.Context) error {
 	h.runs.Add(1)
 	select {

@@ -76,7 +76,8 @@ func resolveParameters(task *executor.Context, adapterName string,
 
 func resolveParameterValue(task *executor.Context, parameter executor.Parameter,
 	role executor.ParameterRole) (string, error) {
-	if role == executor.ParameterRoleVariables && task.HasVariables() && !task.HasParam(parameter.Key) {
+	// Runner 等上游已经固定变量快照的执行以快照为准；普通 Handler 仍可使用自身参数。
+	if role == executor.ParameterRoleVariables && task.HasVariables() {
 		encoded, err := json.Marshal(task.Variables())
 		if err != nil {
 			return "", fmt.Errorf("序列化执行变量失败: %w", err)
@@ -106,21 +107,15 @@ func (r resolvedParameters) input() Input {
 }
 
 func parameterRole(parameter executor.Parameter) (executor.ParameterRole, error) {
-	if parameter.Role != "" {
-		switch parameter.Role {
-		case executor.ParameterRoleArgs, executor.ParameterRoleVariables:
-			return parameter.Role, nil
-		default:
-			return "", fmt.Errorf("参数 %s 声明了不支持的语义角色: %s", parameter.Key, parameter.Role)
-		}
-	}
-	// 固定 Key 仅用于兼容尚未声明 Role 的旧版通用 Handler 元数据。
-	switch executor.ParameterRole(parameter.Key) {
+	role := parameter.Role
+	switch role {
+	case "":
+		return "", nil
 	case executor.ParameterRoleArgs:
 		return executor.ParameterRoleArgs, nil
 	case executor.ParameterRoleVariables:
 		return executor.ParameterRoleVariables, nil
 	default:
-		return "", nil
+		return "", fmt.Errorf("参数 %s 声明了不支持的语义角色: %s", parameter.Key, role)
 	}
 }

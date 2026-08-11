@@ -6,6 +6,9 @@ import (
 	"fmt"
 )
 
+// ParameterKeyArgs 是外部预览和工作流协议约定的统一脚本入参 Key。
+const ParameterKeyArgs = "args"
+
 // MergeParameterDefaults 将 Runner 默认参数转换为执行协议使用的字符串，并应用本次覆盖值。
 // 调用方显式传入的空字符串也会保留，用于清除 Runner 默认值。
 func MergeParameterDefaults(defaults map[string]json.RawMessage,

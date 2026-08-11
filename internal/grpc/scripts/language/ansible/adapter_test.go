@@ -18,10 +18,10 @@ func TestAdapterPrepare(t *testing.T) {
 	workspace := newWorkspace(t)
 	adapter := New("/usr/local/bin/ansible-playbook")
 	prepared, err := adapter.Prepare(t.Context(), workspace, engine.Input{
+		Variables: `[{"key":"ansible_user","value":"deploy","secret":false},` +
+			`{"key":"environment","value":"staging","secret":false},` +
+			`{"key":"replicas","value":"2","secret":false}]`,
 		Params: map[string]string{
-			"vars": `[{"key":"ansible_user","value":"deploy","secret":false},` +
-				`{"key":"environment","value":"staging","secret":false},` +
-				`{"key":"replicas","value":"2","secret":false}]`,
 			"inventory": "inventory/staging.yml", "limit": "web:&staging", "tags": "deploy",
 			"check": "true", "forks": "10", "verbosity": "2",
 			"extra_args": `--start-at-task "Deploy application"`,
@@ -69,10 +69,12 @@ func TestAdapterPrepareInjectsLocalSSHCredential(t *testing.T) {
 	connections := connection.NewSSHPreparer(credentialProvider, hostKeyProvider)
 	adapter := New("/usr/local/bin/ansible-playbook", WithSSHConnectionPreparer(connections))
 
-	prepared, err := adapter.Prepare(t.Context(), workspace, engine.Input{Params: map[string]string{
-		"credential_ref": "production-linux",
-		"vars":           `[{"key":"environment","value":"production"}]`,
-	}})
+	prepared, err := adapter.Prepare(t.Context(), workspace, engine.Input{
+		Variables: `[{"key":"environment","value":"production"}]`,
+		Params: map[string]string{
+			"credential_ref": "production-linux",
+		},
+	})
 	require.NoError(t, err)
 	require.NotContains(t, strings.Join(prepared.Command.Args, " "), string(privateKey))
 	require.Contains(t, prepared.Environment, "ANSIBLE_HOST_KEY_CHECKING=True")

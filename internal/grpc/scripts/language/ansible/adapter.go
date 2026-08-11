@@ -112,12 +112,7 @@ func ansibleParameter(key, desc, defaultValue, component, placeholder string,
 // Prepare 创建受控输入文件并构造 ansible-playbook 命令。
 func (a *Adapter) Prepare(ctx context.Context, workspace engine.Workspace,
 	input engine.Input) (engine.PreparedCommand, error) {
-	variablesInput := input.Variables
-	// 兼容旧执行快照；新执行通过统一变量字段传入。
-	if strings.TrimSpace(variablesInput) == "" {
-		variablesInput = input.Params["vars"]
-	}
-	variables, err := buildExtraVars(variablesInput)
+	variables, err := buildExtraVars(input.Variables)
 	if err != nil {
 		return engine.PreparedCommand{}, err
 	}

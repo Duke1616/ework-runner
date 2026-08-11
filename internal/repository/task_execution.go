@@ -4,11 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/repository/dao"
+	"github.com/Duke1616/etask/pkg/cryptox"
 	"github.com/Duke1616/etask/pkg/sqlx"
-	"github.com/ecodeclub/ekit/slice"
 	"gorm.io/gorm"
 )
 
@@ -61,12 +63,14 @@ type TaskExecutionRepository interface {
 }
 
 type taskExecutionRepository struct {
-	dao dao.TaskExecutionDAO
+	dao    dao.TaskExecutionDAO
+	crypto cryptox.Crypto
 }
 
-func NewTaskExecutionRepository(executionDAO dao.TaskExecutionDAO) TaskExecutionRepository {
+func NewTaskExecutionRepository(executionDAO dao.TaskExecutionDAO,
+	crypto cryptox.Crypto) TaskExecutionRepository {
 	return &taskExecutionRepository{
-		dao: executionDAO,
+		dao: executionDAO, crypto: crypto,
 	}
 }
 
@@ -75,7 +79,7 @@ func (r *taskExecutionRepository) FindExecutionByTaskIDAndPlanExecID(ctx context
 	if err != nil {
 		return domain.TaskExecution{}, err
 	}
-	return r.toDomain(daoExec), nil
+	return r.toDomain(daoExec)
 }
 
 func (r *taskExecutionRepository) FindByTaskID(ctx context.Context, taskID int64) ([]domain.TaskExecution, error) {
@@ -83,9 +87,7 @@ func (r *taskExecutionRepository) FindByTaskID(ctx context.Context, taskID int64
 	if err != nil {
 		return nil, err
 	}
-	return slice.Map(daoExecutions, func(_ int, src dao.TaskExecution) domain.TaskExecution {
-		return r.toDomain(src)
-	}), nil
+	return r.toDomains(daoExecutions)
 }
 
 func (r *taskExecutionRepository) FindByTaskIDs(ctx context.Context, taskIDs []int64) ([]domain.TaskExecution, error) {
@@ -93,9 +95,7 @@ func (r *taskExecutionRepository) FindByTaskIDs(ctx context.Context, taskIDs []i
 	if err != nil {
 		return nil, err
 	}
-	return slice.Map(daoExecutions, func(_ int, src dao.TaskExecution) domain.TaskExecution {
-		return r.toDomain(src)
-	}), nil
+	return r.toDomains(daoExecutions)
 }
 
 func (r *taskExecutionRepository) ListByTaskID(ctx context.Context, taskID int64, offset, limit int) ([]domain.TaskExecution, int64, error) {
@@ -109,9 +109,8 @@ func (r *taskExecutionRepository) ListByTaskID(ctx context.Context, taskID int64
 		return nil, 0, err
 	}
 
-	return slice.Map(daoExecutions, func(_ int, src dao.TaskExecution) domain.TaskExecution {
-		return r.toDomain(src)
-	}), total, nil
+	executions, err := r.toDomains(daoExecutions)
+	return executions, total, err
 }
 
 func (r *taskExecutionRepository) FindExecutionsByPlanExecID(ctx context.Context, planExecID int64) (map[int64]domain.TaskExecution, error) {
@@ -124,7 +123,11 @@ func (r *taskExecutionRepository) FindExecutionsByPlanExecID(ctx context.Context
 	result := make(map[int64]domain.TaskExecution)
 	for taskID := range daoExecutions {
 		daoExecution := daoExecutions[taskID]
-		result[taskID] = r.toDomain(daoExecution)
+		execution, convertErr := r.toDomain(daoExecution)
+		if convertErr != nil {
+			return nil, convertErr
+		}
+		result[taskID] = execution
 	}
 
 	return result, nil
@@ -147,11 +150,15 @@ func (r *taskExecutionRepository) Create(ctx context.Context, execution domain.T
 		execution.TenantID = execution.Task.TenantID
 	}
 
-	created, err := r.dao.Create(ctx, r.toEntity(execution))
+	entity, err := r.toEntity(execution)
 	if err != nil {
 		return domain.TaskExecution{}, err
 	}
-	return r.toDomain(created), nil
+	created, err := r.dao.Create(ctx, entity)
+	if err != nil {
+		return domain.TaskExecution{}, err
+	}
+	return r.toDomain(created)
 }
 
 func (r *taskExecutionRepository) UpdateStatus(ctx context.Context, id int64,
@@ -164,7 +171,7 @@ func (r *taskExecutionRepository) GetByID(ctx context.Context, id int64) (domain
 	if err != nil {
 		return domain.TaskExecution{}, err
 	}
-	return r.toDomain(daoExecution), nil
+	return r.toDomain(daoExecution)
 }
 
 func (r *taskExecutionRepository) FindByRequestID(ctx context.Context, source domain.TaskExecutionSource,
@@ -176,7 +183,8 @@ func (r *taskExecutionRepository) FindByRequestID(ctx context.Context, source do
 	if err != nil {
 		return domain.TaskExecution{}, false, err
 	}
-	return r.toDomain(execution), true, nil
+	result, err := r.toDomain(execution)
+	return result, true, err
 }
 
 func (r *taskExecutionRepository) FindRetryableExecutions(ctx context.Context, limit int) ([]domain.TaskExecution, error) {
@@ -184,9 +192,7 @@ func (r *taskExecutionRepository) FindRetryableExecutions(ctx context.Context, l
 	if err != nil {
 		return nil, err
 	}
-	return slice.Map(daoExecutions, func(_ int, src dao.TaskExecution) domain.TaskExecution {
-		return r.toDomain(src)
-	}), nil
+	return r.toDomains(daoExecutions)
 }
 
 func (r *taskExecutionRepository) UpdateRetryResult(ctx context.Context, id, retryCount, nextRetryTime int64,
@@ -225,9 +231,7 @@ func (r *taskExecutionRepository) FindReschedulableExecutions(ctx context.Contex
 	if err != nil {
 		return nil, err
 	}
-	return slice.Map(daoExecutions, func(_ int, src dao.TaskExecution) domain.TaskExecution {
-		return r.toDomain(src)
-	}), nil
+	return r.toDomains(daoExecutions)
 }
 
 func (r *taskExecutionRepository) FindTimeoutExecutions(ctx context.Context, limit int) ([]domain.TaskExecution, error) {
@@ -235,9 +239,7 @@ func (r *taskExecutionRepository) FindTimeoutExecutions(ctx context.Context, lim
 	if err != nil {
 		return nil, err
 	}
-	return slice.Map(daoExecutions, func(_ int, src dao.TaskExecution) domain.TaskExecution {
-		return r.toDomain(src)
-	}), nil
+	return r.toDomains(daoExecutions)
 }
 
 func (r *taskExecutionRepository) ClaimPullTask(ctx context.Context, serviceName, executorNodeID string,
@@ -246,11 +248,11 @@ func (r *taskExecutionRepository) ClaimPullTask(ctx context.Context, serviceName
 	if err != nil {
 		return domain.TaskExecution{}, err
 	}
-	return r.toDomain(daoExec), nil
+	return r.toDomain(daoExec)
 }
 
 // toEntity 将领域模型转换为DAO模型
-func (r *taskExecutionRepository) toEntity(execution domain.TaskExecution) dao.TaskExecution {
+func (r *taskExecutionRepository) toEntity(execution domain.TaskExecution) (dao.TaskExecution, error) {
 	var requestID sql.NullString
 	if execution.RequestID != "" {
 		requestID = sql.NullString{String: execution.RequestID, Valid: true}
@@ -282,7 +284,11 @@ func (r *taskExecutionRepository) toEntity(execution domain.TaskExecution) dao.T
 
 	var variables sqlx.JSONColumn[domain.ExecutionVariableSet]
 	if execution.Variables != nil {
-		variables = sqlx.JSONColumn[domain.ExecutionVariableSet]{Val: *execution.Variables, Valid: true}
+		persisted, err := r.encryptVariables(*execution.Variables)
+		if err != nil {
+			return dao.TaskExecution{}, err
+		}
+		variables = sqlx.JSONColumn[domain.ExecutionVariableSet]{Val: persisted, Valid: true}
 	}
 
 	var executionRoute sqlx.JSONColumn[domain.ExecutionRoute]
@@ -334,11 +340,11 @@ func (r *taskExecutionRepository) toEntity(execution domain.TaskExecution) dao.T
 		ExecMode:        execution.Task.ExecMode.String(),
 		Ctime:           execution.CTime,
 		Utime:           execution.UTime,
-	}
+	}, nil
 }
 
 // toDomain 将DAO模型转换为领域模型
-func (r *taskExecutionRepository) toDomain(daoExecution dao.TaskExecution) domain.TaskExecution {
+func (r *taskExecutionRepository) toDomain(daoExecution dao.TaskExecution) (domain.TaskExecution, error) {
 	var taskGrpcConfig *domain.GrpcConfig
 	if daoExecution.TaskGrpcConfig.Valid {
 		taskGrpcConfig = &daoExecution.TaskGrpcConfig.Val
@@ -366,7 +372,11 @@ func (r *taskExecutionRepository) toDomain(daoExecution dao.TaskExecution) domai
 
 	var variables *domain.ExecutionVariableSet
 	if daoExecution.Variables.Valid {
-		variables = &daoExecution.Variables.Val
+		decrypted, err := r.decryptVariables(daoExecution.Variables.Val)
+		if err != nil {
+			return domain.TaskExecution{}, err
+		}
+		variables = &decrypted
 	}
 
 	var executionRoute domain.ExecutionRoute
@@ -421,5 +431,56 @@ func (r *taskExecutionRepository) toDomain(daoExecution dao.TaskExecution) domai
 		Route:           executionRoute,
 		CTime:           daoExecution.Ctime,
 		UTime:           daoExecution.Utime,
+	}, nil
+}
+
+func (r *taskExecutionRepository) toDomains(source []dao.TaskExecution) ([]domain.TaskExecution, error) {
+	result := make([]domain.TaskExecution, 0, len(source))
+	for _, item := range source {
+		execution, err := r.toDomain(item)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, execution)
 	}
+	return result, nil
+}
+
+func (r *taskExecutionRepository) encryptVariables(source domain.ExecutionVariableSet) (domain.ExecutionVariableSet, error) {
+	result := domain.ExecutionVariableSet{Items: append([]domain.RunnerVariable(nil), source.Items...)}
+	if r.crypto == nil {
+		return result, nil
+	}
+	for index := range result.Items {
+		variable := &result.Items[index]
+		if !variable.Secret || variable.Value == "" {
+			continue
+		}
+		value, err := r.crypto.Encrypt(variable.Value)
+		if err != nil {
+			return domain.ExecutionVariableSet{}, fmt.Errorf("加密执行变量 %q 失败: %w", variable.Key, err)
+		}
+		variable.Value = value
+	}
+	return result, nil
+}
+
+func (r *taskExecutionRepository) decryptVariables(source domain.ExecutionVariableSet) (domain.ExecutionVariableSet, error) {
+	result := domain.ExecutionVariableSet{Items: append([]domain.RunnerVariable(nil), source.Items...)}
+	if r.crypto == nil {
+		return result, nil
+	}
+	for index := range result.Items {
+		variable := &result.Items[index]
+		if !variable.Secret || variable.Value == "" ||
+			!strings.HasPrefix(variable.Value, cryptox.EncryptedPrefix) {
+			continue
+		}
+		value, err := r.crypto.Decrypt(variable.Value)
+		if err != nil {
+			return domain.ExecutionVariableSet{}, fmt.Errorf("解密执行变量 %q 失败: %w", variable.Key, err)
+		}
+		variable.Value = value
+	}
+	return result, nil
 }

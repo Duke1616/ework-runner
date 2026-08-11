@@ -128,12 +128,22 @@ func TestContextResultRejectsUnsupportedValue(t *testing.T) {
 	require.ErrorContains(t, err, "序列化任务结果失败")
 }
 
-func TestSecretMasksIncludesAnsibleVars(t *testing.T) {
+func TestSecretMasksUsesVariableParameterRole(t *testing.T) {
+	masks := secretMasks(map[string]string{
+		"environment": `[{"key":"TOKEN","value":"role-secret","secret":true}]`,
+	}, nil, []Parameter{{Key: "environment", Role: ParameterRoleVariables}})
+	require.Equal(t, []string{"role-secret"}, masks)
+}
+
+func TestSecretMasksDoesNotInferVariableRoleFromKey(t *testing.T) {
 	masks := secretMasks(map[string]string{
 		"variables": `[{"key":"TOKEN","value":"shell-secret","secret":true}]`,
 		"vars":      `[{"key":"API_KEY","value":"ansible-secret","secret":true}]`,
-	}, nil)
-	require.ElementsMatch(t, []string{"shell-secret", "ansible-secret"}, masks)
+	}, nil, []Parameter{
+		{Key: "variables"},
+		{Key: "vars", Role: ParameterRoleVariables},
+	})
+	require.Equal(t, []string{"ansible-secret"}, masks)
 }
 
 func TestContextAddSecretMasks(t *testing.T) {

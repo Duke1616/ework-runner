@@ -221,7 +221,7 @@ type ExecuteRequest struct {
 	Artifacts []*v1.ArtifactRef `protobuf:"bytes,7,rep,name=artifacts,proto3" json:"artifacts,omitempty"`
 	// 可选的程序来源；非程序型 Handler 不需要设置。
 	Program *ProgramSource `protobuf:"bytes,8,opt,name=program,proto3" json:"program,omitempty"`
-	// 本次执行已经解析并固定的变量快照；message presence 用于区分旧协议与显式空变量。
+	// 本次执行已经解析并固定的变量快照；普通 Handler 未使用独立变量时可以不提供。
 	VariableSet   *VariableSet `protobuf:"bytes,9,opt,name=variable_set,json=variableSet,proto3" json:"variable_set,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

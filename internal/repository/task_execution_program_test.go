@@ -15,7 +15,7 @@ func TestTaskExecutionProgramRoundTrip(t *testing.T) {
 		Task:    domain.Task{GrpcConfig: &domain.GrpcConfig{HandlerName: "shell"}},
 	}
 
-	restored := repository.toDomain(repository.toEntity(execution))
+	restored := roundTripTaskExecution(t, repository, execution)
 	require.NotNil(t, restored.Program)
 	require.Equal(t, domain.ProgramInline, restored.Program.Kind)
 	require.Equal(t, "echo ok", restored.Program.Inline.Code)
@@ -37,12 +37,12 @@ func TestTaskExecutionProjectProgramRoundTrip(t *testing.T) {
 		},
 	}
 
-	restored := repository.toDomain(repository.toEntity(execution))
+	restored := roundTripTaskExecution(t, repository, execution)
 	require.Equal(t, execution.Program, restored.Program)
 }
 
 func TestTaskExecutionVariablesRoundTrip(t *testing.T) {
-	repository := &taskExecutionRepository{}
+	repository := &taskExecutionRepository{crypto: executionCryptoStub{}}
 	execution := domain.TaskExecution{
 		Task: domain.Task{RunnerID: 9},
 		Variables: &domain.ExecutionVariableSet{Items: []domain.RunnerVariable{
@@ -51,7 +51,28 @@ func TestTaskExecutionVariablesRoundTrip(t *testing.T) {
 		}},
 	}
 
-	restored := repository.toDomain(repository.toEntity(execution))
+	entity, err := repository.toEntity(execution)
+	require.NoError(t, err)
+	require.Equal(t, "ENC:test:secret", entity.Variables.Val.Items[1].Value)
+	restored, err := repository.toDomain(entity)
+	require.NoError(t, err)
 	require.Equal(t, int64(9), restored.Task.RunnerID)
 	require.Equal(t, execution.Variables, restored.Variables)
+}
+
+func roundTripTaskExecution(t *testing.T, repository *taskExecutionRepository,
+	execution domain.TaskExecution) domain.TaskExecution {
+	t.Helper()
+	entity, err := repository.toEntity(execution)
+	require.NoError(t, err)
+	restored, err := repository.toDomain(entity)
+	require.NoError(t, err)
+	return restored
+}
+
+type executionCryptoStub struct{}
+
+func (executionCryptoStub) Encrypt(value string) (string, error) { return "ENC:test:" + value, nil }
+func (executionCryptoStub) Decrypt(value string) (string, error) {
+	return strings.TrimPrefix(value, "ENC:test:"), nil
 }

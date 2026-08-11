@@ -39,12 +39,12 @@ func (s *service) prepare(ctx context.Context, command RunCommand) (prepareResul
 	if err != nil {
 		return prepareResult{}, err
 	}
-	params["args"] = args
+	params[runnerSvc.ParameterKeyArgs] = args
 	timeout, err := normalizeTimeout(command.MaxExecutionSeconds)
 	if err != nil {
 		return prepareResult{}, err
 	}
-	variables, err := mergeVariables(spec.Variables, command.Variables)
+	variables, err := runnerSvc.MergeVariables(spec.Variables, command.Variables)
 	if err != nil {
 		return prepareResult{}, err
 	}
@@ -103,7 +103,7 @@ func (s *service) resolveProgram(ctx context.Context, runner domain.Runner) (pro
 func normalizeArgs(raw string, defaults map[string]json.RawMessage) (string, error) {
 	args := strings.TrimSpace(raw)
 	if args == "" {
-		if value, exists := defaults["args"]; exists {
+		if value, exists := defaults[runnerSvc.ParameterKeyArgs]; exists {
 			var err error
 			args, err = runnerSvc.ParameterDefaultValue(value)
 			if err != nil {
@@ -129,31 +129,6 @@ func normalizeTimeout(seconds int64) (int64, error) {
 		return 0, fmt.Errorf("试运行超时必须在 1 到 %d 秒之间", maxTimeoutSeconds)
 	}
 	return seconds, nil
-}
-
-// mergeVariables 保留默认变量顺序；临时变量覆盖同名值，新变量追加到末尾。
-func mergeVariables(defaults, overrides []domain.RunnerVariable) ([]domain.RunnerVariable, error) {
-	values := make(map[string]domain.RunnerVariable, len(defaults)+len(overrides))
-	keys := make([]string, 0, len(defaults)+len(overrides))
-	for _, variable := range defaults {
-		values[variable.Key] = variable
-		keys = append(keys, variable.Key)
-	}
-	for _, variable := range overrides {
-		variable.Key = strings.TrimSpace(variable.Key)
-		if variable.Key == "" {
-			return nil, fmt.Errorf("临时变量名称不能为空")
-		}
-		if _, exists := values[variable.Key]; !exists {
-			keys = append(keys, variable.Key)
-		}
-		values[variable.Key] = variable
-	}
-	result := make([]domain.RunnerVariable, 0, len(keys))
-	for _, key := range keys {
-		result = append(result, values[key])
-	}
-	return result, nil
 }
 
 func (s *service) buildDraft(prepared prepareResult) domain.TaskExecution {

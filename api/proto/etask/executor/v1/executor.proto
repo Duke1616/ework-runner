@@ -69,7 +69,7 @@ message ExecuteRequest {
   repeated etask.artifact.v1.ArtifactRef artifacts = 7;
   // 可选的程序来源；非程序型 Handler 不需要设置。
   ProgramSource program = 8;
-  // 本次执行已经解析并固定的变量快照；message presence 用于区分旧协议与显式空变量。
+  // 本次执行已经解析并固定的变量快照；普通 Handler 未使用独立变量时可以不提供。
   VariableSet variable_set = 9;
 }
 

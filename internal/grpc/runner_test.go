@@ -17,6 +17,9 @@ func TestRunnerServerListsRunnersByCodebookID(t *testing.T) {
 	service.EXPECT().ListByCodebookID(gomock.Any(), int64(12)).Return([]domain.RunnerExecutionSpec{
 		{Runner: domain.Runner{
 			ID: 3, Name: "linux-runner", CodebookID: 12, ProgramKind: domain.ProgramInline, Tags: []string{"linux"},
+		}, Variables: []domain.RunnerVariable{
+			{Key: "REGION", Value: "cn"},
+			{Key: "TOKEN", Value: "secret", Secret: true},
 		}},
 	}, nil)
 	server := NewRunnerServer(service)
@@ -29,4 +32,7 @@ func TestRunnerServerListsRunnersByCodebookID(t *testing.T) {
 	require.Len(t, response.GetRunners(), 1)
 	require.Equal(t, int64(3), response.GetRunners()[0].GetId())
 	require.Equal(t, "INLINE", response.GetRunners()[0].GetProgramKind())
+	require.Equal(t, "cn", response.GetRunners()[0].GetVariables()[0].GetValue())
+	require.Empty(t, response.GetRunners()[0].GetVariables()[1].GetValue())
+	require.True(t, response.GetRunners()[0].GetVariables()[1].GetSecret())
 }
