@@ -31,11 +31,11 @@ func (s *service) prepare(ctx context.Context, command RunCommand) (prepareResul
 		return prepareResult{}, err
 	}
 	runner := spec.Runner
-	params, err := runnerSvc.MergeParameterDefaults(runner.ParameterDefaults, nil)
+	params, err := runnerSvc.MergeParameterDefaults(runner.ParameterDefaults, command.Params)
 	if err != nil {
 		return prepareResult{}, err
 	}
-	args, err := normalizeArgs(command.Args, runner.ParameterDefaults)
+	args, err := normalizeArgs(params[runnerSvc.ParameterKeyArgs], nil)
 	if err != nil {
 		return prepareResult{}, err
 	}

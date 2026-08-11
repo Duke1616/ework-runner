@@ -53,7 +53,7 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 func (h *Handler) Run(ctx *ginx.Context, req RunReq) (ginx.Result, error) {
 	execution, err := h.svc.Run(ctx, previewSvc.RunCommand{
 		RunnerID:            req.RunnerID,
-		Args:                req.Args,
+		Params:              req.Params,
 		MaxExecutionSeconds: req.MaxExecutionSeconds,
 		Variables: slice.Map(req.Variables, func(_ int, variable Variable) domain.RunnerVariable {
 			return domain.RunnerVariable{Key: variable.Key, Value: variable.Value, Secret: variable.Secret}

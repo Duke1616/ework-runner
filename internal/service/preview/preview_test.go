@@ -80,6 +80,38 @@ func TestPrepareUsesAllRunnerParameterDefaults(t *testing.T) {
 	require.Equal(t, `[{"key":"environment","value":"staging"}]`, result.params["vars"])
 }
 
+func TestPrepareAppliesGenericParameterOverrides(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	programs := programmocks.NewMockService(ctrl)
+	runners := runnermocks.NewMockService(ctrl)
+	runners.EXPECT().FindForExecution(gomock.Any(), int64(22)).Return(domain.RunnerExecutionSpec{
+		Runner: domain.Runner{
+			ID: 22, CodebookID: 11, ProgramKind: domain.ProgramProject,
+			Kind: domain.RunnerKindGRPC, Target: "executor", Handler: "ansible",
+			Action: domain.RunnerActionRegistered,
+			ParameterDefaults: map[string]json.RawMessage{
+				"args":       json.RawMessage(`{"environment":"staging"}`),
+				"extra_args": json.RawMessage(`"--syntax-check"`),
+			},
+		},
+	}, nil)
+	programs.EXPECT().Resolve(gomock.Any(), gomock.Any()).Return(
+		program.Resolution{Program: &domain.Program{Kind: domain.ProgramProject, Project: &domain.ProjectProgram{}}}, nil)
+
+	svc := &service{programSvc: programs, runnerSvc: runners}
+	result, err := svc.prepare(context.Background(), RunCommand{
+		RunnerID: 22,
+		Params: map[string]string{
+			"args":       `{"environment":"production"}`,
+			"extra_args": `--start-at-task "Deploy"`,
+		},
+	})
+
+	require.NoError(t, err)
+	require.JSONEq(t, `{"environment":"production"}`, result.params["args"])
+	require.Equal(t, `--start-at-task "Deploy"`, result.params["extra_args"])
+}
+
 func TestPrepareRejectsRunnerWithoutProgramBinding(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	runners := runnermocks.NewMockService(ctrl)

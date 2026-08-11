@@ -7,10 +7,10 @@ type Variable struct {
 }
 
 type RunReq struct {
-	RunnerID            int64      `json:"runner_id"`
-	Args                string     `json:"args"`
-	Variables           []Variable `json:"variables"`
-	MaxExecutionSeconds int64      `json:"max_execution_seconds"`
+	RunnerID            int64             `json:"runner_id"`
+	Params              map[string]string `json:"params"`
+	Variables           []Variable        `json:"variables"`
+	MaxExecutionSeconds int64             `json:"max_execution_seconds"`
 }
 
 type StatusReq struct {
