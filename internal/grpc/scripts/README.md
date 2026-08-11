@@ -93,12 +93,15 @@ cd "$ETASK_PROJECT_ROOT"
 ansible-playbook --extra-vars @"$ETASK_WORKSPACE_ROOT/ansible-extra-vars.json" playbooks/deploy.yml
 ```
 
-`vars` 是用户配置普通剧本变量的统一入口：可以手动维护字符串 KV，也可以引用执行单元变量。运行时将其写入权限为 `0600` 的 Extra Vars 文件，不会把变量值暴露在进程命令行；SSH 连接凭据由任务默认 `credential_ref` 或 inventory 中的 `etask_credential_ref` 注入。
+`vars` 是用户配置普通剧本变量的统一入口：可以手动维护字符串 KV，也可以引用执行单元变量。`args` 与 Shell、Python 使用相同的统一执行入参协议；Ansible 将完整 JSON 挂载为专用的 `args` Extra Var，工单字段通过 `args.environment` 这类路径读取，并保留数字、布尔值、数组和嵌套对象类型。最终变量写入权限为 `0600` 的 Extra Vars 文件，不会把变量值暴露在进程命令行；SSH 连接凭据由任务默认 `credential_ref` 或 inventory 中的 `etask_credential_ref` 注入。
+
+顶层变量优先级仍为全局变量 < Runner 私有变量；本次执行 `args` 使用独立命名空间，不会隐式覆盖 Runner 顶层变量。若 Runner 已定义同名的顶层 `args` 变量，则本次执行入参优先。连接凭据变量属于系统保留项，不能通过 Runner 变量或 `extra_args` 覆盖。
 
 常用 `ansible-playbook` 选项分别通过 Handler metadata 声明，任务管理页面按 component 渲染：
 
 | 参数 | 命令选项 | 值格式 |
 | --- | --- | --- |
+| `args` | 挂载为同名 Extra Var | JSON，由工作流等调用方提供 |
 | `vars` | `--extra-vars @file` | KV 变量数组或执行单元引用 |
 | `inventory` | `--inventory` | 项目内文件的相对路径 |
 | `credential_ref` | Agent 本地 SSH 凭据 | inventory 未指定时使用的默认凭据别名 |

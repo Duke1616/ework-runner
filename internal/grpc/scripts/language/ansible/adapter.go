@@ -64,6 +64,7 @@ func (a *Adapter) Extension() string { return ".yml" }
 // Metadata 返回 Ansible Handler 支持的参数元数据。
 func (a *Adapter) Metadata() []executor.Parameter {
 	return []executor.Parameter{
+		language.ArgsParameter("剧本执行参数"),
 		ansibleParameter("inventory", "主机清单", "", "project-file-picker", "选择项目内文件", nil),
 		ansibleParameter("credential_ref", "默认 SSH 凭据", "", "select-input", "inventory 未指定时使用", map[string]string{
 			"options": credentialOptions(a.connections),
@@ -114,6 +115,9 @@ func (a *Adapter) Prepare(ctx context.Context, workspace engine.Workspace,
 	input engine.Input) (engine.PreparedCommand, error) {
 	variables, err := buildExtraVars(input.Variables)
 	if err != nil {
+		return engine.PreparedCommand{}, err
+	}
+	if err = attachExecutionArgs(variables, input.Args); err != nil {
 		return engine.PreparedCommand{}, err
 	}
 	options, err := parsePlaybookOptions(input.Params)
@@ -202,6 +206,21 @@ func buildExtraVars(raw string) (map[string]any, error) {
 		result[key] = variable.Value
 	}
 	return result, nil
+}
+
+// attachExecutionArgs 将统一执行协议中的 JSON 入参作为独立的 args Extra Var。
+// 工单字段保留原始层级和类型，不与 Runner 顶层变量隐式冲突。
+func attachExecutionArgs(target map[string]any, raw string) error {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		raw = "{}"
+	}
+	var args any
+	if err := json.Unmarshal([]byte(raw), &args); err != nil {
+		return fmt.Errorf("解析 Ansible 执行参数失败: %w", err)
+	}
+	target["args"] = args
+	return nil
 }
 
 func credentialOptions(connections connection.Preparer) string {

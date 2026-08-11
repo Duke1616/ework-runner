@@ -18,6 +18,7 @@ func TestAdapterPrepare(t *testing.T) {
 	workspace := newWorkspace(t)
 	adapter := New("/usr/local/bin/ansible-playbook")
 	prepared, err := adapter.Prepare(t.Context(), workspace, engine.Input{
+		Args: `{"environment":"production","replicas":3,"deployment":{"strategy":"rolling"}}`,
 		Variables: `[{"key":"ansible_user","value":"deploy","secret":false},` +
 			`{"key":"environment","value":"staging","secret":false},` +
 			`{"key":"replicas","value":"2","secret":false}]`,
@@ -52,6 +53,18 @@ func TestAdapterPrepare(t *testing.T) {
 	require.Equal(t, "deploy", extraVars["ansible_user"])
 	require.Equal(t, "staging", extraVars["environment"])
 	require.Equal(t, "2", extraVars["replicas"])
+	require.Equal(t, map[string]any{
+		"environment": "production", "replicas": float64(3),
+		"deployment": map[string]any{"strategy": "rolling"},
+	}, extraVars["args"])
+}
+
+func TestAdapterPrepareRejectsInvalidExecutionArgs(t *testing.T) {
+	workspace := newWorkspace(t)
+	_, err := New("/usr/local/bin/ansible-playbook").Prepare(t.Context(), workspace, engine.Input{
+		Args: `{`,
+	})
+	require.ErrorContains(t, err, "解析 Ansible 执行参数失败")
 }
 
 func TestAdapterPrepareInjectsLocalSSHCredential(t *testing.T) {
@@ -92,13 +105,13 @@ func TestAdapterPrepareInjectsLocalSSHCredential(t *testing.T) {
 
 	extraVarsContent, err := os.ReadFile(filepath.Join(workspace.root, "ansible-extra-vars.json"))
 	require.NoError(t, err)
-	var extraVars map[string]string
+	var extraVars map[string]any
 	require.NoError(t, json.Unmarshal(extraVarsContent, &extraVars))
 	require.Equal(t, "production", extraVars["environment"])
 	require.Equal(t, "deploy", extraVars["ansible_user"])
 	require.Equal(t, privateKeyFile, extraVars["ansible_ssh_private_key_file"])
-	require.Contains(t, extraVars["ansible_ssh_common_args"], "StrictHostKeyChecking=yes")
-	require.Contains(t, extraVars["ansible_ssh_common_args"], filepath.Join(workspace.root, "ansible-known-hosts"))
+	require.Contains(t, extraVars["ansible_ssh_common_args"].(string), "StrictHostKeyChecking=yes")
+	require.Contains(t, extraVars["ansible_ssh_common_args"].(string), filepath.Join(workspace.root, "ansible-known-hosts"))
 }
 
 func TestAdapterPrepareBuildsInventoryConnectionPlan(t *testing.T) {
@@ -260,9 +273,14 @@ func TestAdapterMetadataDeclaresCommonOptions(t *testing.T) {
 	require.Equal(t, "select-input", components["verbosity"])
 	require.Equal(t, "input", components["extra_args"])
 	require.NotContains(t, components, "options")
-	require.NotContains(t, components, "args")
+	require.Equal(t, "code-editor", components["args"])
 	require.Equal(t, "kv-input", components["vars"])
 	require.Equal(t, executor.ParameterRoleVariables, vars.Role)
+	for _, parameter := range New("").Metadata() {
+		if parameter.Key == "args" {
+			require.Equal(t, executor.ParameterRoleArgs, parameter.Role)
+		}
+	}
 	require.Contains(t, vars.Bindings, "manual")
 	require.Contains(t, vars.Bindings, "runner")
 }
