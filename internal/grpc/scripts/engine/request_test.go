@@ -57,3 +57,16 @@ func TestResolveRequestPreservesExplicitEmptyVariableSet(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "[]", request.input.Variables)
 }
+
+func TestResolveRequestUsesArgsSemanticRoleWithoutKeepingGenericParam(t *testing.T) {
+	task := executor.NewContext(executor.ContextOptions{Params: map[string]string{"payload": `{"id":1}`}})
+	task.SetProgram(&executor.Program{Kind: executor.ProgramKindProject, Project: &executor.ProjectProgram{}})
+
+	request, err := resolveRequest(task, "shell", []executor.Parameter{
+		{Key: "payload", Role: executor.ParameterRoleArgs},
+	}, Config{MaxArgsSize: 1024, MaxVariablesSize: 1024})
+
+	require.NoError(t, err)
+	require.JSONEq(t, `{"id":1}`, request.input.Args)
+	require.NotContains(t, request.input.Params, "payload")
+}

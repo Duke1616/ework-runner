@@ -19,17 +19,21 @@ func resolveRequest(task *executor.Context, adapterName string,
 		return executionRequest{}, fmt.Errorf("[%s] 程序来源不能为空", adapterName)
 	}
 	params := make(map[string]string, len(parameters))
+	args := ""
+	argsResolved := false
 	variables := ""
 	variablesResolved := false
 	for _, parameter := range parameters {
-		// Key 判断兼容尚未声明 Role 的旧版通用 Handler 元数据。
-		isVariables := parameter.Role == executor.ParameterRoleVariables || parameter.Key == "variables"
-		if isVariables && variablesResolved {
+		role := parameterRole(parameter)
+		if role == executor.ParameterRoleArgs && argsResolved {
+			return executionRequest{}, fmt.Errorf("[%s] 只能声明一个 args 语义参数", adapterName)
+		}
+		if role == executor.ParameterRoleVariables && variablesResolved {
 			return executionRequest{}, fmt.Errorf("[%s] 只能声明一个 variables 语义参数", adapterName)
 		}
 		value := ""
 		var err error
-		if isVariables && task.HasVariables() && !task.HasParam(parameter.Key) {
+		if role == executor.ParameterRoleVariables && task.HasVariables() && !task.HasParam(parameter.Key) {
 			encoded, encodeErr := json.Marshal(task.Variables())
 			if encodeErr != nil {
 				return executionRequest{}, fmt.Errorf("序列化执行变量失败: %w", encodeErr)
@@ -42,14 +46,18 @@ func resolveRequest(task *executor.Context, adapterName string,
 			}
 		}
 		limit := config.MaxArgsSize
-		if isVariables {
+		if role == executor.ParameterRoleVariables {
 			limit = config.MaxVariablesSize
 		}
 		if int64(len(value)) > limit {
 			return executionRequest{}, fmt.Errorf("参数 %s 大小超过限制: %d > %d 字节",
 				parameter.Key, len(value), limit)
 		}
-		if isVariables {
+		switch role {
+		case executor.ParameterRoleArgs:
+			args, argsResolved = value, true
+			continue
+		case executor.ParameterRoleVariables:
 			variables, variablesResolved = value, true
 			continue
 		}
@@ -61,9 +69,22 @@ func resolveRequest(task *executor.Context, adapterName string,
 				len(program.Inline.Code), config.MaxCodeSize)
 		}
 	}
-	args := params["args"]
-	delete(params, "args")
 	return executionRequest{program: program, input: Input{
 		Args: args, Variables: variables, Params: params,
 	}}, nil
+}
+
+func parameterRole(parameter executor.Parameter) executor.ParameterRole {
+	if parameter.Role != "" {
+		return parameter.Role
+	}
+	// 固定 Key 仅用于兼容尚未声明 Role 的旧版通用 Handler 元数据。
+	switch executor.ParameterRole(parameter.Key) {
+	case executor.ParameterRoleArgs:
+		return executor.ParameterRoleArgs
+	case executor.ParameterRoleVariables:
+		return executor.ParameterRoleVariables
+	default:
+		return ""
+	}
 }

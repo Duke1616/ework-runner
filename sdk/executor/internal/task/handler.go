@@ -17,6 +17,8 @@ type VariableSet struct {
 type ParameterRole string
 
 const (
+	// ParameterRoleArgs 表示参数承载统一脚本入参。
+	ParameterRoleArgs ParameterRole = "args"
 	// ParameterRoleVariables 表示参数承载统一变量集合。
 	ParameterRoleVariables ParameterRole = "variables"
 )

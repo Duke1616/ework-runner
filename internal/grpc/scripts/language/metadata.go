@@ -6,7 +6,7 @@ import "github.com/Duke1616/etask/sdk/executor"
 func Metadata() []executor.Parameter {
 	return []executor.Parameter{
 		{
-			Key: "args", Desc: "脚本执行参数",
+			Key: "args", Role: executor.ParameterRoleArgs, Desc: "脚本执行参数",
 			Bindings: map[string]executor.Binding{
 				"static": &executor.BindingOption{
 					Label: "参数内容 (JSON)", Placeholder: `{"name": "zhangsan", "age": 18}`,
