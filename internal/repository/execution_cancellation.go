@@ -54,7 +54,7 @@ func (r *executionCancellationRepository) Attach(ctx context.Context,
 }
 
 func translateCancellationError(err error) error {
-	if errors.Is(err, dao.ErrCancellationNotWorkflow) || errors.Is(err, dao.ErrCancellationTerminal) {
+	if errors.Is(err, dao.ErrCancellationTerminal) {
 		return fmt.Errorf("%w: %w", ErrCancellationRejected, err)
 	}
 	return err

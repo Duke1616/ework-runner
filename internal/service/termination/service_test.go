@@ -28,6 +28,33 @@ func TestRequestPersistsIntentBeforeExecutionExists(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestRequestExecutionPersistsCancellation(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	cancellations := repositorymocks.NewMockExecutionCancellationRepository(ctrl)
+	executions := repositorymocks.NewMockTaskExecutionRepository(ctrl)
+	physical := invokermocks.NewMockInvoker(ctrl)
+	ctx := ctxutil.WithTenantID(context.Background(), 7)
+	cancellations.EXPECT().Request(gomock.Any(), int64(9), "", "参数配置错误").Return(nil)
+	service := termination.NewService(cancellations, executions, physical)
+
+	err := service.RequestExecution(ctx, 9, " 参数配置错误 ")
+
+	require.NoError(t, err)
+}
+
+func TestRequestExecutionRejectsBlankReason(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	service := termination.NewService(
+		repositorymocks.NewMockExecutionCancellationRepository(ctrl),
+		repositorymocks.NewMockTaskExecutionRepository(ctrl),
+		invokermocks.NewMockInvoker(ctrl),
+	)
+
+	err := service.RequestExecution(ctxutil.WithTenantID(context.Background(), 7), 9, " ")
+
+	require.ErrorIs(t, err, termination.ErrInvalidCommand)
+}
+
 func TestDeliverPendingMarksSuccessfulSignalSent(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	cancellations := repositorymocks.NewMockExecutionCancellationRepository(ctrl)

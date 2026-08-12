@@ -1,4 +1,4 @@
-// Package termination 管理工作流取消意图及物理终止信号的可靠投递。
+// Package termination 管理执行取消意图及物理终止信号的可靠投递。
 package termination
 
 import (
@@ -31,6 +31,8 @@ type Request struct {
 type Service interface {
 	// Request 接受并持久化一次幂等终止请求。
 	Request(ctx context.Context, request Request) error
+	// RequestExecution 终止任意可取消的执行记录，并投递物理终止信号。
+	RequestExecution(ctx context.Context, executionID int64, reason string) error
 	// Attach 在 execution 创建后应用可能早到的取消意图。
 	Attach(ctx context.Context, execution domain.TaskExecution) (domain.TaskExecution, error)
 	// DeliverPending 投递一批待发送的物理终止信号。
@@ -61,6 +63,23 @@ func (s *service) Request(ctx context.Context, request Request) error {
 	err := s.cancellations.Request(ctx, request.ExecutionID,
 		request.RequestID, request.Reason)
 	if err != nil {
+		if errors.Is(err, repository.ErrCancellationRejected) {
+			return fmt.Errorf("%w: %v", ErrRejected, err)
+		}
+		return err
+	}
+	return nil
+}
+
+func (s *service) RequestExecution(ctx context.Context, executionID int64, reason string) error {
+	reason = strings.TrimSpace(reason)
+	if executionID <= 0 || reason == "" || len([]rune(reason)) > 500 {
+		return fmt.Errorf("%w: execution ID 非法或终止原因为空/超过 500 字", ErrInvalidCommand)
+	}
+	if ctxutil.GetTenantID(ctx).Int64() <= 0 {
+		return fmt.Errorf("%w: 缺少租户上下文", ErrInvalidCommand)
+	}
+	if err := s.cancellations.Request(ctx, executionID, "", reason); err != nil {
 		if errors.Is(err, repository.ErrCancellationRejected) {
 			return fmt.Errorf("%w: %v", ErrRejected, err)
 		}

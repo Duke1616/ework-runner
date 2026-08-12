@@ -112,6 +112,10 @@ type ListExecutionsReq struct {
 	Limit  int   `json:"limit" form:"limit"`
 }
 
+type TerminateExecutionReq struct {
+	Reason string `json:"reason"`
+}
+
 type TaskLogVO struct {
 	ID          int64  `json:"id"`
 	TaskID      int64  `json:"task_id"`

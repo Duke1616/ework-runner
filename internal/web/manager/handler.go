@@ -1,12 +1,15 @@
 package manager
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Duke1616/eiam/pkg/ctxutil"
 	"github.com/Duke1616/eiam/pkg/web/capability"
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/service/task"
+	terminationSvc "github.com/Duke1616/etask/internal/service/termination"
 	"github.com/Duke1616/etask/internal/sse"
 	"github.com/Duke1616/etask/pkg/grpc/interceptors/bizid"
 	"github.com/ecodeclub/ekit/slice"
@@ -17,10 +20,11 @@ import (
 var _ ginx.Handler = &Handler{}
 
 type Handler struct {
-	svc     task.Service
-	logSvc  task.LogService
-	execSvc task.ExecutionService
-	events  *sse.Hubs
+	svc         task.Service
+	logSvc      task.LogService
+	execSvc     task.ExecutionService
+	termination terminationSvc.Service
+	events      *sse.Hubs
 	capability.IRegistry
 	executionRegistry capability.IRegistry
 }
@@ -32,11 +36,12 @@ func (h *Handler) PublicRoutes(_ *gin.Engine) {
 func (h *Handler) IdentifyRoutes(_ *gin.Engine) {}
 
 func NewHandler(svc task.Service, logSvc task.LogService, execSvc task.ExecutionService,
-	events *sse.Hubs) *Handler {
+	events *sse.Hubs, termination terminationSvc.Service) *Handler {
 	return &Handler{
 		svc:               svc,
 		logSvc:            logSvc,
 		execSvc:           execSvc,
+		termination:       termination,
 		events:            events,
 		IRegistry:         capability.NewRegistry("task", "manager", "任务管理"),
 		executionRegistry: capability.NewRegistry("task", "execution", "任务执行"),
@@ -89,14 +94,53 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 		Needs("task:manager:execution_events").
 		Handle(ginx.B[ListExecutionsReq](h.ListExecutions)),
 	)
+	g.POST("/executions/:id/terminate", h.executionRegistry.Capability("终止执行", "terminate").
+		Handle(ginx.B[TerminateExecutionReq](h.TerminateExecution)),
+	)
 
 	// --- 任务控制 ---
 	g.POST("/stop/:id", h.Capability("停止任务", "stop").
+		Needs("task:execution:terminate").
 		Handle(ginx.W(h.Stop)),
 	)
 	g.POST("/run", h.Capability("运行任务", "start").
 		Handle(ginx.B[RunTaskReq](h.Run)),
 	)
+}
+
+func (h *Handler) TerminateExecution(ctx *ginx.Context, req TerminateExecutionReq) (ginx.Result, error) {
+	id, err := ctx.Param("id").AsInt64()
+	if err != nil || id <= 0 {
+		return invalidParameterResult(fmt.Errorf("执行 ID 非法")), nil
+	}
+	reason := strings.TrimSpace(req.Reason)
+	if reason == "" {
+		reason = "管理员手动终止"
+	}
+	if len([]rune(reason)) > 500 {
+		return invalidParameterResult(fmt.Errorf("终止原因不能超过 500 字")), nil
+	}
+	if h.termination == nil {
+		return systemErrorResult, fmt.Errorf("执行终止服务未初始化")
+	}
+	if err = h.termination.RequestExecution(ctx, id, reason); err != nil {
+		return systemErrorResult, err
+	}
+	if execution, findErr := h.execSvc.FindByID(ctx, id); findErr == nil && h.events != nil && execution.Task.ID > 0 {
+		h.events.Executions.Broadcast(execution.Task.ID, sse.TaskExecutionEvent{
+			ID:              execution.ID,
+			TaskID:          execution.Task.ID,
+			TaskName:        execution.Task.Name,
+			StartTime:       execution.StartTime,
+			EndTime:         execution.EndTime,
+			Status:          execution.Status.String(),
+			RunningProgress: execution.RunningProgress,
+			ExecutorNodeId:  execution.ExecutorNodeID,
+			TaskResult:      execution.TaskResult,
+			CTime:           execution.CTime,
+		})
+	}
+	return ginx.Result{Msg: "success"}, nil
 }
 
 func (h *Handler) Detail(ctx *ginx.Context) (ginx.Result, error) {

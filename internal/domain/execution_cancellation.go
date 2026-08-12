@@ -9,7 +9,7 @@ const (
 	CancellationSent             CancellationDeliveryStatus = "SENT"
 )
 
-// ExecutionCancellation 是按工作流 request ID 幂等保存的取消意图。
+// ExecutionCancellation 是按执行标识幂等保存的终止意图。
 type ExecutionCancellation struct {
 	ID             int64
 	TenantID       int64

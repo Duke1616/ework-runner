@@ -14,11 +14,10 @@ import (
 )
 
 var (
-	ErrCancellationNotWorkflow = errors.New("只允许终止 WORKFLOW execution")
-	ErrCancellationTerminal    = errors.New("execution 已经进入其他终态")
+	ErrCancellationTerminal = errors.New("execution 已经进入其他终态")
 )
 
-// ExecutionCancellation 持久化工作流取消意图及其物理信号投递状态。
+// ExecutionCancellation 持久化执行取消意图及其物理信号投递状态。
 type ExecutionCancellation struct {
 	ID             int64         `gorm:"primaryKey;column:id;type:bigint;autoIncrement"`
 	TenantID       int64         `gorm:"column:tenant_id;type:bigint unsigned;not null;uniqueIndex:uk_execution_cancellation_request,priority:1;index"`
@@ -57,7 +56,7 @@ func NewGORMExecutionCancellationDAO(db *gorm.DB) ExecutionCancellationDAO {
 func (g *GORMExecutionCancellationDAO) Request(ctx context.Context, executionID int64,
 	requestID, reason string) error {
 	return g.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		resolvedRequestID, err := resolveWorkflowRequestID(tx, executionID, requestID)
+		resolvedRequestID, err := resolveCancellationRequestID(tx, executionID, requestID)
 		if err != nil {
 			return err
 		}
@@ -102,7 +101,7 @@ func (g *GORMExecutionCancellationDAO) Attach(ctx context.Context, executionID i
 	return attached, err
 }
 
-func resolveWorkflowRequestID(tx *gorm.DB, executionID int64, requestID string) (string, error) {
+func resolveCancellationRequestID(tx *gorm.DB, executionID int64, requestID string) (string, error) {
 	if executionID <= 0 {
 		return requestID, nil
 	}
@@ -111,16 +110,17 @@ func resolveWorkflowRequestID(tx *gorm.DB, executionID int64, requestID string) 
 		Where("id = ?", executionID).First(&execution).Error; err != nil {
 		return "", err
 	}
-	if execution.Source != domain.TaskExecutionSourceWorkflow.String() {
-		return "", ErrCancellationNotWorkflow
+	resolved := fmt.Sprintf("etask:%s:%d", execution.Source, execution.ID)
+	if execution.Source == domain.TaskExecutionSourceWorkflow.String() {
+		if !execution.RequestID.Valid || execution.RequestID.String == "" {
+			return "", fmt.Errorf("WORKFLOW execution %d 缺少 request ID", executionID)
+		}
+		resolved = execution.RequestID.String
 	}
-	if !execution.RequestID.Valid || execution.RequestID.String == "" {
-		return "", fmt.Errorf("WORKFLOW execution %d 缺少 request ID", executionID)
-	}
-	if requestID != "" && requestID != execution.RequestID.String {
+	if requestID != "" && requestID != resolved {
 		return "", fmt.Errorf("execution ID 与 request ID 不匹配")
 	}
-	return execution.RequestID.String, nil
+	return resolved, nil
 }
 
 func lockCancellationTarget(tx *gorm.DB, executionID int64, requestID string) (TaskExecution, error) {
@@ -172,9 +172,6 @@ func keepCancellationWaiting(tx *gorm.DB, cancellationID int64, reason string) e
 
 func bindCancellation(tx *gorm.DB, cancellation ExecutionCancellation,
 	execution TaskExecution, reason string) error {
-	if execution.Source != domain.TaskExecutionSourceWorkflow.String() {
-		return ErrCancellationNotWorkflow
-	}
 	status := domain.TaskExecutionStatus(execution.Status)
 	if !status.IsValid() || (status.IsTerminalStatus() && !status.IsCancelled()) {
 		return ErrCancellationTerminal

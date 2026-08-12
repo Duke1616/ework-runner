@@ -156,3 +156,41 @@ func (c *MockServiceRequestCall) DoAndReturn(f func(context.Context, termination
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
+
+// RequestExecution mocks base method.
+func (m *MockService) RequestExecution(ctx context.Context, executionID int64, reason string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RequestExecution", ctx, executionID, reason)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RequestExecution indicates an expected call of RequestExecution.
+func (mr *MockServiceMockRecorder) RequestExecution(ctx, executionID, reason any) *MockServiceRequestExecutionCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RequestExecution", reflect.TypeOf((*MockService)(nil).RequestExecution), ctx, executionID, reason)
+	return &MockServiceRequestExecutionCall{Call: call}
+}
+
+// MockServiceRequestExecutionCall wrap *gomock.Call
+type MockServiceRequestExecutionCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockServiceRequestExecutionCall) Return(arg0 error) *MockServiceRequestExecutionCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockServiceRequestExecutionCall) Do(f func(context.Context, int64, string) error) *MockServiceRequestExecutionCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockServiceRequestExecutionCall) DoAndReturn(f func(context.Context, int64, string) error) *MockServiceRequestExecutionCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}

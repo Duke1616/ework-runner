@@ -29,7 +29,7 @@ func TestPrivateRouteCapabilityDeclarations(t *testing.T) {
 		artifact.NewHandler(nil),
 		codeassist.NewHandler(nil),
 		codebook.NewHandler(nil, nil, nil, nil),
-		manager.NewHandler(nil, nil, nil, nil),
+		manager.NewHandler(nil, nil, nil, nil, nil),
 		pool.NewAdminHandler(nil, nil),
 		preview.NewHandler(nil),
 		resource.NewHandler(nil),
