@@ -174,6 +174,8 @@ type CodebookDAO interface {
 	GetMaxSortNo(ctx context.Context, projectID, parentID int64, scope string) (int64, error)
 	// Update 更新代码节点可变字段。
 	Update(ctx context.Context, c Codebook, code string) (int64, error)
+	// Rename 仅更新代码节点名称。
+	Rename(ctx context.Context, id int64, name string) (int64, error)
 	// CreateVersion 创建代码版本。
 	CreateVersion(ctx context.Context, request CodebookVersionCreate) (int64, error)
 	// UseVersion 设置代码节点当前使用版本。
@@ -184,7 +186,7 @@ type CodebookDAO interface {
 	BatchUpdateSort(ctx context.Context, items []CodebookSortItem) error
 	// Import 在一个事务中导入项目文件树。
 	Import(ctx context.Context, request CodebookImport) (CodebookImportResult, error)
-	// ApplyProjectChangeSet 在一个事务中创建和更新多个项目文件。
+	// ApplyProjectChangeSet 在一个事务中创建、更新、重命名或删除多个项目文件。
 	ApplyProjectChangeSet(ctx context.Context, request CodebookProjectChangeSet) ([]CodebookProjectChangeResult, error)
 	// Delete 根据主键 ID 删除代码节点。
 	Delete(ctx context.Context, id int64) (CodebookDeleteResult, error)
@@ -622,6 +624,40 @@ func (g *GORMCodebookDAO) Update(ctx context.Context, c Codebook, code string) (
 		return bumpProjectSourceRevision(tx, c.Scope, c.ProjectID)
 	})
 	return rowsAffected, codebookWriteError(err)
+}
+
+// Rename 仅更新代码节点名称，并递增租户项目源码修订号。
+func (g *GORMCodebookDAO) Rename(ctx context.Context, id int64, name string) (int64, error) {
+	var rowsAffected int64
+	err := g.dbWithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var node Codebook
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ?", id).First(&node).Error; err != nil {
+			return err
+		}
+		if node.Name == name {
+			return nil
+		}
+		if err := renameCodebookNode(tx, id, name, time.Now().UnixMilli()); err != nil {
+			return err
+		}
+		rowsAffected = 1
+		return bumpProjectSourceRevision(tx, node.Scope, node.ProjectID)
+	})
+	return rowsAffected, codebookWriteError(err)
+}
+
+func renameCodebookNode(tx *gorm.DB, id int64, name string, now int64) error {
+	result := tx.Model(&Codebook{}).Where("id = ?", id).Updates(map[string]any{
+		"name": name, "utime": now,
+	})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 func (g *GORMCodebookDAO) updateCurrentVersionCode(ctx context.Context, tx *gorm.DB, c Codebook, code string, now int64) error {

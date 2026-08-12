@@ -117,6 +117,7 @@ func TestProjectAuxiliaryRoutesReuseProjectPermissions(t *testing.T) {
 	assertNeeds(t, handler, "task:codebook:purge_project", []string{
 		"task:codebook:project_delete_impact",
 	})
+	assertNeeds(t, handler, "task:codebook:rename", []string{"task:codebook:edit"})
 }
 
 func assertNeeds(t *testing.T, handler *Handler, code string, expected []string) {

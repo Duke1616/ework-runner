@@ -36,7 +36,7 @@ func toChangeSetVO(source domain.AIChangeSet) ChangeSetVO {
 	}
 	for _, item := range source.Items {
 		result.Items = append(result.Items, ChangeItemVO{
-			Operation: string(item.Operation), Path: item.Path,
+			Operation: string(item.Operation), Path: item.Path, SourcePath: item.SourcePath,
 			NodeID: item.NodeID, BaseVersionID: item.BaseVersionID,
 			BaseHash: item.BaseHash,
 			Language: item.Language, Code: item.Code,

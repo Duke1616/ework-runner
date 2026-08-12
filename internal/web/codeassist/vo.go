@@ -82,6 +82,7 @@ type DiagnosticVO struct {
 type ChangeItemVO struct {
 	Operation        string         `json:"operation"`
 	Path             string         `json:"path"`
+	SourcePath       string         `json:"source_path,omitempty"`
 	NodeID           int64          `json:"node_id"`
 	BaseVersionID    int64          `json:"base_version_id"`
 	BaseHash         string         `json:"base_hash"`
@@ -109,9 +110,11 @@ type ConversationDetailResp struct {
 
 // AppliedChangeItemVO 是项目级候选变更应用后的文件版本。
 type AppliedChangeItemVO struct {
-	Path      string `json:"path"`
-	NodeID    int64  `json:"node_id"`
-	VersionID int64  `json:"version_id"`
+	Operation  string `json:"operation"`
+	Path       string `json:"path"`
+	SourcePath string `json:"source_path,omitempty"`
+	NodeID     int64  `json:"node_id"`
+	VersionID  int64  `json:"version_id"`
 }
 
 // ApplyChangeSetResp 返回项目级候选变更的全部应用结果。

@@ -21,6 +21,12 @@ type UpdateReq struct {
 	SortNo    int64  `json:"sort_no"`
 }
 
+// RenameReq 重命名代码资源节点，文件和目录均支持。
+type RenameReq struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
 type SortReq struct {
 	ID             int64 `json:"id"`
 	TargetParentID int64 `json:"target_parent_id"`

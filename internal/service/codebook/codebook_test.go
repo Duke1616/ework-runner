@@ -57,6 +57,58 @@ type projectRepositoryStub struct {
 	project                   domain.CodebookProject
 	changeSet                 domain.CodebookProjectChangeSet
 	changeResults             []domain.CodebookProjectChangeResult
+	renameID                  int64
+	renameName                string
+}
+
+func (s *projectRepositoryStub) Rename(_ context.Context, id int64, name string) (int64, error) {
+	s.renameID, s.renameName = id, name
+	return 1, nil
+}
+
+func TestRenameValidatesAndDelegates(t *testing.T) {
+	repo := &projectRepositoryStub{
+		node: domain.Codebook{ID: 10, ProjectID: 3, Scope: domain.CodebookScopeTenant},
+		project: domain.CodebookProject{
+			ID: 3, Scope: domain.CodebookScopeTenant, Status: domain.CodebookProjectStatusNormal,
+		},
+	}
+	service := NewService(repo)
+	ctx := ctxutil.WithTenantID(t.Context(), 2)
+
+	count, err := service.Rename(ctx, 10, " renamed.py ")
+
+	require.NoError(t, err)
+	require.Equal(t, int64(1), count)
+	require.Equal(t, int64(10), repo.renameID)
+	require.Equal(t, "renamed.py", repo.renameName)
+}
+
+func TestRenameRejectsPathLikeName(t *testing.T) {
+	repo := &projectRepositoryStub{node: domain.Codebook{ID: 10, ProjectID: 3, Scope: domain.CodebookScopeTenant}}
+	service := NewService(repo)
+
+	_, err := service.Rename(ctxutil.WithTenantID(t.Context(), 2), 10, "dir/file.py")
+
+	require.ErrorIs(t, err, errs.ErrInvalidParameter)
+}
+
+func TestRenameSameNameIsNoop(t *testing.T) {
+	repo := &projectRepositoryStub{
+		node: domain.Codebook{
+			ID: 10, ProjectID: 3, Scope: domain.CodebookScopeTenant, Name: "main.py",
+		},
+		project: domain.CodebookProject{
+			ID: 3, Scope: domain.CodebookScopeTenant, Status: domain.CodebookProjectStatusNormal,
+		},
+	}
+	service := NewService(repo)
+
+	count, err := service.Rename(ctxutil.WithTenantID(t.Context(), 2), 10, " main.py ")
+
+	require.NoError(t, err)
+	require.Zero(t, count)
+	require.Zero(t, repo.renameID)
 }
 
 func (s *projectRepositoryStub) ApplyProjectChangeSet(_ context.Context,
@@ -90,6 +142,53 @@ func TestApplyProjectChangeSetValidatesAndDelegatesAtomically(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, repo.changeResults, result)
 	require.Equal(t, request, repo.changeSet)
+}
+
+func TestApplyProjectChangeSetSupportsRename(t *testing.T) {
+	repo := &projectRepositoryStub{
+		project: domain.CodebookProject{
+			ID: 3, Scope: domain.CodebookScopeTenant, Status: domain.CodebookProjectStatusNormal,
+		},
+		changeResults: []domain.CodebookProjectChangeResult{{
+			Path: "playbooks/main.yml", NodeID: 10, VersionID: 20,
+		}},
+	}
+	service := NewService(repo)
+	request := domain.CodebookProjectChangeSet{
+		ProjectID: 3, BaseRevision: 7,
+		Changes: []domain.CodebookProjectChange{{
+			Operation:  domain.CodebookChangeOperationRename,
+			SourcePath: "playbooks/site.yml", Path: "playbooks/main.yml",
+			NodeID: 10, ExpectedCurrentVersionID: 20, ExpectedHash: "hash",
+		}},
+	}
+
+	result, err := service.ApplyProjectChangeSet(ctxutil.WithTenantID(t.Context(), 2), request)
+
+	require.NoError(t, err)
+	require.Equal(t, repo.changeResults, result)
+	require.Equal(t, request, repo.changeSet)
+}
+
+func TestApplyProjectChangeSetRejectsRepeatedNode(t *testing.T) {
+	repo := &projectRepositoryStub{project: domain.CodebookProject{
+		ID: 3, Scope: domain.CodebookScopeTenant, Status: domain.CodebookProjectStatusNormal,
+	}}
+	service := NewService(repo)
+	request := domain.CodebookProjectChangeSet{
+		ProjectID: 3, BaseRevision: 7,
+		Changes: []domain.CodebookProjectChange{
+			{Operation: domain.CodebookChangeOperationUpdate, Path: "old.py", NodeID: 10,
+				ExpectedCurrentVersionID: 20, ExpectedHash: "hash", Code: "print(1)\n"},
+			{Operation: domain.CodebookChangeOperationRename, SourcePath: "old.py", Path: "new.py",
+				NodeID: 10, ExpectedCurrentVersionID: 20, ExpectedHash: "hash"},
+		},
+	}
+
+	_, err := service.ApplyProjectChangeSet(ctxutil.WithTenantID(t.Context(), 2), request)
+
+	require.ErrorIs(t, err, errs.ErrInvalidParameter)
+	require.Contains(t, err.Error(), "重复操作节点")
 }
 
 func (s *projectRepositoryStub) ListProjects(_ context.Context,

@@ -177,13 +177,32 @@ func (g *GORMCodeAssistDAO) ReleaseChangeSet(ctx context.Context, id int64) erro
 		}).Error
 }
 
-func (g *GORMCodeAssistDAO) MarkChangeSetApplied(ctx context.Context, id int64,
-	items sqlx.JSONColumn[[]domain.AIChangeItem]) error {
+func (g *GORMCodeAssistDAO) RecordChangeSetApplied(ctx context.Context, id int64,
+	items sqlx.JSONColumn[[]domain.AIChangeItem], cleanupPending bool) error {
+	status := domain.AIChangeSetStatusApplied
+	if cleanupPending {
+		status = domain.AIChangeSetStatusCleanupPending
+	}
 	result := g.db.WithContext(ctx).Model(&AIChangeSet{}).
 		Where("id = ? AND status = ?", id, domain.AIChangeSetStatusApplying).
 		Updates(map[string]any{
-			"items": items, "status": domain.AIChangeSetStatusApplied,
+			"items": items, "status": status,
 			"utime": time.Now().UnixMilli(),
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errs.ErrAIChangeSetConflict
+	}
+	return nil
+}
+
+func (g *GORMCodeAssistDAO) CompleteChangeSetCleanup(ctx context.Context, id int64) error {
+	result := g.db.WithContext(ctx).Model(&AIChangeSet{}).
+		Where("id = ? AND status = ?", id, domain.AIChangeSetStatusCleanupPending).
+		Updates(map[string]any{
+			"status": domain.AIChangeSetStatusApplied, "utime": time.Now().UnixMilli(),
 		})
 	if result.Error != nil {
 		return result.Error

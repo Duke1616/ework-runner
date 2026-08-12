@@ -43,6 +43,8 @@ type ICodebookRepository interface {
 	GetMaxSortNo(ctx context.Context, projectID, parentID int64, scope domain.CodebookScope) (int64, error)
 	// Update 更新代码资源可变字段。
 	Update(ctx context.Context, req domain.Codebook) (int64, error)
+	// Rename 仅更新代码资源名称。
+	Rename(ctx context.Context, id int64, name string) (int64, error)
 	// CreateVersion 创建代码版本。
 	CreateVersion(ctx context.Context, req domain.CodebookVersionCreate) (int64, error)
 	// UseVersion 设置代码节点当前使用版本。
@@ -53,7 +55,7 @@ type ICodebookRepository interface {
 	BatchUpdateSort(ctx context.Context, items []domain.CodebookSortItem) error
 	// Import 在一个事务中导入项目文件树。
 	Import(ctx context.Context, request domain.CodebookImport) (domain.CodebookImportResult, error)
-	// ApplyProjectChangeSet 在一个事务中创建和更新多个项目文件。
+	// ApplyProjectChangeSet 在一个事务中创建、更新、重命名或删除多个项目文件。
 	ApplyProjectChangeSet(ctx context.Context, request domain.CodebookProjectChangeSet) ([]domain.CodebookProjectChangeResult, error)
 	// Delete 根据主键 ID 删除代码资源。
 	Delete(ctx context.Context, id int64) (domain.CodebookDeleteResult, error)
@@ -238,6 +240,10 @@ func (repo *codebookRepository) Update(ctx context.Context, req domain.Codebook)
 	return repo.dao.Update(ctx, entity, req.Code)
 }
 
+func (repo *codebookRepository) Rename(ctx context.Context, id int64, name string) (int64, error) {
+	return repo.dao.Rename(ctx, id, name)
+}
+
 // CreateVersion 创建代码版本。
 func (repo *codebookRepository) CreateVersion(ctx context.Context,
 	req domain.CodebookVersionCreate) (int64, error) {
@@ -283,10 +289,11 @@ func (repo *codebookRepository) ApplyProjectChangeSet(ctx context.Context,
 	changes := make([]dao.CodebookProjectChange, 0, len(request.Changes))
 	for _, change := range request.Changes {
 		changes = append(changes, dao.CodebookProjectChange{
-			Operation: change.Operation.String(), Path: change.Path, NodeID: change.NodeID,
+			Operation: change.Operation.String(), Path: change.Path,
+			SourcePath: change.SourcePath, NodeID: change.NodeID,
 			ExpectedCurrentVersionID: change.ExpectedCurrentVersionID,
 			ExpectedHash:             change.ExpectedHash, Code: change.Code, Message: change.Message,
-			SourceKey: change.SourceKey,
+			SourceKey: change.SourceKey, CleanupObjectKeys: change.CleanupObjectKeys,
 		})
 	}
 	applied, err := repo.dao.ApplyProjectChangeSet(ctx, dao.CodebookProjectChangeSet{
@@ -298,7 +305,10 @@ func (repo *codebookRepository) ApplyProjectChangeSet(ctx context.Context,
 	result := make([]domain.CodebookProjectChangeResult, 0, len(applied))
 	for _, item := range applied {
 		result = append(result, domain.CodebookProjectChangeResult{
-			Path: item.Path, NodeID: item.NodeID, VersionID: item.VersionID,
+			Path: item.Path, SourcePath: item.SourcePath,
+			Operation: domain.CodebookChangeOperation(item.Operation),
+			NodeID:    item.NodeID, VersionID: item.VersionID,
+			CleanupObjectKeys: item.CleanupObjectKeys,
 		})
 	}
 	return result, nil

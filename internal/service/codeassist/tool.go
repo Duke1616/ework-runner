@@ -27,7 +27,7 @@ func readWorkspaceFilesTool() ai.Tool {
 func proposeChangeSetTool() ai.Tool {
 	return ai.Tool{
 		Name:        proposeChangeSetToolName,
-		Description: "提交一个完整、可审阅的项目文件变更集。只有用户明确要求生成、修改或修复项目时才调用。",
+		Description: "提交一个完整、可审阅的项目文件变更集，支持创建、更新、同目录重命名和删除文件。只有用户明确要求生成、修改或修复项目时才调用。",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -38,12 +38,13 @@ func proposeChangeSetTool() ai.Tool {
 						"type": "object",
 						"properties": map[string]any{
 							"operation": map[string]any{
-								"type": "string", "enum": []string{"create", "update"},
+								"type": "string", "enum": []string{"create", "update", "rename", "delete"},
 							},
-							"path":    map[string]any{"type": "string"},
-							"content": map[string]any{"type": "string"},
+							"path":        map[string]any{"type": "string"},
+							"source_path": map[string]any{"type": "string"},
+							"content":     map[string]any{"type": "string"},
 						},
-						"required":             []string{"operation", "path", "content"},
+						"required":             []string{"operation", "path", "source_path", "content"},
 						"additionalProperties": false,
 					},
 				},

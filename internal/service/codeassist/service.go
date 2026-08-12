@@ -60,6 +60,7 @@ type service struct {
 	repo           repository.CodeAssistRepository
 	codebooks      codebookSvc.Service
 	workspace      codebookSvc.WorkspaceService
+	files          codebookSvc.ProjectFileService
 	provider       ai.Provider
 	workspaceAgent codeassistagent.Runner
 }
@@ -78,10 +79,17 @@ func WithWorkspaceAgent(agent codeassistagent.Runner) Option {
 
 // NewService 创建 AI 代码助手服务。
 func NewService(repo repository.CodeAssistRepository, codebooks codebookSvc.Service,
-	workspace codebookSvc.WorkspaceService, provider ai.Provider,
+	workspace codebookSvc.WorkspaceService, files codebookSvc.ProjectFileService,
+	provider ai.Provider) Service {
+	return NewServiceWithOptions(repo, codebooks, workspace, files, provider)
+}
+
+// NewServiceWithOptions 创建支持替换内部组件的 AI 代码助手服务。
+func NewServiceWithOptions(repo repository.CodeAssistRepository, codebooks codebookSvc.Service,
+	workspace codebookSvc.WorkspaceService, files codebookSvc.ProjectFileService, provider ai.Provider,
 	options ...Option) Service {
 	result := &service{
-		repo: repo, codebooks: codebooks, workspace: workspace, provider: provider,
+		repo: repo, codebooks: codebooks, workspace: workspace, files: files, provider: provider,
 	}
 	result.workspaceAgent = codeassistagent.NewEinoRunner(provider)
 	for _, option := range options {

@@ -70,6 +70,8 @@ type ProjectFileService interface {
 	Open(ctx context.Context, nodeID int64) (domain.Codebook, io.ReadCloser, error)
 	// Delete 删除节点子树及其 Blob 内容。
 	Delete(ctx context.Context, nodeID int64) (int64, error)
+	// CleanupObjects 清理已经从数据库解除引用的 Blob 内容。
+	CleanupObjects(ctx context.Context, keys []string) error
 }
 
 type projectFileService struct {
@@ -284,16 +286,16 @@ func (s *projectFileService) Delete(ctx context.Context, nodeID int64) (int64, e
 	if err != nil {
 		return 0, err
 	}
-	if err = s.deleteObjects(context.WithoutCancel(ctx), result.ObjectKeys); err != nil {
+	if err = s.CleanupObjects(context.WithoutCancel(ctx), result.ObjectKeys); err != nil {
 		return result.NodeCount, err
 	}
 	return result.NodeCount, nil
 }
 
-func (s *projectFileService) deleteObjects(ctx context.Context, keys []string) error {
+func (s *projectFileService) CleanupObjects(ctx context.Context, keys []string) error {
 	var group errgroup.Group
 	group.SetLimit(8)
-	for _, key := range keys {
+	for _, key := range uniqueObjectKeys(keys) {
 		key := key
 		group.Go(func() error {
 			if err := s.store.Delete(ctx, key); err != nil {

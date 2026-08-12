@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path"
 	"strings"
 
 	"github.com/Duke1616/eiam/pkg/ctxutil"
@@ -33,9 +34,11 @@ type Service interface {
 	Children(ctx context.Context, projectID, parentID int64) ([]domain.Codebook, error)
 	// Update 校验并更新脚本模板。
 	Update(ctx context.Context, req domain.Codebook) (int64, error)
+	// Rename 重命名代码资源节点，文件和目录均支持。
+	Rename(ctx context.Context, id int64, name string) (int64, error)
 	// CreateVersion 校验并创建脚本版本。
 	CreateVersion(ctx context.Context, req domain.CodebookVersionCreate) (int64, error)
-	// ApplyProjectChangeSet 校验并原子创建、更新多个项目文件。
+	// ApplyProjectChangeSet 校验并原子创建、更新、重命名或删除多个项目文件。
 	ApplyProjectChangeSet(ctx context.Context, req domain.CodebookProjectChangeSet) ([]domain.CodebookProjectChangeResult, error)
 	// UseVersion 设置脚本模板当前使用版本。
 	UseVersion(ctx context.Context, nodeID, versionID int64) (int64, error)
@@ -204,6 +207,34 @@ func (s *service) Update(ctx context.Context, req domain.Codebook) (int64, error
 	return count, codebookNameConflict(err, req.Name)
 }
 
+// Rename 重命名代码资源节点，保留节点内容、版本和目录层级。
+func (s *service) Rename(ctx context.Context, id int64, name string) (int64, error) {
+	if id <= 0 {
+		return 0, fmt.Errorf("%w: 代码资源 ID 非法: %d", errs.ErrInvalidParameter, id)
+	}
+	name, err := domain.NormalizeCodebookName(name)
+	if err != nil {
+		return 0, err
+	}
+	node, err := s.repo.GetNodeByID(ctx, id)
+	if err != nil {
+		return 0, err
+	}
+	if node.Scope == domain.CodebookScopeTenant {
+		if err = s.validateProjectWrite(ctx, node.ProjectID); err != nil {
+			return 0, err
+		}
+	}
+	if err = validateCodebookWriteScope(ctx, node.Scope); err != nil {
+		return 0, err
+	}
+	if node.Name == name {
+		return 0, nil
+	}
+	count, err := s.repo.Rename(ctx, id, name)
+	return count, codebookNameConflict(err, name)
+}
+
 // CreateVersion 校验并创建脚本版本。
 func (s *service) CreateVersion(ctx context.Context, req domain.CodebookVersionCreate) (int64, error) {
 	if req.NodeID <= 0 {
@@ -243,10 +274,10 @@ func (s *service) ApplyProjectChangeSet(ctx context.Context,
 		return nil, err
 	}
 	seen := make(map[string]struct{}, len(req.Changes))
+	touchedNodes := make(map[int64]struct{}, len(req.Changes))
 	for index := range req.Changes {
 		change := &req.Changes[index]
-		change.Path, err = validateImportPath(change.Path)
-		if err != nil {
+		if err = prepareProjectChange(change); err != nil {
 			return nil, err
 		}
 		key := strings.ToLower(change.Path)
@@ -255,27 +286,69 @@ func (s *service) ApplyProjectChangeSet(ctx context.Context,
 				errs.ErrInvalidParameter, change.Path)
 		}
 		seen[key] = struct{}{}
-		if strings.TrimSpace(change.Code) == "" || int64(len(change.Code)) > inlineContentMaxSize {
-			return nil, fmt.Errorf("%w: 项目变更文件 %s 内容为空或超出限制",
-				errs.ErrInvalidParameter, change.Path)
-		}
-		switch change.Operation {
-		case domain.CodebookChangeOperationCreate:
-			if change.NodeID != 0 || change.ExpectedCurrentVersionID != 0 || change.ExpectedHash != "" {
-				return nil, fmt.Errorf("%w: 新建文件包含已有版本上下文",
-					errs.ErrInvalidParameter)
+		if change.NodeID > 0 {
+			if _, exists := touchedNodes[change.NodeID]; exists {
+				return nil, fmt.Errorf("%w: 项目变更集重复操作节点 %d",
+					errs.ErrInvalidParameter, change.NodeID)
 			}
-		case domain.CodebookChangeOperationUpdate:
-			if change.NodeID <= 0 || change.ExpectedCurrentVersionID <= 0 || change.ExpectedHash == "" {
-				return nil, fmt.Errorf("%w: 更新文件缺少基础版本上下文",
-					errs.ErrInvalidParameter)
-			}
-		default:
-			return nil, fmt.Errorf("%w: 不支持的项目变更操作 %s",
-				errs.ErrInvalidParameter, change.Operation)
+			touchedNodes[change.NodeID] = struct{}{}
 		}
 	}
 	return s.repo.ApplyProjectChangeSet(ctx, req)
+}
+
+func prepareProjectChange(change *domain.CodebookProjectChange) error {
+	var err error
+	change.Path, err = validateImportPath(change.Path)
+	if err != nil {
+		return err
+	}
+	switch change.Operation {
+	case domain.CodebookChangeOperationCreate:
+		if err = validateProjectChangeCode(*change); err != nil {
+			return err
+		}
+		if change.NodeID != 0 || change.ExpectedCurrentVersionID != 0 || change.ExpectedHash != "" {
+			return fmt.Errorf("%w: 新建文件包含已有版本上下文", errs.ErrInvalidParameter)
+		}
+	case domain.CodebookChangeOperationUpdate:
+		if err = validateProjectChangeCode(*change); err != nil {
+			return err
+		}
+		if !hasProjectChangeBase(*change) {
+			return fmt.Errorf("%w: 更新文件缺少基础版本上下文", errs.ErrInvalidParameter)
+		}
+	case domain.CodebookChangeOperationRename:
+		change.SourcePath, err = validateImportPath(change.SourcePath)
+		if err != nil {
+			return err
+		}
+		if strings.EqualFold(change.SourcePath, change.Path) || path.Dir(change.SourcePath) != path.Dir(change.Path) {
+			return fmt.Errorf("%w: 文件只能在原目录内重命名", errs.ErrInvalidParameter)
+		}
+		if change.Code != "" || !hasProjectChangeBase(*change) {
+			return fmt.Errorf("%w: 重命名文件缺少基础版本上下文", errs.ErrInvalidParameter)
+		}
+	case domain.CodebookChangeOperationDelete:
+		if change.SourcePath != "" || change.Code != "" || !hasProjectChangeBase(*change) {
+			return fmt.Errorf("%w: 删除文件缺少基础版本上下文", errs.ErrInvalidParameter)
+		}
+	default:
+		return fmt.Errorf("%w: 不支持的项目变更操作 %s", errs.ErrInvalidParameter, change.Operation)
+	}
+	return nil
+}
+
+func validateProjectChangeCode(change domain.CodebookProjectChange) error {
+	if strings.TrimSpace(change.Code) == "" || int64(len(change.Code)) > inlineContentMaxSize {
+		return fmt.Errorf("%w: 项目变更文件 %s 内容为空或超出限制",
+			errs.ErrInvalidParameter, change.Path)
+	}
+	return nil
+}
+
+func hasProjectChangeBase(change domain.CodebookProjectChange) bool {
+	return change.NodeID > 0 && change.ExpectedCurrentVersionID > 0 && change.ExpectedHash != ""
 }
 
 // UseVersion 设置脚本模板当前使用版本。

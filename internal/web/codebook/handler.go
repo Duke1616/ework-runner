@@ -70,6 +70,10 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 	g.POST("/update", cb("更新模板", "edit").
 		Handle(ginx.B[UpdateReq](h.Update)),
 	)
+	g.POST("/rename", cb("重命名模板", "rename").
+		Needs("task:codebook:edit").
+		Handle(ginx.B[RenameReq](h.Rename)),
+	)
 	g.POST("/sort", cb("模板排序", "sort").
 		Handle(ginx.B[SortReq](h.Sort)),
 	)
@@ -214,6 +218,15 @@ func (h *Handler) WorkspaceFile(ctx *ginx.Context, req WorkspaceFileReq) (ginx.R
 
 func (h *Handler) Update(ctx *ginx.Context, req UpdateReq) (ginx.Result, error) {
 	count, err := h.svc.Update(ctx, h.toUpdateDomain(req))
+	if err != nil {
+		return h.translateError(err), err
+	}
+	return ginx.Result{Data: count, Msg: "success"}, nil
+}
+
+// Rename 重命名代码资源节点，保留节点 ID、版本和目录层级。
+func (h *Handler) Rename(ctx *ginx.Context, req RenameReq) (ginx.Result, error) {
+	count, err := h.svc.Rename(ctx, req.ID, req.Name)
 	if err != nil {
 		return h.translateError(err), err
 	}

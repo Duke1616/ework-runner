@@ -56,11 +56,19 @@ func (r *codeAssistRepositoryStub) ReleaseChangeSet(context.Context, int64) erro
 	return nil
 }
 
-func (r *codeAssistRepositoryStub) MarkChangeSetApplied(_ context.Context, _ int64,
-	items []domain.AIChangeItem) error {
+func (r *codeAssistRepositoryStub) RecordChangeSetApplied(_ context.Context, _ int64,
+	items []domain.AIChangeItem, cleanupPending bool) error {
 	r.changeClaimed = false
 	r.changeSet.Status = domain.AIChangeSetStatusApplied
+	if cleanupPending {
+		r.changeSet.Status = domain.AIChangeSetStatusCleanupPending
+	}
 	r.changeSet.Items = items
+	return nil
+}
+
+func (r *codeAssistRepositoryStub) CompleteChangeSetCleanup(context.Context, int64) error {
+	r.changeSet.Status = domain.AIChangeSetStatusApplied
 	return nil
 }
 
@@ -207,7 +215,7 @@ func TestServiceChatReadsCurrentFileAndCreatesChangeSet(t *testing.T) {
 			Layer: domain.WorkspaceLayerProject,
 		}},
 	}}}
-	service := NewService(repo, codebooks, workspace, provider)
+	service := NewService(repo, codebooks, workspace, nil, provider)
 	ctx := ctxutil.WithTenantID(t.Context(), 1)
 	ctx = ctxutil.WithUserID(ctx, 2)
 	events := make([]StreamEvent, 0)
@@ -285,7 +293,7 @@ func TestServiceChatRunsBoundedWorkspaceAgentAndCreatesChangeSet(t *testing.T) {
 			{Type: ai.EventTypeCompleted, Usage: ai.Usage{InputTokens: 30, OutputTokens: 20}},
 		},
 	}}
-	service := NewService(repo, codebooks, workspace, provider)
+	service := NewService(repo, codebooks, workspace, nil, provider)
 	ctx := ctxutil.WithUserID(ctxutil.WithTenantID(t.Context(), 1), 2)
 	events := make([]StreamEvent, 0)
 
@@ -316,6 +324,106 @@ func TestServiceChatRunsBoundedWorkspaceAgentAndCreatesChangeSet(t *testing.T) {
 		StreamEventTypeStarted, StreamEventTypeProgress, StreamEventTypeProgress,
 		StreamEventTypeDelta, StreamEventTypeCompleted,
 	}, streamEventTypes(events))
+}
+
+func TestCreateChangeSetSupportsFileRename(t *testing.T) {
+	controller := gomock.NewController(t)
+	codebooks := codebookmocks.NewMockService(controller)
+	baseCode := "print('hello')\n"
+	baseHash := hashContent(baseCode)
+	codebooks.EXPECT().GetByID(gomock.Any(), int64(10)).Return(domain.Codebook{
+		ID: 10, ProjectID: 3, Name: "old.py", Kind: domain.CodebookKindFile,
+		Code: baseCode, CurrentVersionID: 20,
+	}, nil)
+	codebooks.EXPECT().GetVersionByID(gomock.Any(), int64(20)).Return(domain.CodebookVersion{
+		ID: 20, NodeID: 10, Hash: baseHash,
+	}, nil)
+	repo := &codeAssistRepositoryStub{}
+	service := &service{repo: repo, codebooks: codebooks}
+	prepared := preparedContext{
+		projectWritable: true,
+		project:         domain.CodebookProject{ID: 3, SourceRevision: 7},
+		workspaceTree: []domain.WorkspaceNode{{
+			Name: "old.py", RuntimePath: "old.py", SourceID: 10, ProjectID: 3,
+			Kind: domain.CodebookKindFile, Layer: domain.WorkspaceLayerProject,
+		}},
+	}
+
+	changeSet, err := service.createChangeSet(t.Context(), domain.AIConversation{
+		ID: 1, ProjectID: 3,
+	}, 2, prepared, changeSetArguments{
+		Summary: "rename script",
+		Changes: []proposedFileChange{{
+			Operation: "rename", SourcePath: "old.py", Path: "new.py",
+		}},
+	})
+
+	require.NoError(t, err)
+	require.Len(t, changeSet.Items, 1)
+	item := changeSet.Items[0]
+	require.Equal(t, domain.AIChangeOperationRename, item.Operation)
+	require.Equal(t, "old.py", item.SourcePath)
+	require.Equal(t, "new.py", item.Path)
+	require.Empty(t, item.Code)
+	require.Equal(t, int64(10), item.NodeID)
+	require.Equal(t, int64(20), item.BaseVersionID)
+	require.Equal(t, baseHash, item.BaseHash)
+}
+
+func TestCreateChangeSetRejectsRenameContent(t *testing.T) {
+	service := &service{}
+	prepared := preparedContext{
+		projectWritable: true,
+		project:         domain.CodebookProject{ID: 3, SourceRevision: 7},
+	}
+
+	_, err := service.createChangeSet(t.Context(), domain.AIConversation{
+		ID: 1, ProjectID: 3,
+	}, 2, prepared, changeSetArguments{
+		Summary: "rename script",
+		Changes: []proposedFileChange{{
+			Operation: "rename", SourcePath: "old.py", Path: "new.py", Content: "print(1)\n",
+		}},
+	})
+
+	require.ErrorContains(t, err, "rename change cannot contain content")
+}
+
+func TestCreateChangeSetSupportsFileDeleteAndDeduplicatesBlobs(t *testing.T) {
+	controller := gomock.NewController(t)
+	codebooks := codebookmocks.NewMockService(controller)
+	baseCode := "print('hello')\n"
+	baseHash := hashContent(baseCode)
+	codebooks.EXPECT().GetByID(gomock.Any(), int64(10)).Return(domain.Codebook{
+		ID: 10, ProjectID: 3, Name: "old.py", Code: baseCode, CurrentVersionID: 20,
+	}, nil)
+	codebooks.EXPECT().GetVersionByID(gomock.Any(), int64(20)).Return(domain.CodebookVersion{
+		ID: 20, NodeID: 10, Hash: baseHash,
+	}, nil)
+	codebooks.EXPECT().ListVersions(gomock.Any(), int64(10)).Return([]domain.CodebookVersion{
+		{ID: 20, StorageType: domain.CodebookContentBlob, ObjectKey: "blob/a"},
+		{ID: 19, StorageType: domain.CodebookContentBlob, ObjectKey: "blob/a"},
+		{ID: 18, StorageType: domain.CodebookContentInline},
+		{ID: 17, StorageType: domain.CodebookContentBlob, ObjectKey: "blob/b"},
+	}, nil)
+	service := &service{codebooks: codebooks, repo: &codeAssistRepositoryStub{}}
+	prepared := preparedContext{
+		projectWritable: true,
+		project:         domain.CodebookProject{ID: 3, SourceRevision: 7},
+		workspaceTree: []domain.WorkspaceNode{{
+			Name: "old.py", RuntimePath: "old.py", SourceID: 10, ProjectID: 3,
+			Kind: domain.CodebookKindFile, Layer: domain.WorkspaceLayerProject,
+		}},
+	}
+
+	changeSet, err := service.createChangeSet(t.Context(), domain.AIConversation{ID: 1, ProjectID: 3}, 2,
+		prepared, changeSetArguments{Summary: "remove script", Changes: []proposedFileChange{{
+			Operation: "delete", SourcePath: "old.py", Path: "old.py",
+		}}})
+
+	require.NoError(t, err)
+	require.Equal(t, domain.AIChangeOperationDelete, changeSet.Items[0].Operation)
+	require.Equal(t, []string{"blob/a", "blob/b"}, changeSet.Items[0].CleanupObjectKeys)
 }
 
 func TestServiceApplyChangeSetUsesAtomicCodebookOperation(t *testing.T) {
@@ -350,7 +458,7 @@ func TestServiceApplyChangeSetUsesAtomicCodebookOperation(t *testing.T) {
 				{Path: "roles/nginx/tasks/main.yml", NodeID: 11, VersionID: 22},
 			}, nil
 		})
-	service := NewService(repo, codebooks, workspaceStub{}, providerStub{})
+	service := NewService(repo, codebooks, workspaceStub{}, nil, providerStub{})
 	ctx := ctxutil.WithUserID(ctxutil.WithTenantID(t.Context(), 1), 2)
 
 	results, err := service.ApplyChangeSet(ctx, 41)
@@ -361,6 +469,79 @@ func TestServiceApplyChangeSetUsesAtomicCodebookOperation(t *testing.T) {
 	require.Equal(t, domain.AIChangeSetStatusApplied, repo.changeSet.Status)
 	require.Equal(t, int64(11), repo.changeSet.Items[1].NodeID)
 	require.Equal(t, int64(22), repo.changeSet.Items[1].AppliedVersionID)
+}
+
+func TestCodebookChangesRejectsUnknownOperation(t *testing.T) {
+	_, err := codebookChanges(domain.AIChangeSet{Items: []domain.AIChangeItem{{
+		Operation: domain.AIChangeOperation("UNKNOWN"), Path: "main.py",
+	}}})
+
+	require.ErrorContains(t, err, "unsupported AI change operation")
+}
+
+func TestCodebookChangesMapsDeleteOperation(t *testing.T) {
+	changes, err := codebookChanges(domain.AIChangeSet{ID: 41, Items: []domain.AIChangeItem{{
+		Operation: domain.AIChangeOperationDelete, Path: "old.py", NodeID: 10,
+		BaseVersionID: 20, BaseHash: "hash", CleanupObjectKeys: []string{"blob/a"},
+	}}})
+
+	require.NoError(t, err)
+	require.Equal(t, domain.CodebookChangeOperationDelete, changes[0].Operation)
+	require.Equal(t, []string{"blob/a"}, changes[0].CleanupObjectKeys)
+}
+
+func TestServiceApplyDeleteCleansObjectsAfterApply(t *testing.T) {
+	controller := gomock.NewController(t)
+	codebooks := codebookmocks.NewMockService(controller)
+	files := codebookmocks.NewMockProjectFileService(controller)
+	repo := &codeAssistRepositoryStub{
+		conversation: domain.AIConversation{ID: 1, UserID: 2, ProjectID: 3},
+		changeSet: domain.AIChangeSet{
+			ID: 41, ConversationID: 1, ProjectID: 3, BaseRevision: 7,
+			Status: domain.AIChangeSetStatusValidated,
+			Items: []domain.AIChangeItem{{Operation: domain.AIChangeOperationDelete,
+				Path: "old.py", NodeID: 10, BaseVersionID: 20, BaseHash: "hash",
+				CleanupObjectKeys: []string{"blob/a"}}},
+		},
+	}
+	codebooks.EXPECT().ApplyProjectChangeSet(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, request domain.CodebookProjectChangeSet) ([]domain.CodebookProjectChangeResult, error) {
+			require.Equal(t, domain.CodebookChangeOperationDelete, request.Changes[0].Operation)
+			return []domain.CodebookProjectChangeResult{{Path: "old.py", NodeID: 10,
+				CleanupObjectKeys: []string{"blob/a"}}}, nil
+		})
+	files.EXPECT().CleanupObjects(gomock.Any(), []string{"blob/a"}).Return(errors.New("storage unavailable"))
+	service := NewService(repo, codebooks, workspaceStub{}, files, providerStub{})
+	ctx := ctxutil.WithUserID(ctxutil.WithTenantID(t.Context(), 1), 2)
+
+	_, err := service.ApplyChangeSet(ctx, 41)
+
+	require.ErrorContains(t, err, "object cleanup failed")
+	require.Equal(t, domain.AIChangeSetStatusCleanupPending, repo.changeSet.Status)
+}
+
+func TestServiceReapplyDeleteOnlyRetriesObjectCleanup(t *testing.T) {
+	controller := gomock.NewController(t)
+	codebooks := codebookmocks.NewMockService(controller)
+	files := codebookmocks.NewMockProjectFileService(controller)
+	repo := &codeAssistRepositoryStub{
+		conversation: domain.AIConversation{ID: 1, UserID: 2, ProjectID: 3},
+		changeSet: domain.AIChangeSet{
+			ID: 41, ConversationID: 1, ProjectID: 3, Status: domain.AIChangeSetStatusCleanupPending,
+			Items: []domain.AIChangeItem{{Operation: domain.AIChangeOperationDelete,
+				Path: "old.py", NodeID: 10, CleanupObjectKeys: []string{"blob/a"}}},
+		},
+	}
+	files.EXPECT().CleanupObjects(gomock.Any(), []string{"blob/a"}).Return(nil)
+	service := NewService(repo, codebooks, workspaceStub{}, files, providerStub{})
+	ctx := ctxutil.WithUserID(ctxutil.WithTenantID(t.Context(), 1), 2)
+
+	results, err := service.ApplyChangeSet(ctx, 41)
+
+	require.NoError(t, err)
+	require.Equal(t, int64(10), results[0].NodeID)
+	require.False(t, repo.changeClaimed)
+	require.Equal(t, domain.AIChangeSetStatusApplied, repo.changeSet.Status)
 }
 
 type workspaceTreeStub struct {
@@ -385,7 +566,7 @@ func TestServiceChatReviewProfileOnlyExposesReadTool(t *testing.T) {
 		{Type: ai.EventTypeTextDelta, Text: "项目结构清晰。"},
 		{Type: ai.EventTypeCompleted},
 	}}}
-	service := NewService(repo, codebooks, workspaceTreeStub{}, provider)
+	service := NewService(repo, codebooks, workspaceTreeStub{}, nil, provider)
 	ctx := ctxutil.WithUserID(ctxutil.WithTenantID(t.Context(), 1), 2)
 
 	err := service.Chat(ctx, domain.AIChatRequest{
@@ -414,7 +595,7 @@ func TestServiceChatReadonlyProjectDoesNotExposeChangeTool(t *testing.T) {
 		{Type: ai.EventTypeTextDelta, Text: "当前项目只读，可以继续分析。"},
 		{Type: ai.EventTypeCompleted},
 	}}}
-	service := NewService(repo, codebooks, workspaceTreeStub{}, provider)
+	service := NewService(repo, codebooks, workspaceTreeStub{}, nil, provider)
 	ctx := ctxutil.WithUserID(ctxutil.WithTenantID(t.Context(), 1), 2)
 
 	err := service.Chat(ctx, domain.AIChatRequest{
@@ -438,7 +619,7 @@ func TestServiceChatRejectsEmptyCompletedResponse(t *testing.T) {
 	provider := providerStub{events: []ai.Event{
 		{Type: ai.EventTypeCompleted, Usage: ai.Usage{InputTokens: 943, OutputTokens: 8192}},
 	}}
-	service := NewService(repo, codebooks, workspaceTreeStub{}, provider)
+	service := NewService(repo, codebooks, workspaceTreeStub{}, nil, provider)
 	ctx := ctxutil.WithUserID(ctxutil.WithTenantID(t.Context(), 1), 2)
 
 	err := service.Chat(ctx, domain.AIChatRequest{
@@ -500,7 +681,7 @@ func TestServiceChatSettlesInterruptedMessage(t *testing.T) {
 				{Type: ai.EventTypeTextDelta, Text: "部分回复"},
 				{Type: ai.EventTypeCompleted},
 			}}
-			service := NewService(repo, codebooks, workspaceTreeStub{}, provider)
+			service := NewService(repo, codebooks, workspaceTreeStub{}, nil, provider)
 			baseCtx, cancel := context.WithCancel(t.Context())
 			ctx := ctxutil.WithUserID(ctxutil.WithTenantID(baseCtx, 1), 2)
 			t.Cleanup(cancel)

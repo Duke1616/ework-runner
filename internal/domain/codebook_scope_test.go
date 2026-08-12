@@ -28,6 +28,17 @@ func TestCodebookVersionAllowsEmptyFile(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestNormalizeCodebookName(t *testing.T) {
+	name, err := NormalizeCodebookName(" main.py ")
+	require.NoError(t, err)
+	require.Equal(t, "main.py", name)
+
+	for _, invalid := range []string{"", ".", "..", "dir/main.py", `dir\\main.py`, strings.Repeat("字", 129)} {
+		_, err = NormalizeCodebookName(invalid)
+		require.Error(t, err, invalid)
+	}
+}
+
 func TestCodebookVersionCreateValidatesWriteOptions(t *testing.T) {
 	node := Codebook{ID: 1, Kind: CodebookKindFile, Scope: CodebookScopeTenant}
 	for _, testCase := range []CodebookVersionCreate{

@@ -262,6 +262,44 @@ func (m *MockProjectFileService) EXPECT() *MockProjectFileServiceMockRecorder {
 	return m.recorder
 }
 
+// CleanupObjects mocks base method.
+func (m *MockProjectFileService) CleanupObjects(ctx context.Context, keys []string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CleanupObjects", ctx, keys)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CleanupObjects indicates an expected call of CleanupObjects.
+func (mr *MockProjectFileServiceMockRecorder) CleanupObjects(ctx, keys any) *MockProjectFileServiceCleanupObjectsCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupObjects", reflect.TypeOf((*MockProjectFileService)(nil).CleanupObjects), ctx, keys)
+	return &MockProjectFileServiceCleanupObjectsCall{Call: call}
+}
+
+// MockProjectFileServiceCleanupObjectsCall wrap *gomock.Call
+type MockProjectFileServiceCleanupObjectsCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockProjectFileServiceCleanupObjectsCall) Return(arg0 error) *MockProjectFileServiceCleanupObjectsCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockProjectFileServiceCleanupObjectsCall) Do(f func(context.Context, []string) error) *MockProjectFileServiceCleanupObjectsCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockProjectFileServiceCleanupObjectsCall) DoAndReturn(f func(context.Context, []string) error) *MockProjectFileServiceCleanupObjectsCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // Delete mocks base method.
 func (m *MockProjectFileService) Delete(ctx context.Context, nodeID int64) (int64, error) {
 	m.ctrl.T.Helper()

@@ -172,7 +172,8 @@ func (h *Handler) ApplyChangeSet(ctx *ginx.Context, req ApplyChangeSetReq) (ginx
 	items := make([]AppliedChangeItemVO, 0, len(results))
 	for _, result := range results {
 		items = append(items, AppliedChangeItemVO{
-			Path: result.Path, NodeID: result.NodeID, VersionID: result.VersionID,
+			Operation: result.Operation.String(), Path: result.Path, SourcePath: result.SourcePath,
+			NodeID: result.NodeID, VersionID: result.VersionID,
 		})
 	}
 	return ginx.Result{Msg: "success", Data: ApplyChangeSetResp{Items: items}}, nil

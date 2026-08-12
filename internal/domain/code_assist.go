@@ -37,18 +37,21 @@ const (
 type AIChangeSetStatus string
 
 const (
-	AIChangeSetStatusDraft     AIChangeSetStatus = "DRAFT"
-	AIChangeSetStatusValidated AIChangeSetStatus = "VALIDATED"
-	AIChangeSetStatusApplying  AIChangeSetStatus = "APPLYING"
-	AIChangeSetStatusApplied   AIChangeSetStatus = "APPLIED"
+	AIChangeSetStatusDraft          AIChangeSetStatus = "DRAFT"
+	AIChangeSetStatusValidated      AIChangeSetStatus = "VALIDATED"
+	AIChangeSetStatusApplying       AIChangeSetStatus = "APPLYING"
+	AIChangeSetStatusCleanupPending AIChangeSetStatus = "CLEANUP_PENDING"
+	AIChangeSetStatusApplied        AIChangeSetStatus = "APPLIED"
 )
 
-// AIChangeOperation 表示项目文件变更类型。删除和移动暂不开放给模型。
+// AIChangeOperation 表示项目文件变更类型。目录操作和跨目录移动暂不开放给模型。
 type AIChangeOperation string
 
 const (
 	AIChangeOperationCreate AIChangeOperation = "CREATE"
 	AIChangeOperationUpdate AIChangeOperation = "UPDATE"
+	AIChangeOperationRename AIChangeOperation = "RENAME"
+	AIChangeOperationDelete AIChangeOperation = "DELETE"
 )
 
 // AIDiagnosticSeverity 表示候选代码诊断级别。
@@ -132,15 +135,17 @@ type AIChangeSet struct {
 
 // AIChangeItem 是候选变更中的一个文件操作，始终随 ChangeSet 整体持久化。
 type AIChangeItem struct {
-	Operation        AIChangeOperation `json:"operation"`
-	Path             string            `json:"path"`
-	NodeID           int64             `json:"node_id,omitempty"`
-	BaseVersionID    int64             `json:"base_version_id,omitempty"`
-	BaseHash         string            `json:"base_hash,omitempty"`
-	Language         string            `json:"language"`
-	Code             string            `json:"code"`
-	Diagnostics      []AIDiagnostic    `json:"diagnostics,omitempty"`
-	AppliedVersionID int64             `json:"applied_version_id,omitempty"`
+	Operation         AIChangeOperation `json:"operation"`
+	Path              string            `json:"path"`
+	SourcePath        string            `json:"source_path,omitempty"`
+	NodeID            int64             `json:"node_id,omitempty"`
+	BaseVersionID     int64             `json:"base_version_id,omitempty"`
+	BaseHash          string            `json:"base_hash,omitempty"`
+	Language          string            `json:"language"`
+	Code              string            `json:"code"`
+	Diagnostics       []AIDiagnostic    `json:"diagnostics,omitempty"`
+	AppliedVersionID  int64             `json:"applied_version_id,omitempty"`
+	CleanupObjectKeys []string          `json:"cleanup_object_keys,omitempty"`
 }
 
 // Prepare 规范化并校验项目级候选变更的持久化前置条件。
@@ -156,13 +161,15 @@ func (s *AIChangeSet) Prepare() error {
 		s.Status = AIChangeSetStatusDraft
 	}
 	seen := make(map[string]struct{}, len(s.Items))
+	touchedNodes := make(map[int64]struct{}, len(s.Items))
 	for index := range s.Items {
 		item := &s.Items[index]
 		item.Path = strings.TrimSpace(item.Path)
+		item.SourcePath = strings.TrimSpace(item.SourcePath)
 		item.Language = strings.ToLower(strings.TrimSpace(item.Language))
 		key := strings.ToLower(item.Path)
-		if item.Path == "" || strings.TrimSpace(item.Code) == "" {
-			return fmt.Errorf("AI change item path or code is empty")
+		if item.Path == "" {
+			return fmt.Errorf("AI change item path is empty")
 		}
 		if _, exists := seen[key]; exists {
 			return fmt.Errorf("AI change set contains duplicate path: %s", item.Path)
@@ -170,15 +177,33 @@ func (s *AIChangeSet) Prepare() error {
 		seen[key] = struct{}{}
 		switch item.Operation {
 		case AIChangeOperationCreate:
-			if item.NodeID != 0 || item.BaseVersionID != 0 || item.BaseHash != "" {
+			if strings.TrimSpace(item.Code) == "" || item.NodeID != 0 ||
+				item.BaseVersionID != 0 || item.BaseHash != "" {
 				return fmt.Errorf("AI create item contains an existing file context: %s", item.Path)
 			}
 		case AIChangeOperationUpdate:
-			if item.NodeID <= 0 || item.BaseVersionID <= 0 || item.BaseHash == "" {
+			if strings.TrimSpace(item.Code) == "" || item.NodeID <= 0 ||
+				item.BaseVersionID <= 0 || item.BaseHash == "" {
 				return fmt.Errorf("AI update item is missing its base version: %s", item.Path)
+			}
+		case AIChangeOperationRename:
+			if item.SourcePath == "" || strings.EqualFold(item.SourcePath, item.Path) ||
+				item.Code != "" || item.NodeID <= 0 || item.BaseVersionID <= 0 || item.BaseHash == "" {
+				return fmt.Errorf("AI rename item is missing its source or base version: %s", item.Path)
+			}
+		case AIChangeOperationDelete:
+			if item.SourcePath != "" || item.Code != "" || item.NodeID <= 0 ||
+				item.BaseVersionID <= 0 || item.BaseHash == "" {
+				return fmt.Errorf("AI delete item is missing its base version: %s", item.Path)
 			}
 		default:
 			return fmt.Errorf("unsupported AI change operation: %s", item.Operation)
+		}
+		if item.NodeID > 0 {
+			if _, exists := touchedNodes[item.NodeID]; exists {
+				return fmt.Errorf("AI change set touches node more than once: %d", item.NodeID)
+			}
+			touchedNodes[item.NodeID] = struct{}{}
 		}
 	}
 	return nil

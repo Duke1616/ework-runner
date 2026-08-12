@@ -159,3 +159,17 @@ func TestProjectFileServiceReportsBlobDeleteFailure(t *testing.T) {
 	require.Equal(t, int64(1), count)
 	require.ErrorContains(t, err, "删除文件内容 codebook-content/7/first 失败")
 }
+
+func TestProjectFileServiceCleanupObjectsDeduplicatesKeys(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	repo := codebookmocks.NewMockProjectFileRepository(ctrl)
+	store := blobstoremocks.NewMockStore(ctrl)
+	store.EXPECT().Delete(gomock.Any(), "codebook-content/7/first").Return(nil).Times(1)
+
+	service := codebookSvc.NewProjectFileService(repo, store)
+	err := service.CleanupObjects(t.Context(), []string{
+		"", "codebook-content/7/first", "codebook-content/7/first",
+	})
+
+	require.NoError(t, err)
+}

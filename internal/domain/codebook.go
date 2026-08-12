@@ -223,12 +223,14 @@ type CodebookImportResult struct {
 	DirectoryCount int
 }
 
-// CodebookChangeOperation 表示项目级文件创建或更新操作。
+// CodebookChangeOperation 表示项目级文件创建、更新、重命名或删除操作。
 type CodebookChangeOperation string
 
 const (
 	CodebookChangeOperationCreate CodebookChangeOperation = "CREATE"
 	CodebookChangeOperationUpdate CodebookChangeOperation = "UPDATE"
+	CodebookChangeOperationRename CodebookChangeOperation = "RENAME"
+	CodebookChangeOperationDelete CodebookChangeOperation = "DELETE"
 )
 
 func (o CodebookChangeOperation) String() string { return string(o) }
@@ -237,12 +239,14 @@ func (o CodebookChangeOperation) String() string { return string(o) }
 type CodebookProjectChange struct {
 	Operation                CodebookChangeOperation
 	Path                     string
+	SourcePath               string
 	NodeID                   int64
 	ExpectedCurrentVersionID int64
 	ExpectedHash             string
 	Code                     string
 	Message                  string
 	SourceKey                string
+	CleanupObjectKeys        []string
 }
 
 // CodebookProjectChangeSet 描述基于一个项目源码修订号的原子多文件变更。
@@ -254,9 +258,12 @@ type CodebookProjectChangeSet struct {
 
 // CodebookProjectChangeResult 描述一个文件应用后的节点和版本。
 type CodebookProjectChangeResult struct {
-	Path      string
-	NodeID    int64
-	VersionID int64
+	Path              string
+	SourcePath        string
+	Operation         CodebookChangeOperation
+	NodeID            int64
+	VersionID         int64
+	CleanupObjectKeys []string
 }
 
 // CodebookDeleteResult 汇总节点删除结果及其待清理的外部内容对象。
@@ -347,9 +354,11 @@ func (c *Codebook) Validate() error {
 	if !c.Kind.Valid() {
 		return fmt.Errorf("%w: 不支持的节点类型: %s", errs.ErrInvalidParameter, c.Kind)
 	}
-	if c.Name == "" {
-		return fmt.Errorf("%w: 名称不能为空", errs.ErrInvalidParameter)
+	name, err := NormalizeCodebookName(c.Name)
+	if err != nil {
+		return err
 	}
+	c.Name = name
 	if c.Kind == CodebookKindDirectory && c.Code != "" {
 		return fmt.Errorf("%w: 目录不能包含代码内容", errs.ErrInvalidParameter)
 	}
@@ -357,6 +366,19 @@ func (c *Codebook) Validate() error {
 		return fmt.Errorf("%w: 目录不能配置访问密钥", errs.ErrInvalidParameter)
 	}
 	return nil
+}
+
+// NormalizeCodebookName 统一规范化并校验文件和目录名称。
+func NormalizeCodebookName(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", fmt.Errorf("%w: 名称不能为空", errs.ErrInvalidParameter)
+	}
+	if value == "." || value == ".." || len([]rune(value)) > 128 ||
+		strings.ContainsAny(value, `/\\`) || strings.ContainsRune(value, '\x00') {
+		return "", fmt.Errorf("%w: 代码资源名称非法", errs.ErrInvalidParameter)
+	}
+	return value, nil
 }
 
 func (c *Codebook) MergeForUpdate(old Codebook) {

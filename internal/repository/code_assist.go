@@ -38,8 +38,11 @@ type CodeAssistRepository interface {
 	ClaimChangeSet(ctx context.Context, id int64) error
 	// ReleaseChangeSet 释放应用失败的项目级候选变更。
 	ReleaseChangeSet(ctx context.Context, id int64) error
-	// MarkChangeSetApplied 原子记录变更集的文件应用结果。
-	MarkChangeSetApplied(ctx context.Context, id int64, items []domain.AIChangeItem) error
+	// RecordChangeSetApplied 原子记录文件应用结果；需要清理对象时进入 CLEANUP_PENDING。
+	RecordChangeSetApplied(ctx context.Context, id int64, items []domain.AIChangeItem,
+		cleanupPending bool) error
+	// CompleteChangeSetCleanup 将已完成对象清理的变更集标记为 APPLIED。
+	CompleteChangeSetCleanup(ctx context.Context, id int64) error
 }
 
 type codeAssistRepository struct{ dao *dao.GORMCodeAssistDAO }
@@ -136,7 +139,11 @@ func (r *codeAssistRepository) ReleaseChangeSet(ctx context.Context, id int64) e
 	return r.dao.ReleaseChangeSet(ctx, id)
 }
 
-func (r *codeAssistRepository) MarkChangeSetApplied(ctx context.Context, id int64,
-	items []domain.AIChangeItem) error {
-	return r.dao.MarkChangeSetApplied(ctx, id, changeItemsColumn(items))
+func (r *codeAssistRepository) RecordChangeSetApplied(ctx context.Context, id int64,
+	items []domain.AIChangeItem, cleanupPending bool) error {
+	return r.dao.RecordChangeSetApplied(ctx, id, changeItemsColumn(items), cleanupPending)
+}
+
+func (r *codeAssistRepository) CompleteChangeSetCleanup(ctx context.Context, id int64) error {
+	return r.dao.CompleteChangeSetCleanup(ctx, id)
 }
