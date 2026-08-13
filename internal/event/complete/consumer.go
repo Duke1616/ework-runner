@@ -76,19 +76,19 @@ func (c *Consumer) handleTask(ctx context.Context, evt event.Event) error {
 		return err
 	}
 
-	// 广播事件：实时刷新任务列表状态和下一次触发时间
-	c.events.Tasks.Broadcast(t.TenantID, sse.TaskStatusEvent{
-		TaskID:   t.ID,
-		Status:   t.Status.String(),
-		NextTime: t.NextTime,
-	})
-
 	// 只有状态还是 PREEMPTED 的任务才需要释放
-	// 一次性任务已经变为 INACTIVE，不需要释放
+	// 定时任务由 Release 广播最终的 ACTIVE 状态和下次触发时间。
 	if t.Status == domain.TaskStatusPreempted {
 		return c.acquire.Release(ctx, evt.TaskID, evt.ScheduleNodeID)
 	}
 
+	// 一次性任务已经变为 COMPLETED，不会再经过 Release，需要直接广播终态。
+	c.events.Tasks.Broadcast(t.TenantID, sse.TaskStatusEvent{
+		TaskID:   t.ID,
+		Status:   t.Status.String(),
+		NextTime: t.NextTime,
+		Version:  t.Version,
+	})
 	return nil
 }
 

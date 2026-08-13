@@ -13,6 +13,7 @@ import (
 	"github.com/Duke1616/etask/internal/service/acquirer"
 	"github.com/Duke1616/etask/internal/service/dispatcher"
 	"github.com/Duke1616/etask/internal/service/task"
+	"github.com/Duke1616/etask/internal/sse"
 	"github.com/gotomicro/ego/core/constant"
 	"github.com/gotomicro/ego/core/elog"
 	"github.com/gotomicro/ego/server"
@@ -26,6 +27,7 @@ type Scheduler struct {
 	dispatcher dispatcher.Dispatcher
 	taskSvc    task.Service
 	acquirer   acquirer.TaskAcquirer
+	events     *sse.Hubs
 	config     Config
 	ctx        context.Context
 	cancel     context.CancelFunc
@@ -47,6 +49,7 @@ func NewScheduler(
 	dispatcher dispatcher.Dispatcher,
 	taskSvc task.Service,
 	acquirer acquirer.TaskAcquirer,
+	events *sse.Hubs,
 	config Config,
 ) *Scheduler {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -55,6 +58,7 @@ func NewScheduler(
 		dispatcher: dispatcher,
 		taskSvc:    taskSvc,
 		acquirer:   acquirer,
+		events:     events,
 		config:     config,
 		ctx:        ctx,
 		cancel:     cancel,
@@ -182,6 +186,13 @@ func (s *Scheduler) stopTaskWithUnavailableProgram(ctx context.Context, schedule
 			elog.Int64("taskID", scheduled.ID), elog.String("taskName", scheduled.Name),
 			elog.FieldErr(err))
 		return
+	}
+	if stopped, getErr := s.taskSvc.GetByID(ctx, scheduled.ID); getErr == nil &&
+		s.events != nil && s.events.Tasks != nil {
+		s.events.Tasks.Broadcast(stopped.TenantID, sse.TaskStatusEvent{
+			TaskID: stopped.ID, Status: stopped.Status.String(),
+			NextTime: stopped.NextTime, Version: stopped.Version,
+		})
 	}
 	s.logger.Warn("程序来源不存在，任务已自动停用",
 		elog.Int64("taskID", scheduled.ID), elog.String("taskName", scheduled.Name))

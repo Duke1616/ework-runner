@@ -52,6 +52,12 @@ func (h *TopicHub[K, T]) Unsubscribe(key K, ch chan T) {
 
 // Broadcast 向指定 Key 广播事件
 func (h *TopicHub[K, T]) Broadcast(key K, evt T) {
+	h.BroadcastLocal(key, evt)
+}
+
+// BroadcastLocal 仅向当前进程的订阅者发送事件，不触发外部发布器。
+// 分布式 Hub 收到 Redis 转发事件时使用该方法，避免事件再次回到 Redis。
+func (h *TopicHub[K, T]) BroadcastLocal(key K, evt T) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 

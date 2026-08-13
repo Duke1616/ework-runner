@@ -1,6 +1,12 @@
 package sse
 
-import ssekit "github.com/Duke1616/etask/pkg/sse"
+import (
+	"context"
+
+	"github.com/redis/go-redis/v9"
+)
+
+const redisChannelPrefix = "etask:sse:"
 
 const (
 	TASK_STATUS_CHANGE_EVENT = "task_status_change"
@@ -13,6 +19,7 @@ type TaskStatusEvent struct {
 	TaskID   int64  `json:"task_id"`
 	Status   string `json:"status"`
 	NextTime int64  `json:"next_time"`
+	Version  int64  `json:"version"`
 }
 
 // TaskLogEvent 任务日志实时推送事件定义
@@ -40,16 +47,23 @@ type TaskExecutionEvent struct {
 
 // Hubs 汇总调度中心进程内共享的实时事件通道。
 type Hubs struct {
-	Tasks      *ssekit.TopicHub[int64, TaskStatusEvent]
-	Logs       *ssekit.TopicHub[int64, TaskLogEvent]
-	Executions *ssekit.TopicHub[int64, TaskExecutionEvent]
+	Tasks      *RedisTopicHub[int64, TaskStatusEvent]
+	Logs       *RedisTopicHub[int64, TaskLogEvent]
+	Executions *RedisTopicHub[int64, TaskExecutionEvent]
 }
 
-// NewHubs 创建一组独立的实时事件通道。
-func NewHubs() *Hubs {
+// NewHubs 创建一组支持跨实例同步的实时事件通道。
+func NewHubs(client redis.UniversalClient, instance string) *Hubs {
 	return &Hubs{
-		Tasks:      ssekit.NewTopicHub[int64, TaskStatusEvent](),
-		Logs:       ssekit.NewTopicHub[int64, TaskLogEvent](),
-		Executions: ssekit.NewTopicHub[int64, TaskExecutionEvent](),
+		Tasks:      NewRedisTopicHub[int64, TaskStatusEvent](client, redisChannelPrefix+"tasks", instance),
+		Logs:       NewRedisTopicHub[int64, TaskLogEvent](client, redisChannelPrefix+"logs", instance),
+		Executions: NewRedisTopicHub[int64, TaskExecutionEvent](client, redisChannelPrefix+"executions", instance),
 	}
+}
+
+// Start 启动所有实时事件的 Redis 订阅协程。
+func (h *Hubs) Start(ctx context.Context) {
+	go h.Tasks.Start(ctx)
+	go h.Logs.Start(ctx)
+	go h.Executions.Start(ctx)
 }

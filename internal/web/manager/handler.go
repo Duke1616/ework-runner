@@ -199,6 +199,7 @@ func (h *Handler) Stop(ctx *ginx.Context) (ginx.Result, error) {
 			TaskID:   t.ID,
 			Status:   t.Status.String(),
 			NextTime: t.NextTime,
+			Version:  t.Version,
 		})
 	}
 
@@ -222,6 +223,7 @@ func (h *Handler) Run(ctx *ginx.Context, req RunTaskReq) (ginx.Result, error) {
 			TaskID:   t.ID,
 			Status:   t.Status.String(),
 			NextTime: t.NextTime,
+			Version:  t.Version,
 		})
 	}
 
@@ -380,6 +382,7 @@ func toVO(src domain.Task) TaskVO {
 		ParamOverrideRules:  src.ParamOverrideRules,
 		CTime:               src.CTime,
 		UTime:               src.UTime,
+		Version:             src.Version,
 	}
 
 	if src.GrpcConfig != nil {

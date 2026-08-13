@@ -41,7 +41,10 @@ var (
 		InitScriptRuntime,
 	)
 
-	EventSet = wire.NewSet(internalSSE.NewHubs)
+	EventSet = wire.NewSet(
+		InitRedis,
+		internalSSE.NewHubs,
+	)
 
 	WebSetup = wire.NewSet(
 		InitPolicySDK,

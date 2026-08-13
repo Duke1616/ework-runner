@@ -103,7 +103,8 @@ func InitSchedulerApplication(base *Base) *SchedulerApplication {
 	projectSourceDAO := dao.NewGORMProjectSourceDAO(db)
 	projectSourceRepository := repository.NewProjectSourceRepository(artifactRepository, projectSourceDAO)
 	programService := program.NewService(codebookService, projectSourceRepository, store, codec)
-	hubs := sse.NewHubs()
+	universalClient := InitRedis()
+	hubs := sse.NewHubs(universalClient, string2)
 	executionService := task.NewExecutionService(string2, taskExecutionRepository, taskService, logService, completeProducer, registry, bindingRegistry, artifactService, programService, service, hubs)
 	executionCancellationDAO := dao.NewGORMExecutionCancellationDAO(db)
 	executionCancellationRepository := repository.NewExecutionCancellationRepository(executionCancellationDAO, taskExecutionRepository)
@@ -146,10 +147,10 @@ func InitSchedulerApplication(base *Base) *SchedulerApplication {
 	submissionService := submission.NewService(service, programService, executionService, routePlanner, invoker, terminationService)
 	schedulerServer := grpc.NewSchedulerServer(submissionService)
 	server := InitSchedulerNodeGRPCServer(registry, reporterServer, taskServer, agentServer, codebookServer, runnerServer, artifactServer, schedulerServer)
-	taskAcquirer := InitMySQLTaskAcquirer(taskRepository)
+	taskAcquirer := InitMySQLTaskAcquirer(taskRepository, hubs)
 	dispatcherConfig := InitDispatcherConfig()
 	dispatcher := InitDispatcher(string2, executionService, taskAcquirer, invoker, routePlanner, dispatcherConfig)
-	scheduler := InitScheduler(string2, dispatcher, taskService, taskAcquirer)
+	scheduler := InitScheduler(string2, dispatcher, taskService, taskAcquirer, hubs)
 	retryCompensator := InitRetryCompensator(dispatcher, executionService)
 	rescheduleCompensator := InitRescheduleCompensator(dispatcher, executionService)
 	interruptCompensator := InitInterruptCompensator(clients, executionService)
@@ -157,7 +158,7 @@ func InitSchedulerApplication(base *Base) *SchedulerApplication {
 	completeConsumer := InitCompleteEventConsumer(mq, taskService, executionService, taskAcquirer, hubs)
 	poolSyncer := pool.NewSyncer(executionPoolRepository, client)
 	agentEventConsumer := InitAgentEventConsumer(mq, executionService)
-	v3 := InitTasks(retryCompensator, rescheduleCompensator, interruptCompensator, terminationCompensator, completeConsumer, poolSyncer, agentEventConsumer)
+	v3 := InitTasks(retryCompensator, rescheduleCompensator, interruptCompensator, terminationCompensator, completeConsumer, poolSyncer, agentEventConsumer, hubs)
 	schedulerApplication := &SchedulerApplication{
 		Web:       component,
 		GRPC:      server,

@@ -5,8 +5,9 @@ import (
 	"github.com/Duke1616/etask/internal/service/dispatcher"
 	"github.com/Duke1616/etask/internal/service/scheduler"
 	"github.com/Duke1616/etask/internal/service/task"
-	"github.com/google/uuid"
+	"github.com/Duke1616/etask/internal/sse"
 	config "github.com/Duke1616/etask/pkg/config"
+	"github.com/google/uuid"
 )
 
 // InitNodeID 创建本次进程使用的调度节点 ID。
@@ -20,6 +21,7 @@ func InitScheduler(
 	dispatcher dispatcher.Dispatcher,
 	taskSvc task.Service,
 	acquirer acquirer.TaskAcquirer,
+	events *sse.Hubs,
 ) *scheduler.Scheduler {
 	var cfg scheduler.Config
 	err := config.UnmarshalKey("scheduler", &cfg)
@@ -32,6 +34,7 @@ func InitScheduler(
 		dispatcher,
 		taskSvc,
 		acquirer,
+		events,
 		cfg,
 	)
 }

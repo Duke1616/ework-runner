@@ -96,6 +96,7 @@ type TaskVO struct {
 	ScheduleParams      map[string]string              `json:"schedule_params"`
 	CTime               int64                          `json:"ctime"`
 	UTime               int64                          `json:"utime"`
+	Version             int64                          `json:"version"`
 	Metadata            map[string]string              `json:"metadata"`
 	Program             *ProgramSpec                   `json:"program"`
 	ParamOverrideRules  []domain.TaskParamOverrideRule `json:"param_override_rules"`
