@@ -21,28 +21,30 @@ const (
 
 // Task 任务表DAO对象
 type Task struct {
-	ID                  int64                               `gorm:"type:bigint;primaryKey;autoIncrement;"`
-	TenantID            int64                               `gorm:"type:bigint unsigned;not null;default:0;index;uniqueIndex:uniq_idx_name_tenant,priority:1;comment:'租户ID'"`
-	BizID               int64                               `gorm:"type:bigint unsigned;not null;default:0;comment:biz_id"`
-	BizKey              string                              `gorm:"type:varchar(255);not null;default:'';index:idx_biz;comment:'业务方唯一标识，如工单号'"`
-	Name                string                              `gorm:"type:varchar(255);not null;uniqueIndex:uniq_idx_name_tenant,priority:2;comment:'任务名称'"`
-	RunnerID            sql.NullInt64                       `gorm:"column:runner_id;type:bigint;index;comment:'引用的执行单元ID'"`
-	Type                string                              `gorm:"type:ENUM('RECURRING', 'ONE_TIME');not null;default:'RECURRING';comment:'任务类型: RECURRING-定时任务(循环执行), ONE_TIME-一次性任务(执行一次后停止)'"`
-	CronExpr            string                              `gorm:"type:varchar(100);not null;comment:'cron表达式'"`
-	GrpcConfig          sqlx.JSONColumn[domain.GrpcConfig]  `gorm:"type:json;comment:'gRPC配置：{\"serviceName\": \"user-service\"}'"`
-	Program             sqlx.JSONColumn[domain.ProgramSpec] `gorm:"type:json;comment:'用户声明的程序来源'"`
-	HTTPConfig          sqlx.JSONColumn[domain.HTTPConfig]  `gorm:"type:json;comment:'HTTP配置：{\"endpoint\": \"https://host:port/api\"}'"`
-	RetryConfig         sqlx.JSONColumn[domain.RetryConfig] `gorm:"type:json;comment:'重试配置'"`
-	ScheduleParams      sqlx.JSONColumn[map[string]string]  `gorm:"type:json;comment:'每次执行要用到的基础调度参数'"`
-	MaxExecutionSeconds int64                               `gorm:"type:bigint;not null;default:86400;comment:'最大执行秒数，默认24小时'"`
-	ScheduleNodeID      sql.NullString                      `gorm:"type:varchar(255);index:idx_schedule_node_id_status,priority:1;comment:'当前抢占的调度节点ID'"`
-	NextTime            int64                               `gorm:"type:bigint;not null;index:idx_next_time_status_utime,priority:1;comment:'下次执行时间'"`
-	Status              string                              `gorm:"type:ENUM('ACTIVE', 'PREEMPTED', 'INACTIVE', 'COMPLETED');not null;default:'ACTIVE';index:idx_next_time_status_utime,priority:2;index:idx_schedule_node_id_status,priority:2;comment:'任务状态: ACTIVE-可调度, PREEMPTED-已抢占, INACTIVE-停止执行, COMPLETED-已完成。'"`
-	Version             int64                               `gorm:"type:bigint;not null;default:1;comment:'版本号，用于乐观锁'"`
-	Ctime               int64                               `gorm:"comment:'创建时间'"`
-	Utime               int64                               `gorm:"index:idx_next_time_status_utime,priority:3;comment:'更新时间'"`
-	ExecMode            string                              `gorm:"type:ENUM('PUSH', 'PULL');not null;default:'PUSH';comment:'本次调度采用的执行模式，由 scheduler 选节点时写入'"`
-	Metadata            sqlx.JSONColumn[map[string]string]  `gorm:"type:json;comment:'任务参数元数据'"`
+	ID                    int64                               `gorm:"type:bigint;primaryKey;autoIncrement;"`
+	TenantID              int64                               `gorm:"type:bigint unsigned;not null;default:0;index;uniqueIndex:uniq_idx_name_tenant,priority:1;comment:'租户ID'"`
+	BizID                 int64                               `gorm:"type:bigint unsigned;not null;default:0;comment:biz_id"`
+	BizKey                string                              `gorm:"type:varchar(255);not null;default:'';index:idx_biz;comment:'业务方唯一标识，如工单号'"`
+	Name                  string                              `gorm:"type:varchar(255);not null;uniqueIndex:uniq_idx_name_tenant,priority:2;comment:'任务名称'"`
+	RunnerID              sql.NullInt64                       `gorm:"column:runner_id;type:bigint;index;comment:'引用的执行单元ID'"`
+	Type                  string                              `gorm:"type:ENUM('RECURRING', 'ONE_TIME');not null;default:'RECURRING';comment:'任务类型: RECURRING-定时任务(循环执行), ONE_TIME-一次性任务(执行一次后停止)'"`
+	CronExpr              string                              `gorm:"type:varchar(100);not null;comment:'cron表达式'"`
+	GrpcConfig            sqlx.JSONColumn[domain.GrpcConfig]  `gorm:"type:json;comment:'gRPC配置：{\"serviceName\": \"user-service\"}'"`
+	Program               sqlx.JSONColumn[domain.ProgramSpec] `gorm:"type:json;comment:'用户声明的程序来源'"`
+	HTTPConfig            sqlx.JSONColumn[domain.HTTPConfig]  `gorm:"type:json;comment:'HTTP配置：{\"endpoint\": \"https://host:port/api\"}'"`
+	RetryConfig           sqlx.JSONColumn[domain.RetryConfig] `gorm:"type:json;comment:'重试配置'"`
+	ScheduleParams        sqlx.JSONColumn[map[string]string]  `gorm:"type:json;comment:'每次执行要用到的基础调度参数'"`
+	MaxExecutionSeconds   int64                               `gorm:"type:bigint;not null;default:86400;comment:'最大执行秒数，默认24小时'"`
+	ScheduleNodeID        sql.NullString                      `gorm:"type:varchar(255);index:idx_schedule_node_id_status,priority:1;comment:'当前抢占的调度节点ID'"`
+	NextTime              int64                               `gorm:"type:bigint;not null;index:idx_next_time_status_utime,priority:1;comment:'下次执行时间'"`
+	Status                string                              `gorm:"type:ENUM('ACTIVE', 'PREEMPTED', 'INACTIVE', 'COMPLETED');not null;default:'ACTIVE';index:idx_next_time_status_utime,priority:2;index:idx_schedule_node_id_status,priority:2;comment:'任务状态: ACTIVE-可调度, PREEMPTED-已抢占, INACTIVE-停止执行, COMPLETED-已完成。'"`
+	Version               int64                               `gorm:"type:bigint;not null;default:1;comment:'版本号，用于乐观锁'"`
+	Ctime                 int64                               `gorm:"comment:'创建时间'"`
+	Utime                 int64                               `gorm:"index:idx_next_time_status_utime,priority:3;comment:'更新时间'"`
+	ExecMode              string                              `gorm:"type:ENUM('PUSH', 'PULL');not null;default:'PUSH';comment:'本次调度采用的执行模式，由 scheduler 选节点时写入'"`
+	Metadata              sqlx.JSONColumn[map[string]string]  `gorm:"type:json;comment:'任务参数元数据'"`
+	PendingParamOverrides sqlx.JSONColumn[map[string]string]  `gorm:"-"`
+	ParamOverrideRules    []TaskParamOverrideRule             `gorm:"-"`
 }
 
 // TableName 指定表名
@@ -74,6 +76,10 @@ type TaskDAO interface {
 	UpdateScheduleParams(ctx context.Context, id, version int64, scheduleParams map[string]string) (*Task, error)
 	// UpdateStatus 更新任务状态
 	UpdateStatus(ctx context.Context, id int64, status string) (*Task, error)
+	// Start 启动任务，并保存仅供下一次执行消费的参数覆盖。
+	Start(ctx context.Context, id int64, paramOverrides map[string]string) error
+	// ResetSchedule 重置一次性任务的调度信息，并保存仅供该次调度消费的参数覆盖。
+	ResetSchedule(ctx context.Context, task Task, paramOverrides map[string]string) error
 	// UpdateExecMode 更新执行模式快照（由调度器在选定 executor 节点后写入）
 	UpdateExecMode(ctx context.Context, id int64, mode string) error
 	// Retry 手动重试任务（针对一次性任务，将其状态重置为 ACTIVE 并设置下一次执行时间）
@@ -108,7 +114,12 @@ func (g *GORMTaskDAO) FindByPlanID(ctx context.Context, planID int64) ([]*Task, 
 func (g *GORMTaskDAO) Create(ctx context.Context, task Task) (*Task, error) {
 	now := time.Now().UnixMilli()
 	task.Utime, task.Ctime = now, now
-	err := g.db.WithContext(ctx).Create(&task).Error
+	err := g.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&task).Error; err != nil {
+			return err
+		}
+		return replaceOverrideRules(tx, task.TenantID, task.ID, task.ParamOverrideRules)
+	})
 	if err != nil {
 		if isDuplicateKeyError(err) {
 			return nil, fmt.Errorf("%w", errs.ErrTaskNameDuplicate)
@@ -124,6 +135,12 @@ func (g *GORMTaskDAO) GetByID(ctx context.Context, id int64) (*Task, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err = g.loadOverrideRules(ctx, &task); err != nil {
+		return nil, err
+	}
+	if err = g.loadPendingParamOverrides(ctx, &task); err != nil {
+		return nil, err
+	}
 	return &task, nil
 }
 
@@ -131,6 +148,12 @@ func (g *GORMTaskDAO) GetByName(ctx context.Context, name string) (*Task, error)
 	var task Task
 	err := g.db.WithContext(ctx).Where("name = ?", name).First(&task).Error
 	if err != nil {
+		return nil, err
+	}
+	if err = g.loadOverrideRules(ctx, &task); err != nil {
+		return nil, err
+	}
+	if err = g.loadPendingParamOverrides(ctx, &task); err != nil {
 		return nil, err
 	}
 	return &task, nil
@@ -324,6 +347,74 @@ func (g *GORMTaskDAO) UpdateStatus(ctx context.Context, id int64, status string)
 	return updatedTask, nil
 }
 
+func (g *GORMTaskDAO) Start(ctx context.Context, id int64,
+	paramOverrides map[string]string) error {
+	err := g.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&Task{}).
+			Where("id = ? AND status <> ?", id, StatusPreempted).
+			Updates(map[string]any{
+				"status":           StatusActive,
+				"next_time":        time.Now().UnixMilli(),
+				"schedule_node_id": gorm.Expr("NULL"),
+				"version":          gorm.Expr("version + 1"),
+				"utime":            time.Now().UnixMilli(),
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return fmt.Errorf("任务正在运行中，请等待本次执行结束")
+		}
+		if err := tx.Where("task_id = ?", id).Delete(&TaskRunParamOverride{}).Error; err != nil {
+			return err
+		}
+		if len(paramOverrides) > 0 {
+			pending := TaskRunParamOverride{
+				TaskID:    id,
+				Overrides: sqlx.JSONColumn[map[string]string]{Val: paramOverrides, Valid: true},
+			}
+			if err := tx.Create(&pending).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return err
+}
+
+// ResetSchedule 原子更新调度信息和待消费参数，避免定时任务使用到不完整的启动配置。
+func (g *GORMTaskDAO) ResetSchedule(ctx context.Context, task Task,
+	paramOverrides map[string]string) error {
+	return g.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&Task{}).
+			Where("id = ? AND status <> ?", task.ID, StatusPreempted).
+			Updates(map[string]any{
+				"cron_expr":        task.CronExpr,
+				"status":           task.Status,
+				"next_time":        task.NextTime,
+				"schedule_node_id": gorm.Expr("NULL"),
+				"version":          gorm.Expr("version + 1"),
+				"utime":            time.Now().UnixMilli(),
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return fmt.Errorf("任务正在运行中，请等待本次执行结束")
+		}
+		if err := tx.Where("task_id = ?", task.ID).Delete(&TaskRunParamOverride{}).Error; err != nil {
+			return err
+		}
+		if len(paramOverrides) == 0 {
+			return nil
+		}
+		return tx.Create(&TaskRunParamOverride{
+			TaskID:    task.ID,
+			Overrides: sqlx.JSONColumn[map[string]string]{Val: paramOverrides, Valid: true},
+		}).Error
+	})
+}
+
 // UpdateExecMode 更新任务的执行模式快照（由调度器在选定 executor 节点后写入）
 func (g *GORMTaskDAO) UpdateExecMode(ctx context.Context, id int64, mode string) error {
 	result := g.db.WithContext(ctx).
@@ -391,20 +482,16 @@ func (g *GORMTaskDAO) Count(ctx context.Context, bizID int64) (int64, error) {
 }
 
 func (g *GORMTaskDAO) Update(ctx context.Context, task Task) error {
-	res := g.db.WithContext(ctx).
-		Model(&Task{}).
-		Where("id = ?", task.ID).
-		Updates(taskUpdateFields(task))
-
-	if res.Error != nil {
-		return res.Error
-	}
-
-	if res.RowsAffected == 0 {
-		return fmt.Errorf("更新失败：该任务不存在 (ID=%d)", task.ID)
-	}
-
-	return nil
+	return g.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&Task{}).Where("id = ?", task.ID).Updates(taskUpdateFields(task))
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return fmt.Errorf("更新失败：该任务不存在 (ID=%d)", task.ID)
+		}
+		return replaceOverrideRules(tx, task.TenantID, task.ID, task.ParamOverrideRules)
+	})
 }
 
 func taskUpdateFields(task Task) map[string]any {
@@ -427,5 +514,13 @@ func taskUpdateFields(task Task) map[string]any {
 }
 
 func (g *GORMTaskDAO) Delete(ctx context.Context, id int64) error {
-	return g.db.WithContext(ctx).Delete(&Task{}, id).Error
+	return g.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("task_id = ?", id).Delete(&TaskParamOverrideRule{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("task_id = ?", id).Delete(&TaskRunParamOverride{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&Task{}, id).Error
+	})
 }

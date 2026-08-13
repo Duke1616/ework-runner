@@ -45,28 +45,60 @@ func (tt TaskType) IsRecurring() bool {
 }
 
 type Task struct {
-	ID                  int64
-	TenantID            int64  // 租户ID，多租户隔离
-	BizID               int64  // 业务模块 ID，0 表示独立任务，>0 表示由业务系统创建
-	BizKey              string // 业务方唯一标识，如工单号 "order_1448"
-	Name                string
-	RunnerID            int64    // 可选的执行单元引用；非零时由 Runner 提供程序和执行路由
-	Type                TaskType // 任务类型: RECURRING-定时任务, ONE_TIME-一次性任务
-	CronExpr            string   // cron 表达式（定时任务必填，一次性任务可选用于定时触发）
-	GrpcConfig          *GrpcConfig
-	Program             *ProgramSpec
-	HTTPConfig          *HTTPConfig
-	RetryConfig         *RetryConfig
-	MaxExecutionSeconds int64             // 最大执行秒数，默认24小时
-	ScheduleNodeID      string            // 调度节点ID
-	ScheduleParams      map[string]string // 调度参数（如分页偏移量、处理进度等）
-	NextTime            int64             // 下次执行时间戳
-	Status              TaskStatus        // 任务状态
-	Version             int64             // 版本号，用于乐观锁
-	CTime               int64             // 创建时间戳
-	UTime               int64             // 更新时间戳
-	ExecMode            ExecMode          // 执行模式：PUSH 或 PULL
-	Metadata            map[string]string // 任务参数元数据 (存储绑定关系或模式)
+	ID                    int64
+	TenantID              int64  // 租户ID，多租户隔离
+	BizID                 int64  // 业务模块 ID，0 表示独立任务，>0 表示由业务系统创建
+	BizKey                string // 业务方唯一标识，如工单号 "order_1448"
+	Name                  string
+	RunnerID              int64    // 可选的执行单元引用；非零时由 Runner 提供程序和执行路由
+	Type                  TaskType // 任务类型: RECURRING-定时任务, ONE_TIME-一次性任务
+	CronExpr              string   // cron 表达式（定时任务必填，一次性任务可选用于定时触发）
+	GrpcConfig            *GrpcConfig
+	Program               *ProgramSpec
+	HTTPConfig            *HTTPConfig
+	RetryConfig           *RetryConfig
+	MaxExecutionSeconds   int64                   // 最大执行秒数，默认24小时
+	ScheduleNodeID        string                  // 调度节点ID
+	ScheduleParams        map[string]string       // 调度参数（如分页偏移量、处理进度等）
+	NextTime              int64                   // 下次执行时间戳
+	Status                TaskStatus              // 任务状态
+	Version               int64                   // 版本号，用于乐观锁
+	CTime                 int64                   // 创建时间戳
+	UTime                 int64                   // 更新时间戳
+	ExecMode              ExecMode                // 执行模式：PUSH 或 PULL
+	Metadata              map[string]string       // 任务参数元数据 (存储绑定关系或模式)
+	ParamOverrideRules    []TaskParamOverrideRule // 手动启动参数的任务级输入约束
+	PendingParamOverrides map[string]string       // 仅供下一次手动启动消费的参数覆盖
+}
+
+type TaskParamInputMode string
+
+const (
+	TaskParamInputModeManual TaskParamInputMode = "MANUAL"
+	TaskParamInputModeSelect TaskParamInputMode = "SELECT"
+)
+
+type TaskParamOption struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
+}
+
+type TaskParamSelectConfig struct {
+	Multiple bool              `json:"multiple"`
+	Options  []TaskParamOption `json:"options"`
+}
+
+type TaskParamOverrideRule struct {
+	ParamKey     string                 `json:"param_key"`
+	AllowedModes []TaskParamInputMode   `json:"allowed_modes"`
+	DefaultMode  TaskParamInputMode     `json:"default_mode"`
+	SelectConfig *TaskParamSelectConfig `json:"select_config,omitempty"`
+}
+
+type RunParamOverride struct {
+	Mode   TaskParamInputMode `json:"mode"`
+	Value  string             `json:"value,omitempty"`
+	Values []string           `json:"values,omitempty"`
 }
 
 // ExecMode 执行模式

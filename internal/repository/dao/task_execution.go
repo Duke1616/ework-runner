@@ -73,6 +73,8 @@ func (TaskExecution) TableName() string {
 type TaskExecutionDAO interface {
 	// Create 创建任务执行记录
 	Create(ctx context.Context, execution TaskExecution) (TaskExecution, error)
+	// CreateAndConsumeOverride 创建执行记录并原子消费本次启动参数。
+	CreateAndConsumeOverride(ctx context.Context, execution TaskExecution, taskID int64) (TaskExecution, error)
 	// BatchCreate 批量创建执行记录
 	BatchCreate(ctx context.Context, executions []TaskExecution) ([]TaskExecution, error)
 	// GetByID 根据ID获取执行记录
@@ -217,6 +219,31 @@ func (g *GORMTaskExecutionDAO) Create(ctx context.Context, execution TaskExecuti
 	}
 
 	// 返回包含生成ID的实体
+	return execution, nil
+}
+
+func (g *GORMTaskExecutionDAO) CreateAndConsumeOverride(ctx context.Context, execution TaskExecution,
+	taskID int64) (TaskExecution, error) {
+	now := time.Now().UnixMilli()
+	execution.Utime, execution.Ctime = now, now
+	execution.Deadline = now + execution.TaskMaxExecutionSeconds*milliseconds
+	err := g.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&execution).Error; err != nil {
+			return err
+		}
+		result := tx.Where("task_id = ?", taskID).
+			Delete(&TaskRunParamOverride{})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return fmt.Errorf("启动参数覆盖已被其他执行消费: task_id=%d", taskID)
+		}
+		return nil
+	})
+	if err != nil {
+		return TaskExecution{}, fmt.Errorf("创建执行记录并消费启动参数失败: %w", err)
+	}
 	return execution, nil
 }
 

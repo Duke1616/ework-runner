@@ -37,13 +37,14 @@ type HandlerDetail struct {
 }
 
 type ParameterVO struct {
-	Key      string               `json:"key"`
-	Role     string               `json:"role,omitempty"`
-	Desc     string               `json:"desc"`
-	Secret   bool                 `json:"secret"`
-	Required bool                 `json:"required"`
-	Bindings map[string]BindingVO `json:"bindings"`
-	Default  string               `json:"default"`
+	Key                string               `json:"key"`
+	Role               string               `json:"role,omitempty"`
+	Desc               string               `json:"desc"`
+	Secret             bool                 `json:"secret"`
+	Required           bool                 `json:"required"`
+	RuntimeOverridable bool                 `json:"runtime_overridable"`
+	Bindings           map[string]BindingVO `json:"bindings"`
+	Default            string               `json:"default"`
 }
 
 type BindingVO struct {

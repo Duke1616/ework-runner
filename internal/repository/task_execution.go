@@ -154,7 +154,12 @@ func (r *taskExecutionRepository) Create(ctx context.Context, execution domain.T
 	if err != nil {
 		return domain.TaskExecution{}, err
 	}
-	created, err := r.dao.Create(ctx, entity)
+	var created dao.TaskExecution
+	if execution.Source == domain.TaskExecutionSourceTask && len(execution.Task.PendingParamOverrides) > 0 {
+		created, err = r.dao.CreateAndConsumeOverride(ctx, entity, execution.Task.ID)
+	} else {
+		created, err = r.dao.Create(ctx, entity)
+	}
 	if err != nil {
 		return domain.TaskExecution{}, err
 	}

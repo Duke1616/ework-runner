@@ -69,6 +69,8 @@ type BindingService interface {
 	AdminList(ctx context.Context, req ListBindingsRequest) ([]domain.ExecutionPoolBinding, error)
 	// IsAllowed 判断租户是否允许使用指定资源池和 handler。
 	IsAllowed(ctx context.Context, req CheckBindingRequest) (bool, error)
+	// RuntimeOverridableParameterKeys 返回 Handler 元数据中显式允许启动覆盖的参数键。
+	RuntimeOverridableParameterKeys(ctx context.Context, req CheckBindingRequest) (map[string]struct{}, error)
 }
 
 type bindingService struct {
@@ -210,6 +212,49 @@ func (s *bindingService) IsAllowed(ctx context.Context, req CheckBindingRequest)
 		return false, err
 	}
 	return binding.Status == domain.ExecutionPoolBindingStatusEnabled, nil
+}
+
+func (s *bindingService) RuntimeOverridableParameterKeys(
+	ctx context.Context,
+	req CheckBindingRequest,
+) (map[string]struct{}, error) {
+	poolName, handlerName, err := normalizeBindingKey(req.PoolName, req.HandlerName)
+	if err != nil {
+		return nil, err
+	}
+	if handlerName == "" {
+		return nil, fmt.Errorf("%w: handler 不能为空", errs.ErrInvalidParameter)
+	}
+	ctx = withTenant(ctx, req.TenantID)
+	pool, err := s.findPool(ctx, poolName)
+	if err != nil {
+		return nil, err
+	}
+
+	var handlers []struct {
+		Name     string `json:"name"`
+		Metadata []struct {
+			Key                string `json:"key"`
+			RuntimeOverridable bool   `json:"runtime_overridable"`
+		} `json:"metadata"`
+	}
+	if err = json.Unmarshal([]byte(pool.Metadata["supported_handlers"]), &handlers); err != nil {
+		return nil, fmt.Errorf("解析资源池 %s Handler 元数据失败: %w", poolName, err)
+	}
+	for _, handler := range handlers {
+		if strings.TrimSpace(handler.Name) != handlerName {
+			continue
+		}
+		keys := make(map[string]struct{})
+		for _, parameter := range handler.Metadata {
+			key := strings.TrimSpace(parameter.Key)
+			if parameter.RuntimeOverridable && key != "" {
+				keys[key] = struct{}{}
+			}
+		}
+		return keys, nil
+	}
+	return nil, fmt.Errorf("%w: handler %s 不属于资源池 %s", errs.ErrInvalidParameter, handlerName, poolName)
 }
 
 func (s *bindingService) setStatus(

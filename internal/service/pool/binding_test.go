@@ -297,6 +297,40 @@ func TestBindingServiceIsAllowedRejectsDisabledPool(t *testing.T) {
 	}
 }
 
+func TestBindingServiceRuntimeOverridableParameterKeys(t *testing.T) {
+	svc := newTestBindingService(
+		map[string]domain.ExecutionPool{
+			"default": {
+				Name:   "default",
+				Status: domain.ExecutionPoolStatusEnabled,
+				Metadata: map[string]string{
+					"supported_handlers": `[{
+						"name":"ansible",
+						"metadata":[
+							{"key":"limit","runtime_overridable":true},
+							{"key":"inventory","runtime_overridable":false}
+						]
+					}]`,
+				},
+			},
+		},
+		nil,
+	)
+
+	keys, err := svc.RuntimeOverridableParameterKeys(context.Background(), CheckBindingRequest{
+		PoolName: "default", HandlerName: "ansible",
+	})
+	if err != nil {
+		t.Fatalf("RuntimeOverridableParameterKeys() error = %v", err)
+	}
+	if _, ok := keys["limit"]; !ok {
+		t.Fatal("RuntimeOverridableParameterKeys() missing limit")
+	}
+	if _, ok := keys["inventory"]; ok {
+		t.Fatal("RuntimeOverridableParameterKeys() unexpectedly contains inventory")
+	}
+}
+
 func TestCatalogServiceListAuthorizedPoolsFiltersByPoolState(t *testing.T) {
 	poolRepo := &fakePoolRepo{
 		pools: map[string]domain.ExecutionPool{

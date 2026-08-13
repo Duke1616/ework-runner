@@ -64,13 +64,24 @@ func (a *Adapter) Extension() string { return ".yml" }
 // Metadata 返回 Ansible Handler 支持的参数元数据。
 func (a *Adapter) Metadata() []executor.Parameter {
 	return []executor.Parameter{
-		language.ArgsParameter("剧本执行参数"),
+		language.ArgsParameter("执行参数"),
 		ansibleParameter("inventory", "主机清单", "", "project-file-picker", "选择项目内文件", nil),
-		ansibleParameter("credential_ref", "默认 SSH 凭据", "", "select-input", "inventory 未指定时使用", map[string]string{
+		ansibleParameter("credential_ref", "默认凭据", "", "select-input", "inventory 未指定时使用", map[string]string{
 			"options": credentialOptions(a.connections),
 		}),
-		ansibleParameter("limit", "执行范围", "", "input", "例如 web:&staging", nil),
-		ansibleParameter("tags", "执行标签", "", "input", "例如 deploy,restart", nil),
+		overridableAnsibleParameter("limit", "执行范围", "", "input", "例如 web:&staging", nil),
+		overridableAnsibleParameter("tags", "执行标签", "", "input", "例如 deploy,restart", nil),
+		overridableAnsibleParameter("skip_tags", "排除标签", "", "input", "例如 database,download", nil),
+		ansibleParameter("check", "预演模式", "false", "boolean-switch", "", nil),
+		ansibleParameter("diff", "变更差异", "false", "boolean-switch", "", nil),
+		ansibleParameter("become", "权限提升", "false", "boolean-switch", "", nil),
+		ansibleParameter("become_user", "提权用户", "", "input", "例如 root", nil),
+		ansibleParameter("forks", "并发任务数", "0", "number-input", "使用 Ansible 默认值", map[string]string{
+			"min": "0", "max": "100",
+		}),
+		ansibleParameter("verbosity", "日志级别", "0", "select-input", "", map[string]string{
+			"options": `[{"label":"标准日志","value":"0"},{"label":"详细日志 (-v)","value":"1"},{"label":"调试信息 (-vv)","value":"2"},{"label":"连接调试 (-vvv)","value":"3"},{"label":"深度连接调试 (-vvvv)","value":"4"}]`,
+		}),
 		{
 			Key: "vars", Role: executor.ParameterRoleVariables, Desc: "剧本变量", Default: "[]",
 			Bindings: map[string]executor.Binding{
@@ -83,17 +94,6 @@ func (a *Adapter) Metadata() []executor.Parameter {
 				},
 			},
 		},
-		ansibleParameter("skip_tags", "排除标签", "", "input", "例如 database,download", nil),
-		ansibleParameter("check", "预演模式", "false", "boolean-switch", "", nil),
-		ansibleParameter("diff", "变更差异", "false", "boolean-switch", "", nil),
-		ansibleParameter("become", "权限提升", "false", "boolean-switch", "", nil),
-		ansibleParameter("become_user", "提权用户", "", "input", "例如 root", nil),
-		ansibleParameter("forks", "并发任务数", "0", "number-input", "使用 Ansible 默认值", map[string]string{
-			"min": "0", "max": "100",
-		}),
-		ansibleParameter("verbosity", "日志级别", "0", "select-input", "", map[string]string{
-			"options": `[{"label":"标准日志","value":"0"},{"label":"详细日志 (-v)","value":"1"},{"label":"调试信息 (-vv)","value":"2"},{"label":"连接调试 (-vvv)","value":"3"},{"label":"深度连接调试 (-vvvv)","value":"4"}]`,
-		}),
 		ansibleParameter("extra_args", "扩展参数", "", "input", `例如 --start-at-task "Deploy application"`, nil),
 	}
 }
@@ -108,6 +108,13 @@ func ansibleParameter(key, desc, defaultValue, component, placeholder string,
 			},
 		},
 	}
+}
+
+func overridableAnsibleParameter(key, desc, defaultValue, component, placeholder string,
+	config map[string]string) executor.Parameter {
+	parameter := ansibleParameter(key, desc, defaultValue, component, placeholder, config)
+	parameter.RuntimeOverridable = true
+	return parameter
 }
 
 // Prepare 创建受控输入文件并构造 ansible-playbook 命令。

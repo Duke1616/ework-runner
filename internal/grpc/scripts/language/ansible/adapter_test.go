@@ -285,6 +285,24 @@ func TestAdapterMetadataDeclaresCommonOptions(t *testing.T) {
 	require.Contains(t, vars.Bindings, "runner")
 }
 
+func TestAdapterMetadataDeclaresRuntimeOverridableOptions(t *testing.T) {
+	got := make(map[string]bool)
+	for _, parameter := range New("").Metadata() {
+		got[parameter.Key] = parameter.RuntimeOverridable
+	}
+
+	for _, key := range []string{"args", "limit", "skip_tags", "tags"} {
+		if !got[key] {
+			t.Fatalf("parameter %s should allow runtime override", key)
+		}
+	}
+	for _, key := range []string{"inventory", "credential_ref", "check", "vars", "extra_args"} {
+		if got[key] {
+			t.Fatalf("parameter %s should not allow runtime override", key)
+		}
+	}
+}
+
 func TestAdapterMetadataListsLocalCredentials(t *testing.T) {
 	credentialProvider, err := connection.NewLocalCredentialProvider(t.TempDir(), map[string]connection.CredentialConfig{
 		"production-b": {Username: "deploy", PrivateKeyFile: "b-key"},

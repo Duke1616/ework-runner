@@ -268,6 +268,7 @@ func (s *executionService) buildTaskSnapshot(ctx context.Context,
 
 	// Runner 任务的默认参数和变量已经由执行单元快照解析完成，不再运行旧参数绑定。
 	if snapshot.GrpcConfig == nil || snapshot.RunnerID != 0 {
+		applyPendingParamOverrides(&snapshot)
 		return snapshot, selection, variables, nil
 	}
 
@@ -278,6 +279,7 @@ func (s *executionService) buildTaskSnapshot(ctx context.Context,
 		return domain.Task{}, programSvc.Resolution{}, nil, err
 	}
 	if len(resolved) == 0 {
+		applyPendingParamOverrides(&snapshot)
 		return snapshot, selection, variables, nil
 	}
 
@@ -289,7 +291,24 @@ func (s *executionService) buildTaskSnapshot(ctx context.Context,
 		resolvedParams[k] = v
 	}
 	snapshot.GrpcConfig.Params = resolvedParams
+	applyPendingParamOverrides(&snapshot)
 	return snapshot, selection, variables, nil
+}
+
+func applyPendingParamOverrides(task *domain.Task) {
+	if task.GrpcConfig == nil || len(task.PendingParamOverrides) == 0 {
+		return
+	}
+	config := *task.GrpcConfig
+	params := make(map[string]string, len(config.Params)+len(task.PendingParamOverrides))
+	for key, value := range config.Params {
+		params[key] = value
+	}
+	for key, value := range task.PendingParamOverrides {
+		params[key] = value
+	}
+	config.Params = params
+	task.GrpcConfig = &config
 }
 
 // applyRunnerDefaults 在创建执行快照时读取最新默认参数，任务参数覆盖同名默认值。

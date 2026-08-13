@@ -33,6 +33,10 @@ type TaskRepository interface {
 	FindByPlanID(ctx context.Context, planID int64) ([]domain.Task, error)
 	// UpdateStatus 更新任务状态
 	UpdateStatus(ctx context.Context, id int64, status domain.TaskStatus) (domain.Task, error)
+	// Start 启动任务，并原子保存仅供下一次调度消费的参数覆盖。
+	Start(ctx context.Context, id int64, paramOverrides map[string]string) error
+	// ResetSchedule 重置一次性任务的调度信息，并原子保存仅供该次调度消费的参数覆盖。
+	ResetSchedule(ctx context.Context, task domain.Task, paramOverrides map[string]string) error
 	// UpdateExecMode 更新任务的执行模式快照
 	UpdateExecMode(ctx context.Context, id int64, mode domain.ExecMode) error
 	// Retry 手动重试任务
@@ -144,6 +148,17 @@ func (r *taskRepository) UpdateStatus(ctx context.Context, id int64, status doma
 	return r.toDomain(task), nil
 }
 
+func (r *taskRepository) Start(ctx context.Context, id int64,
+	paramOverrides map[string]string) error {
+	return r.dao.Start(ctx, id, paramOverrides)
+}
+
+// ResetSchedule 重置一次性任务的调度信息，并保存该次执行的参数覆盖。
+func (r *taskRepository) ResetSchedule(ctx context.Context, task domain.Task,
+	paramOverrides map[string]string) error {
+	return r.dao.ResetSchedule(ctx, r.toEntity(task), paramOverrides)
+}
+
 // UpdateExecMode 更新任务的执行模式快照
 func (r *taskRepository) UpdateExecMode(ctx context.Context, id int64, mode domain.ExecMode) error {
 	return r.dao.UpdateExecMode(ctx, id, mode.String())
@@ -244,6 +259,7 @@ func (r *taskRepository) toEntity(task domain.Task) dao.Task {
 		Utime:               task.UTime,
 		ExecMode:            task.ExecMode.String(),
 		Metadata:            metadata,
+		ParamOverrideRules:  toDAOOverrideRules(task.ParamOverrideRules),
 	}
 }
 
@@ -289,27 +305,59 @@ func (r *taskRepository) toDomain(daoTask *dao.Task) domain.Task {
 	}
 
 	return domain.Task{
-		ID:                  daoTask.ID,
-		TenantID:            daoTask.TenantID,
-		BizID:               daoTask.BizID,
-		BizKey:              daoTask.BizKey,
-		Name:                daoTask.Name,
-		RunnerID:            runnerID,
-		Type:                domain.TaskType(daoTask.Type),
-		CronExpr:            daoTask.CronExpr,
-		GrpcConfig:          grpcConfig,
-		Program:             program,
-		HTTPConfig:          httpConfig,
-		RetryConfig:         retryConfig,
-		MaxExecutionSeconds: daoTask.MaxExecutionSeconds,
-		ScheduleParams:      scheduleParams,
-		ScheduleNodeID:      scheduleNodeID,
-		NextTime:            daoTask.NextTime,
-		Status:              domain.TaskStatus(daoTask.Status),
-		Version:             daoTask.Version,
-		UTime:               daoTask.Utime,
-		CTime:               daoTask.Ctime,
-		ExecMode:            domain.ExecMode(daoTask.ExecMode),
-		Metadata:            metadata,
+		ID:                    daoTask.ID,
+		TenantID:              daoTask.TenantID,
+		BizID:                 daoTask.BizID,
+		BizKey:                daoTask.BizKey,
+		Name:                  daoTask.Name,
+		RunnerID:              runnerID,
+		Type:                  domain.TaskType(daoTask.Type),
+		CronExpr:              daoTask.CronExpr,
+		GrpcConfig:            grpcConfig,
+		Program:               program,
+		HTTPConfig:            httpConfig,
+		RetryConfig:           retryConfig,
+		MaxExecutionSeconds:   daoTask.MaxExecutionSeconds,
+		ScheduleParams:        scheduleParams,
+		ScheduleNodeID:        scheduleNodeID,
+		NextTime:              daoTask.NextTime,
+		Status:                domain.TaskStatus(daoTask.Status),
+		Version:               daoTask.Version,
+		UTime:                 daoTask.Utime,
+		CTime:                 daoTask.Ctime,
+		ExecMode:              domain.ExecMode(daoTask.ExecMode),
+		Metadata:              metadata,
+		PendingParamOverrides: daoTask.PendingParamOverrides.Val,
+		ParamOverrideRules:    toDomainOverrideRules(daoTask.ParamOverrideRules),
 	}
+}
+
+func toDAOOverrideRules(rules []domain.TaskParamOverrideRule) []dao.TaskParamOverrideRule {
+	result := make([]dao.TaskParamOverrideRule, 0, len(rules))
+	for _, rule := range rules {
+		result = append(result, dao.TaskParamOverrideRule{
+			ParamKey: rule.ParamKey,
+			InputConfig: sqlx.JSONColumn[dao.TaskParamOverrideInputConfig]{
+				Val: dao.TaskParamOverrideInputConfig{
+					AllowedModes: rule.AllowedModes, DefaultMode: rule.DefaultMode,
+					SelectConfig: rule.SelectConfig,
+				},
+				Valid: true,
+			},
+		})
+	}
+	return result
+}
+
+func toDomainOverrideRules(rules []dao.TaskParamOverrideRule) []domain.TaskParamOverrideRule {
+	result := make([]domain.TaskParamOverrideRule, 0, len(rules))
+	for _, rule := range rules {
+		result = append(result, domain.TaskParamOverrideRule{
+			ParamKey:     rule.ParamKey,
+			AllowedModes: rule.InputConfig.Val.AllowedModes,
+			DefaultMode:  rule.InputConfig.Val.DefaultMode,
+			SelectConfig: rule.InputConfig.Val.SelectConfig,
+		})
+	}
+	return result
 }

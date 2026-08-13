@@ -25,13 +25,14 @@ const (
 
 // Parameter 描述任务处理器支持的一个参数。
 type Parameter struct {
-	Key      string             `json:"key"`
-	Role     ParameterRole      `json:"role,omitempty"`
-	Desc     string             `json:"desc"`
-	Secret   bool               `json:"secret"`
-	Required bool               `json:"required"`
-	Bindings map[string]Binding `json:"bindings"`
-	Default  string             `json:"default"`
+	Key                string             `json:"key"`
+	Role               ParameterRole      `json:"role,omitempty"`
+	Desc               string             `json:"desc"`
+	Secret             bool               `json:"secret"`
+	Required           bool               `json:"required"`
+	RuntimeOverridable bool               `json:"runtime_overridable"`
+	Bindings           map[string]Binding `json:"bindings"`
+	Default            string             `json:"default"`
 }
 
 // ProgramHandler 声明 Handler 支持的程序来源类型。

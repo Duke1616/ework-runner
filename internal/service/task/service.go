@@ -41,7 +41,7 @@ type Service interface {
 	// Stop 停止任务
 	Stop(ctx context.Context, id int64) error
 	// Run 运行任务（从停止状态恢复）。一次性任务可传入 cronExpr 修改下次执行时间。
-	Run(ctx context.Context, id int64, cronExpr string) error
+	Run(ctx context.Context, id int64, cronExpr string, paramOverrides map[string]domain.RunParamOverride) error
 	// AuthorizeExecutionPool 校验任务是否被授权使用配置的执行资源池。
 	AuthorizeExecutionPool(ctx context.Context, task domain.Task) error
 }
@@ -70,6 +70,9 @@ func (s *service) Create(ctx context.Context, task domain.Task) (domain.Task, er
 		return domain.Task{}, err
 	}
 	if err := s.AuthorizeExecutionPool(ctx, task); err != nil {
+		return domain.Task{}, err
+	}
+	if err := s.validateParamOverrideRules(ctx, task); err != nil {
 		return domain.Task{}, err
 	}
 	if err := s.setNextScheduleTime(&task); err != nil {
@@ -192,6 +195,9 @@ func (s *service) Update(ctx context.Context, task domain.Task) error {
 	if err = s.AuthorizeExecutionPool(ctx, task); err != nil {
 		return err
 	}
+	if err = s.validateParamOverrideRules(ctx, task); err != nil {
+		return err
+	}
 
 	// 2. 如果 Cron 表达式发生变化，重新计算下次执行时间
 	if oldTask.CronExpr != task.CronExpr {
@@ -290,12 +296,22 @@ func (s *service) Stop(ctx context.Context, id int64) error {
 	return err
 }
 
-func (s *service) Run(ctx context.Context, id int64, cronExpr string) error {
+func (s *service) Run(ctx context.Context, id int64, cronExpr string,
+	paramOverrides map[string]domain.RunParamOverride) error {
 	task, err := s.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
 	if err = s.AuthorizeExecutionPool(ctx, task); err != nil {
+		return err
+	}
+	if len(paramOverrides) > 0 {
+		if err = s.validateParamOverrideRules(ctx, task); err != nil {
+			return err
+		}
+	}
+	serialized, err := validateAndSerializeOverrides(task.ParamOverrideRules, paramOverrides)
+	if err != nil {
 		return err
 	}
 
@@ -312,13 +328,10 @@ func (s *service) Run(ctx context.Context, id int64, cronExpr string) error {
 		if err = s.setNextScheduleTime(&task); err != nil {
 			return err
 		}
-		if err = s.repo.Update(ctx, task); err != nil {
-			return err
-		}
+		return s.repo.ResetSchedule(ctx, task, serialized)
 	}
 
-	_, err = s.repo.UpdateStatus(ctx, id, domain.TaskStatusActive)
-	return err
+	return s.repo.Start(ctx, id, serialized)
 }
 
 func (s *service) AuthorizeExecutionPool(ctx context.Context, task domain.Task) error {

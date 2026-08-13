@@ -208,7 +208,7 @@ func (h *Handler) Stop(ctx *ginx.Context) (ginx.Result, error) {
 }
 
 func (h *Handler) Run(ctx *ginx.Context, req RunTaskReq) (ginx.Result, error) {
-	err := h.svc.Run(ctx, req.ID, req.CronExpr)
+	err := h.svc.Run(ctx, req.ID, req.CronExpr, req.ParamOverrides)
 	if err != nil {
 		return ginx.Result{
 			Code: SystemErrorCode,
@@ -377,6 +377,7 @@ func toVO(src domain.Task) TaskVO {
 		ScheduleParams:      src.ScheduleParams,
 		Metadata:            src.Metadata,
 		Program:             toProgramVO(src.Program),
+		ParamOverrideRules:  src.ParamOverrideRules,
 		CTime:               src.CTime,
 		UTime:               src.UTime,
 	}
@@ -420,6 +421,7 @@ func toDomain(req CreateTaskReq) domain.Task {
 		BizID:               bizid.Task,
 		Metadata:            req.Metadata,
 		Program:             toDomainProgram(req.Program),
+		ParamOverrideRules:  req.ParamOverrideRules,
 	}
 
 	if req.GrpcConfig != nil {
@@ -461,6 +463,7 @@ func toUpdateDomain(req UpdateTaskReq) domain.Task {
 		BizID:               bizid.Task,
 		Metadata:            req.Metadata,
 		Program:             toDomainProgram(req.Program),
+		ParamOverrideRules:  req.ParamOverrideRules,
 	}
 
 	if req.GrpcConfig != nil {
