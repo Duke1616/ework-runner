@@ -34,3 +34,21 @@ func TestTaskValidateNotificationRules(t *testing.T) {
 	require.ErrorContains(t, err, "execution_notifications[0]: recipients[0]:")
 	require.ErrorContains(t, err, "target_ids 必须为正整数")
 }
+
+func TestNotificationRecipientTypeIsValid(t *testing.T) {
+	for _, recipientType := range []NotificationRecipientType{
+		NotificationRecipientUser,
+		NotificationRecipientTeam,
+		NotificationRecipientDepartment,
+		NotificationRecipientOnCall,
+	} {
+		require.True(t, recipientType.IsValid(), recipientType)
+	}
+
+	for _, recipientType := range []NotificationRecipientType{
+		"RECIPIENT_DEPARTMENT_LEADER",
+		"RECIPIENT_SUPERVISING_LEADER",
+	} {
+		require.False(t, recipientType.IsValid(), recipientType)
+	}
+}

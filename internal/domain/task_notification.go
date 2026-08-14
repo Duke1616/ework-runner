@@ -6,27 +6,23 @@ import (
 	"github.com/Duke1616/etask/internal/errs"
 )
 
-// NotificationRecipientType 表示 EAlert 接收对象解析规则。
+// NotificationRecipientType 表示 ETask 允许配置的 EAlert 接收对象解析规则。
 type NotificationRecipientType string
 
 const (
-	NotificationRecipientUser              NotificationRecipientType = "RECIPIENT_USER"
-	NotificationRecipientTeam              NotificationRecipientType = "RECIPIENT_TEAM"
-	NotificationRecipientDepartment        NotificationRecipientType = "RECIPIENT_DEPARTMENT"
-	NotificationRecipientOnCall            NotificationRecipientType = "RECIPIENT_ONCALL"
-	NotificationRecipientDepartmentLeader  NotificationRecipientType = "RECIPIENT_DEPARTMENT_LEADER"
-	NotificationRecipientSupervisingLeader NotificationRecipientType = "RECIPIENT_SUPERVISING_LEADER"
+	NotificationRecipientUser       NotificationRecipientType = "RECIPIENT_USER"
+	NotificationRecipientTeam       NotificationRecipientType = "RECIPIENT_TEAM"
+	NotificationRecipientDepartment NotificationRecipientType = "RECIPIENT_DEPARTMENT"
+	NotificationRecipientOnCall     NotificationRecipientType = "RECIPIENT_ONCALL"
 )
 
-// IsValid 判断接收对象解析规则是否受 EAlert 支持。
+// IsValid 判断接收对象解析规则是否允许用于 ETask 执行通知。
 func (t NotificationRecipientType) IsValid() bool {
 	switch t {
 	case NotificationRecipientUser,
 		NotificationRecipientTeam,
 		NotificationRecipientDepartment,
-		NotificationRecipientOnCall,
-		NotificationRecipientDepartmentLeader,
-		NotificationRecipientSupervisingLeader:
+		NotificationRecipientOnCall:
 		return true
 	default:
 		return false
