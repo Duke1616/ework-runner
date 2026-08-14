@@ -80,8 +80,8 @@ message ExecutionNotificationRule {
   repeated ealert.notification.v1.RecipientSelector recipients = 2;
   // 通知投递渠道；每个渠道必须在模板集中配置已发布模板。
   repeated ealert.notification.v1.Channel channels = 3;
-  // 模板集稳定业务 key；内置模板使用 etask.task.execution.completed。
-  string template_set_key = 4;
+  // 模板集 ID；传 0 表示使用 ETask 内置默认模板集。
+  int64 template_set_id = 4;
   // 是否启用该规则。
   bool enabled = 5;
 }

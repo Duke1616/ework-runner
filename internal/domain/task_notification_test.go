@@ -9,8 +9,8 @@ import (
 
 func TestTaskValidateNotificationRules(t *testing.T) {
 	valid := ExecutionNotificationRule{
-		TriggerStatus:  TaskExecutionStatusSuccess,
-		TemplateSetKey: "custom.task",
+		TriggerStatus: TaskExecutionStatusSuccess,
+		TemplateSetID: 42,
 		Recipients: []NotificationRecipient{{
 			Type: NotificationRecipientUser, TargetIDs: []int64{10},
 		}},

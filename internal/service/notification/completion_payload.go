@@ -14,12 +14,15 @@ import (
 
 // buildDispatchNotificationRequest 将领域通知规则和执行快照组装为 EAlert 请求。
 func buildDispatchNotificationRequest(rule domain.ExecutionNotificationRule,
-	execution domain.TaskExecution) (*notificationv1.DispatchNotificationRequest, error) {
+	execution domain.TaskExecution, templateSetID int64) (*notificationv1.DispatchNotificationRequest, error) {
 	if err := validateExecutionSnapshot(execution); err != nil {
 		return nil, err
 	}
 	if err := rule.Validate(); err != nil {
 		return nil, fmt.Errorf("任务执行通知规则无效: %w", err)
+	}
+	if templateSetID <= 0 {
+		return nil, fmt.Errorf("任务执行通知缺少有效的模板集 ID")
 	}
 
 	templateParams, err := buildCompletionTemplateParams(execution)
@@ -32,7 +35,7 @@ func buildDispatchNotificationRequest(rule domain.ExecutionNotificationRule,
 		IdempotencyKey: fmt.Sprintf("etask:execution:%d:completed", execution.ID),
 		Recipients:     toProtoRecipients(rule.Recipients),
 		Channels:       toProtoChannels(rule.Channels),
-		TemplateSetKey: rule.TemplateSetKey,
+		TemplateSetId:  templateSetID,
 		TemplateParams: templateParams,
 	}, nil
 }

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	notificationv1 "github.com/Duke1616/etask/api/proto/gen/ealert/notification/v1"
+	templatev1 "github.com/Duke1616/etask/api/proto/gen/ealert/template/v1"
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -13,6 +14,16 @@ import (
 type notificationClientStub struct {
 	request *notificationv1.DispatchNotificationRequest
 	calls   int
+}
+
+type templateClientStub struct {
+	templatev1.TemplateServiceClient
+	response *templatev1.ResolveTemplateIDResponse
+}
+
+func (s *templateClientStub) ResolveTemplateID(_ context.Context, _ *templatev1.ResolveTemplateIDRequest,
+	_ ...grpc.CallOption) (*templatev1.ResolveTemplateIDResponse, error) {
+	return s.response, nil
 }
 
 func (s *notificationClientStub) DispatchNotification(_ context.Context,
@@ -29,9 +40,9 @@ func (s *notificationClientStub) DispatchNotification(_ context.Context,
 
 func TestEAlertCompletionNotifierBuildsExecutionSnapshot(t *testing.T) {
 	client := &notificationClientStub{}
-	notifier := NewEAlertCompletionNotifier(client)
+	notifier := NewEAlertCompletionNotifier(client, nil)
 	rule := domain.ExecutionNotificationRule{
-		TriggerStatus: domain.TaskExecutionStatusSuccess, TemplateSetKey: "custom.task", Enabled: true,
+		TriggerStatus: domain.TaskExecutionStatusSuccess, TemplateSetID: 42, Enabled: true,
 		Recipients: []domain.NotificationRecipient{{
 			Type: domain.NotificationRecipientUser, TargetIDs: []int64{101, 102},
 		}},
@@ -53,8 +64,8 @@ func TestEAlertCompletionNotifierBuildsExecutionSnapshot(t *testing.T) {
 	require.Equal(t, 1, client.calls)
 	require.Equal(t, notificationv1.Business_TASK, client.request.GetBusiness())
 	require.Equal(t, "etask:execution:40:completed", client.request.GetIdempotencyKey())
-	require.Equal(t, "custom.task", client.request.GetTemplateSetKey())
-	require.Zero(t, client.request.GetTemplateSetId())
+	require.Equal(t, int64(42), client.request.GetTemplateSetId())
+	require.Empty(t, client.request.GetTemplateSetKey())
 	require.Equal(t, []int64{101, 102}, client.request.GetRecipients()[0].GetTargetIds())
 	params := client.request.GetTemplateParams().AsMap()
 	require.Equal(t, "[任务通知] 任务 snapshot-name 执行成功", params["Subject"])
@@ -68,8 +79,8 @@ func TestEAlertCompletionNotifierBuildsExecutionSnapshot(t *testing.T) {
 
 func TestEAlertCompletionNotifierRejectsMissingTaskSnapshot(t *testing.T) {
 	client := &notificationClientStub{}
-	notifier := NewEAlertCompletionNotifier(client)
-	rule := domain.ExecutionNotificationRule{TemplateSetKey: "custom.task", Enabled: true}
+	notifier := NewEAlertCompletionNotifier(client, nil)
+	rule := domain.ExecutionNotificationRule{TemplateSetID: 42, Enabled: true}
 
 	err := notifier.Notify(t.Context(), rule, domain.TaskExecution{ID: 40})
 
@@ -79,10 +90,11 @@ func TestEAlertCompletionNotifierRejectsMissingTaskSnapshot(t *testing.T) {
 
 func TestEAlertCompletionNotifierResolvesBuiltinTemplate(t *testing.T) {
 	client := &notificationClientStub{}
-	notifier := NewEAlertCompletionNotifier(client)
+	templateClient := &templateClientStub{response: &templatev1.ResolveTemplateIDResponse{TemplateSetId: 99}}
+	notifier := NewEAlertCompletionNotifier(client, templateClient)
 	rule := domain.ExecutionNotificationRule{
-		TriggerStatus:  domain.TaskExecutionStatusSuccess,
-		TemplateSetKey: BuiltinTaskExecutionTemplateSetKey,
+		TriggerStatus: domain.TaskExecutionStatusSuccess,
+		TemplateSetID: 0,
 		Recipients: []domain.NotificationRecipient{{
 			Type: domain.NotificationRecipientUser, TargetIDs: []int64{101},
 		}},
@@ -96,7 +108,8 @@ func TestEAlertCompletionNotifierResolvesBuiltinTemplate(t *testing.T) {
 	}
 
 	require.NoError(t, notifier.Notify(t.Context(), rule, execution))
-	require.Equal(t, BuiltinTaskExecutionTemplateSetKey, client.request.GetTemplateSetKey())
+	require.Equal(t, int64(99), client.request.GetTemplateSetId())
+	require.Empty(t, client.request.GetTemplateSetKey())
 }
 
 func TestValidateDispatchNotificationResponse(t *testing.T) {

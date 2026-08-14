@@ -643,8 +643,8 @@ type ExecutionNotificationRule struct {
 	Recipients []*v11.RecipientSelector `protobuf:"bytes,2,rep,name=recipients,proto3" json:"recipients,omitempty"`
 	// 通知投递渠道；每个渠道必须在模板集中配置已发布模板。
 	Channels []v11.Channel `protobuf:"varint,3,rep,packed,name=channels,proto3,enum=ealert.notification.v1.Channel" json:"channels,omitempty"`
-	// 模板集稳定业务 key；内置模板使用 etask.task.execution.completed。
-	TemplateSetKey string `protobuf:"bytes,4,opt,name=template_set_key,json=templateSetKey,proto3" json:"template_set_key,omitempty"`
+	// 模板集 ID；传 0 表示使用 ETask 内置默认模板集。
+	TemplateSetId int64 `protobuf:"varint,4,opt,name=template_set_id,json=templateSetId,proto3" json:"template_set_id,omitempty"`
 	// 是否启用该规则。
 	Enabled       bool `protobuf:"varint,5,opt,name=enabled,proto3" json:"enabled,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -702,11 +702,11 @@ func (x *ExecutionNotificationRule) GetChannels() []v11.Channel {
 	return nil
 }
 
-func (x *ExecutionNotificationRule) GetTemplateSetKey() string {
+func (x *ExecutionNotificationRule) GetTemplateSetId() int64 {
 	if x != nil {
-		return x.TemplateSetKey
+		return x.TemplateSetId
 	}
-	return ""
+	return 0
 }
 
 func (x *ExecutionNotificationRule) GetEnabled() bool {
@@ -1396,14 +1396,14 @@ const file_etask_task_v1_task_proto_rawDesc = "" +
 	"\vmax_retries\x18\x01 \x01(\x05R\n" +
 	"maxRetries\x12)\n" +
 	"\x10initial_interval\x18\x02 \x01(\x03R\x0finitialInterval\x12!\n" +
-	"\fmax_interval\x18\x03 \x01(\x03R\vmaxInterval\"\xb2\x02\n" +
+	"\fmax_interval\x18\x03 \x01(\x03R\vmaxInterval\"\xb0\x02\n" +
 	"\x19ExecutionNotificationRule\x12I\n" +
 	"\x0etrigger_status\x18\x01 \x01(\x0e2\".etask.executor.v1.ExecutionStatusR\rtriggerStatus\x12I\n" +
 	"\n" +
 	"recipients\x18\x02 \x03(\v2).ealert.notification.v1.RecipientSelectorR\n" +
 	"recipients\x12;\n" +
-	"\bchannels\x18\x03 \x03(\x0e2\x1f.ealert.notification.v1.ChannelR\bchannels\x12(\n" +
-	"\x10template_set_key\x18\x04 \x01(\tR\x0etemplateSetKey\x12\x18\n" +
+	"\bchannels\x18\x03 \x03(\x0e2\x1f.ealert.notification.v1.ChannelR\bchannels\x12&\n" +
+	"\x0ftemplate_set_id\x18\x04 \x01(\x03R\rtemplateSetId\x12\x18\n" +
 	"\aenabled\x18\x05 \x01(\bR\aenabled\"\x9c\b\n" +
 	"\x04Task\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +

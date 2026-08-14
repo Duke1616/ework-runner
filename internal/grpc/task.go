@@ -219,11 +219,11 @@ func toDomainExecutionNotification(rule *taskv1.ExecutionNotificationRule, _ int
 		return domain.ExecutionNotificationRule{}
 	}
 	return domain.ExecutionNotificationRule{
-		TriggerStatus:  domain.TaskExecutionStatusFromProto(rule.GetTriggerStatus()),
-		TemplateSetKey: rule.GetTemplateSetKey(),
-		Enabled:        rule.GetEnabled(),
-		Recipients:     lo.Map(rule.GetRecipients(), toDomainNotificationRecipient),
-		Channels:       lo.Map(rule.GetChannels(), toDomainNotificationChannel),
+		TriggerStatus: domain.TaskExecutionStatusFromProto(rule.GetTriggerStatus()),
+		TemplateSetID: rule.GetTemplateSetId(),
+		Enabled:       rule.GetEnabled(),
+		Recipients:    lo.Map(rule.GetRecipients(), toDomainNotificationRecipient),
+		Channels:      lo.Map(rule.GetChannels(), toDomainNotificationChannel),
 	}
 }
 
@@ -243,11 +243,11 @@ func toDomainNotificationChannel(channel notificationv1.Channel, _ int) domain.N
 
 func toProtoExecutionNotification(rule domain.ExecutionNotificationRule, _ int) *taskv1.ExecutionNotificationRule {
 	return &taskv1.ExecutionNotificationRule{
-		TriggerStatus:  toProtoExecutionStatus(rule.TriggerStatus),
-		TemplateSetKey: rule.TemplateSetKey,
-		Enabled:        rule.Enabled,
-		Recipients:     lo.Map(rule.Recipients, toProtoNotificationRecipient),
-		Channels:       lo.Map(rule.Channels, toProtoNotificationChannel),
+		TriggerStatus: toProtoExecutionStatus(rule.TriggerStatus),
+		TemplateSetId: rule.TemplateSetID,
+		Enabled:       rule.Enabled,
+		Recipients:    lo.Map(rule.Recipients, toProtoNotificationRecipient),
+		Channels:      lo.Map(rule.Channels, toProtoNotificationChannel),
 	}
 }
 

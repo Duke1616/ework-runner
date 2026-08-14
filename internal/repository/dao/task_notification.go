@@ -11,16 +11,16 @@ import (
 
 // TaskExecutionNotificationRule 保存任务执行终态对应的消息通知规则。
 type TaskExecutionNotificationRule struct {
-	ID             int64                                           `gorm:"type:bigint;primaryKey;autoIncrement"`
-	TenantID       int64                                           `gorm:"type:bigint unsigned;not null;uniqueIndex:uk_task_notification_status,priority:1;index:idx_task_notification,priority:1;comment:'租户ID'"`
-	TaskID         int64                                           `gorm:"type:bigint;not null;uniqueIndex:uk_task_notification_status,priority:2;index:idx_task_notification,priority:2;comment:'任务ID'"`
-	TriggerStatus  string                                          `gorm:"type:varchar(32);not null;uniqueIndex:uk_task_notification_status,priority:3;comment:'触发通知的执行终态'"`
-	TemplateSetKey string                                          `gorm:"type:varchar(128);not null;comment:'模板集稳定业务key'"`
-	Recipients     sqlx.JSONColumn[[]domain.NotificationRecipient] `gorm:"type:json;not null;comment:'接收对象规则'"`
-	Channels       sqlx.JSONColumn[[]domain.NotificationChannel]   `gorm:"type:json;not null;comment:'投递渠道'"`
-	Enabled        bool                                            `gorm:"not null;comment:'是否启用'"`
-	Ctime          int64                                           `gorm:"comment:'创建时间'"`
-	Utime          int64                                           `gorm:"comment:'更新时间'"`
+	ID            int64                                           `gorm:"type:bigint;primaryKey;autoIncrement"`
+	TenantID      int64                                           `gorm:"type:bigint unsigned;not null;uniqueIndex:uk_task_notification_status,priority:1;index:idx_task_notification,priority:1;comment:'租户ID'"`
+	TaskID        int64                                           `gorm:"type:bigint;not null;uniqueIndex:uk_task_notification_status,priority:2;index:idx_task_notification,priority:2;comment:'任务ID'"`
+	TriggerStatus string                                          `gorm:"type:varchar(32);not null;uniqueIndex:uk_task_notification_status,priority:3;comment:'触发通知的执行终态'"`
+	TemplateSetID int64                                           `gorm:"type:BIGINT;not null;default:0;comment:'模板集ID，0表示使用默认模板集'"`
+	Recipients    sqlx.JSONColumn[[]domain.NotificationRecipient] `gorm:"type:json;not null;comment:'接收对象规则'"`
+	Channels      sqlx.JSONColumn[[]domain.NotificationChannel]   `gorm:"type:json;not null;comment:'投递渠道'"`
+	Enabled       bool                                            `gorm:"not null;comment:'是否启用'"`
+	Ctime         int64                                           `gorm:"comment:'创建时间'"`
+	Utime         int64                                           `gorm:"comment:'更新时间'"`
 }
 
 // TableName 返回任务执行通知规则表名。

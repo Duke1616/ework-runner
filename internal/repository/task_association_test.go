@@ -69,7 +69,7 @@ func TestTaskRepositoryGetByNameBuildsAggregate(t *testing.T) {
 	}
 	notificationDAO := &taskAssociationNotificationDAOStub{
 		rules: []dao.TaskExecutionNotificationRule{{
-			TriggerStatus: "FAILED", TemplateSetKey: "custom.task", Enabled: true,
+			TriggerStatus: "FAILED", TemplateSetID: 42, Enabled: true,
 		}},
 	}
 	repo := NewTaskRepository(taskDAO, paramDAO, notificationDAO)
@@ -79,5 +79,5 @@ func TestTaskRepositoryGetByNameBuildsAggregate(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "region", task.ParamOverrideRules[0].ParamKey)
 	require.Equal(t, "cn", task.PendingParamOverrides["region"])
-	require.Equal(t, "custom.task", task.NotificationRules[0].TemplateSetKey)
+	require.Equal(t, int64(42), task.NotificationRules[0].TemplateSetID)
 }

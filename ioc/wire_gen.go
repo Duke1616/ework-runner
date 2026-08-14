@@ -160,11 +160,11 @@ func InitSchedulerApplication(base *Base) *SchedulerApplication {
 	terminationCompensator := InitTerminationCompensator(terminationService)
 	clientConn := InitEAlertClientConn(registry)
 	notificationServiceClient := InitEAlertNotificationClient(clientConn)
-	completionNotifier := notification.NewEAlertCompletionNotifier(notificationServiceClient)
+	templateServiceClient := InitEAlertTemplateClient(clientConn)
+	completionNotifier := notification.NewEAlertCompletionNotifier(notificationServiceClient, templateServiceClient)
 	completeConsumer := InitCompleteEventConsumer(mq, taskService, executionService, taskAcquirer, hubs, completionNotifier)
 	poolSyncer := pool.NewSyncer(executionPoolRepository, client)
 	agentEventConsumer := InitAgentEventConsumer(mq, executionService)
-	templateServiceClient := InitEAlertTemplateClient(clientConn)
 	templateBootstrapTask := notification.NewTemplateBootstrapTask(templateServiceClient)
 	v3 := InitTasks(retryCompensator, rescheduleCompensator, interruptCompensator, terminationCompensator, completeConsumer, poolSyncer, agentEventConsumer, hubs, templateBootstrapTask)
 	schedulerApplication := &SchedulerApplication{

@@ -2,7 +2,6 @@ package domain
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/Duke1616/etask/internal/errs"
 )
@@ -66,11 +65,11 @@ type NotificationRecipient struct {
 // ExecutionNotificationRule 定义一个执行终态对应的通知行为。
 // 规则由任务 ID 和 TriggerStatus 唯一标识，不对外暴露数据库行 ID。
 type ExecutionNotificationRule struct {
-	TriggerStatus  TaskExecutionStatus     `json:"trigger_status"`   // 触发通知的执行终态。
-	Recipients     []NotificationRecipient `json:"recipients"`       // 接收对象规则。
-	Channels       []NotificationChannel   `json:"channels"`         // 投递渠道。
-	TemplateSetKey string                  `json:"template_set_key"` // 模板集稳定业务 key，内置和自定义模板均通过该 key 标识。
-	Enabled        bool                    `json:"enabled"`          // 是否启用规则。
+	TriggerStatus TaskExecutionStatus     `json:"trigger_status"`  // 触发通知的执行终态。
+	Recipients    []NotificationRecipient `json:"recipients"`      // 接收对象规则。
+	Channels      []NotificationChannel   `json:"channels"`        // 投递渠道。
+	TemplateSetID int64                   `json:"template_set_id"` // 模板集 ID，0 表示使用 ETask 内置默认模板集。
+	Enabled       bool                    `json:"enabled"`         // 是否启用规则。
 }
 
 // EnabledNotificationRule 返回指定终态命中的启用规则。
@@ -105,12 +104,8 @@ func (r ExecutionNotificationRule) Validate() error {
 		return fmt.Errorf("%w: trigger_status 仅支持 FAILED、SUCCESS 和 CANCELLED: %s",
 			errs.ErrInvalidParameter, r.TriggerStatus)
 	}
-	templateSetKey := strings.TrimSpace(r.TemplateSetKey)
-	if templateSetKey == "" {
-		return fmt.Errorf("%w: template_set_key 不能为空", errs.ErrInvalidParameter)
-	}
-	if len(templateSetKey) > 128 {
-		return fmt.Errorf("%w: template_set_key 长度不能超过 128", errs.ErrInvalidParameter)
+	if r.TemplateSetID < 0 {
+		return fmt.Errorf("%w: template_set_id 不能为负数", errs.ErrInvalidParameter)
 	}
 	if len(r.Recipients) == 0 {
 		return fmt.Errorf("%w: recipients 不能为空", errs.ErrInvalidParameter)
@@ -135,6 +130,13 @@ func (r ExecutionNotificationRule) Validate() error {
 				errs.ErrInvalidParameter, channel)
 		}
 		channels[channel] = struct{}{}
+	}
+	if r.TemplateSetID == 0 {
+		for _, channel := range r.Channels {
+			if channel != NotificationChannelLarkCard {
+				return fmt.Errorf("%w: 默认模板集目前仅支持飞书卡片", errs.ErrInvalidParameter)
+			}
+		}
 	}
 	return nil
 }

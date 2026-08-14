@@ -402,9 +402,9 @@ func toDAOExecutionNotificationRules(
 	result := make([]dao.TaskExecutionNotificationRule, 0, len(rules))
 	for _, rule := range rules {
 		result = append(result, dao.TaskExecutionNotificationRule{
-			TriggerStatus:  rule.TriggerStatus.String(),
-			TemplateSetKey: rule.TemplateSetKey,
-			Enabled:        rule.Enabled,
+			TriggerStatus: rule.TriggerStatus.String(),
+			TemplateSetID: rule.TemplateSetID,
+			Enabled:       rule.Enabled,
 			Recipients: sqlx.JSONColumn[[]domain.NotificationRecipient]{
 				Val: rule.Recipients, Valid: true,
 			},
@@ -421,10 +421,10 @@ func toDomainExecutionNotificationRules(
 	result := make([]domain.ExecutionNotificationRule, 0, len(rules))
 	for _, rule := range rules {
 		result = append(result, domain.ExecutionNotificationRule{
-			TriggerStatus:  domain.TaskExecutionStatus(rule.TriggerStatus),
-			TemplateSetKey: rule.TemplateSetKey,
-			Enabled:        rule.Enabled,
-			Recipients:     rule.Recipients.Val, Channels: rule.Channels.Val,
+			TriggerStatus: domain.TaskExecutionStatus(rule.TriggerStatus),
+			TemplateSetID: rule.TemplateSetID,
+			Enabled:       rule.Enabled,
+			Recipients:    rule.Recipients.Val, Channels: rule.Channels.Val,
 		})
 	}
 	return result

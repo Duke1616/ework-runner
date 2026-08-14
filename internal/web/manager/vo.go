@@ -53,11 +53,11 @@ type RetryConfig struct {
 
 // ExecutionNotificationRule 定义一个任务执行终态对应的消息通知规则。
 type ExecutionNotificationRule struct {
-	TriggerStatus  string                  `json:"trigger_status"`   // FAILED、SUCCESS 或 CANCELLED。
-	Recipients     []NotificationRecipient `json:"recipients"`       // 接收对象规则。
-	Channels       []string                `json:"channels"`         // EAlert 投递渠道。
-	TemplateSetKey string                  `json:"template_set_key"` // 模板集稳定业务 key。
-	Enabled        bool                    `json:"enabled"`          // 是否启用规则。
+	TriggerStatus string                  `json:"trigger_status"`  // FAILED、SUCCESS 或 CANCELLED。
+	Recipients    []NotificationRecipient `json:"recipients"`      // 接收对象规则。
+	Channels      []string                `json:"channels"`        // EAlert 投递渠道。
+	TemplateSetID int64                   `json:"template_set_id"` // 模板集 ID，0 表示使用 ETask 内置默认模板集。
+	Enabled       bool                    `json:"enabled"`         // 是否启用规则。
 }
 
 // NotificationRecipient 保存接收对象类型及已标准化 ID。

@@ -504,11 +504,11 @@ func toNotificationVOs(src []domain.ExecutionNotificationRule) []ExecutionNotifi
 
 func toDomainNotification(rule ExecutionNotificationRule, _ int) domain.ExecutionNotificationRule {
 	return domain.ExecutionNotificationRule{
-		TriggerStatus:  domain.TaskExecutionStatus(rule.TriggerStatus),
-		TemplateSetKey: rule.TemplateSetKey,
-		Enabled:        rule.Enabled,
-		Channels:       lo.Map(rule.Channels, toDomainNotificationChannel),
-		Recipients:     lo.Map(rule.Recipients, toDomainNotificationRecipient),
+		TriggerStatus: domain.TaskExecutionStatus(rule.TriggerStatus),
+		TemplateSetID: rule.TemplateSetID,
+		Enabled:       rule.Enabled,
+		Channels:      lo.Map(rule.Channels, toDomainNotificationChannel),
+		Recipients:    lo.Map(rule.Recipients, toDomainNotificationRecipient),
 	}
 }
 
@@ -525,11 +525,11 @@ func toDomainNotificationRecipient(recipient NotificationRecipient, _ int) domai
 
 func toNotificationVO(rule domain.ExecutionNotificationRule, _ int) ExecutionNotificationRule {
 	return ExecutionNotificationRule{
-		TriggerStatus:  rule.TriggerStatus.String(),
-		TemplateSetKey: rule.TemplateSetKey,
-		Enabled:        rule.Enabled,
-		Channels:       lo.Map(rule.Channels, toNotificationChannel),
-		Recipients:     lo.Map(rule.Recipients, toNotificationRecipient),
+		TriggerStatus: rule.TriggerStatus.String(),
+		TemplateSetID: rule.TemplateSetID,
+		Enabled:       rule.Enabled,
+		Channels:      lo.Map(rule.Channels, toNotificationChannel),
+		Recipients:    lo.Map(rule.Recipients, toNotificationRecipient),
 	}
 }
 
