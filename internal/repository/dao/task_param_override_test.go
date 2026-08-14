@@ -32,14 +32,15 @@ func newTaskOverrideDryRunDB(t *testing.T) (*gorm.DB, *sqlRecorder) {
 
 func TestTaskOverrideQueriesUseTenantPlugin(t *testing.T) {
 	db, recorder := newTaskOverrideDryRunDB(t)
-	dao := &GORMTaskDAO{db: db}
+	overrideDAO := &GORMTaskParamOverrideDAO{db: db}
 	ctx := ctxutil.WithTenantID(t.Context(), 9)
-	task := Task{ID: 7}
 
-	require.NoError(t, dao.loadOverrideRules(ctx, &task))
+	_, err := overrideDAO.FindRulesByTaskID(ctx, 7)
+	require.NoError(t, err)
 	require.Contains(t, recorder.statement[strings.Index(recorder.statement, "WHERE"):], "tenant_id")
 
-	require.NoError(t, dao.loadPendingParamOverrides(ctx, &task))
+	_, _, err = overrideDAO.FindPendingByTaskID(ctx, 7)
+	require.NoError(t, err)
 	require.Contains(t, recorder.statement[strings.Index(recorder.statement, "WHERE"):], "tenant_id")
 }
 

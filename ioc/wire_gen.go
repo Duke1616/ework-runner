@@ -14,6 +14,7 @@ import (
 	"github.com/Duke1616/etask/internal/service/artifact"
 	"github.com/Duke1616/etask/internal/service/codeassist"
 	"github.com/Duke1616/etask/internal/service/codebook"
+	"github.com/Duke1616/etask/internal/service/notification"
 	"github.com/Duke1616/etask/internal/service/pool"
 	"github.com/Duke1616/etask/internal/service/preview"
 	"github.com/Duke1616/etask/internal/service/program"
@@ -68,7 +69,9 @@ func InitSchedulerApplication(base *Base) *SchedulerApplication {
 	v2 := InitProviders()
 	db := InitDB()
 	taskDAO := dao.NewGORMTaskDAO(db)
-	taskRepository := repository.NewTaskRepository(taskDAO)
+	taskParamOverrideDAO := dao.NewGORMTaskParamOverrideDAO(db)
+	taskNotificationRuleDAO := dao.NewGORMTaskNotificationRuleDAO(db)
+	taskRepository := repository.NewTaskRepository(taskDAO, taskParamOverrideDAO, taskNotificationRuleDAO)
 	executionPoolDAO := dao.NewGORMExecutionPoolDAO(db)
 	executionPoolRepository := repository.NewExecutionPoolRepository(executionPoolDAO)
 	executionPoolBindingDAO := dao.NewGORMExecutionPoolBindingDAO(db)
@@ -155,10 +158,15 @@ func InitSchedulerApplication(base *Base) *SchedulerApplication {
 	rescheduleCompensator := InitRescheduleCompensator(dispatcher, executionService)
 	interruptCompensator := InitInterruptCompensator(clients, executionService)
 	terminationCompensator := InitTerminationCompensator(terminationService)
-	completeConsumer := InitCompleteEventConsumer(mq, taskService, executionService, taskAcquirer, hubs)
+	clientConn := InitEAlertClientConn(registry)
+	notificationServiceClient := InitEAlertNotificationClient(clientConn)
+	completionNotifier := notification.NewEAlertCompletionNotifier(notificationServiceClient)
+	completeConsumer := InitCompleteEventConsumer(mq, taskService, executionService, taskAcquirer, hubs, completionNotifier)
 	poolSyncer := pool.NewSyncer(executionPoolRepository, client)
 	agentEventConsumer := InitAgentEventConsumer(mq, executionService)
-	v3 := InitTasks(retryCompensator, rescheduleCompensator, interruptCompensator, terminationCompensator, completeConsumer, poolSyncer, agentEventConsumer, hubs)
+	templateServiceClient := InitEAlertTemplateClient(clientConn)
+	templateBootstrapTask := notification.NewTemplateBootstrapTask(templateServiceClient)
+	v3 := InitTasks(retryCompensator, rescheduleCompensator, interruptCompensator, terminationCompensator, completeConsumer, poolSyncer, agentEventConsumer, hubs, templateBootstrapTask)
 	schedulerApplication := &SchedulerApplication{
 		Web:       component,
 		GRPC:      server,

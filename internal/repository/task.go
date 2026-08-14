@@ -52,15 +52,23 @@ type TaskRepository interface {
 }
 
 type taskRepository struct {
-	dao dao.TaskDAO
+	taskDAO             dao.TaskDAO
+	paramOverrideDAO    dao.TaskParamOverrideDAO
+	notificationRuleDAO dao.TaskNotificationRuleDAO
 }
 
-func NewTaskRepository(taskDAO dao.TaskDAO) TaskRepository {
-	return &taskRepository{dao: taskDAO}
+// NewTaskRepository 创建负责重建 Task 聚合的仓储。
+func NewTaskRepository(taskDAO dao.TaskDAO, paramOverrideDAO dao.TaskParamOverrideDAO,
+	notificationRuleDAO dao.TaskNotificationRuleDAO) TaskRepository {
+	return &taskRepository{
+		taskDAO:             taskDAO,
+		paramOverrideDAO:    paramOverrideDAO,
+		notificationRuleDAO: notificationRuleDAO,
+	}
 }
 
 func (r *taskRepository) FindByPlanID(ctx context.Context, planID int64) ([]domain.Task, error) {
-	daoTasks, err := r.dao.FindByPlanID(ctx, planID)
+	daoTasks, err := r.taskDAO.FindByPlanID(ctx, planID)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +78,7 @@ func (r *taskRepository) FindByPlanID(ctx context.Context, planID int64) ([]doma
 }
 
 func (r *taskRepository) Create(ctx context.Context, task domain.Task) (domain.Task, error) {
-	created, err := r.dao.Create(ctx, r.toEntity(task))
+	created, err := r.taskDAO.Create(ctx, r.toEntity(task))
 	if err != nil {
 		return domain.Task{}, err
 	}
@@ -78,23 +86,52 @@ func (r *taskRepository) Create(ctx context.Context, task domain.Task) (domain.T
 }
 
 func (r *taskRepository) GetByID(ctx context.Context, id int64) (domain.Task, error) {
-	daoTask, err := r.dao.GetByID(ctx, id)
+	daoTask, err := r.taskDAO.GetByID(ctx, id)
 	if err != nil {
+		return domain.Task{}, err
+	}
+	if err = r.loadTaskAssociations(ctx, daoTask); err != nil {
 		return domain.Task{}, err
 	}
 	return r.toDomain(daoTask), nil
 }
 
 func (r *taskRepository) GetByName(ctx context.Context, name string) (domain.Task, error) {
-	daoTask, err := r.dao.GetByName(ctx, name)
+	daoTask, err := r.taskDAO.GetByName(ctx, name)
 	if err != nil {
+		return domain.Task{}, err
+	}
+	if err = r.loadTaskAssociations(ctx, daoTask); err != nil {
 		return domain.Task{}, err
 	}
 	return r.toDomain(daoTask), nil
 }
 
+// loadTaskAssociations 加载并装配单个 Task 聚合的关联配置。
+func (r *taskRepository) loadTaskAssociations(ctx context.Context, task *dao.Task) error {
+	overrideRules, err := r.paramOverrideDAO.FindRulesByTaskID(ctx, task.ID)
+	if err != nil {
+		return err
+	}
+	notificationRules, err := r.notificationRuleDAO.FindByTaskID(ctx, task.ID)
+	if err != nil {
+		return err
+	}
+	pending, exists, err := r.paramOverrideDAO.FindPendingByTaskID(ctx, task.ID)
+	if err != nil {
+		return err
+	}
+
+	task.ParamOverrideRules = overrideRules
+	task.NotificationRules = notificationRules
+	if exists {
+		task.PendingParamOverrides = pending.Overrides
+	}
+	return nil
+}
+
 func (r *taskRepository) SchedulableTasks(ctx context.Context, preemptedTimeoutMs int64, limit int) ([]domain.Task, error) {
-	tasks, err := r.dao.FindScheduleTasks(ctx, preemptedTimeoutMs, limit)
+	tasks, err := r.taskDAO.FindScheduleTasks(ctx, preemptedTimeoutMs, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +141,7 @@ func (r *taskRepository) SchedulableTasks(ctx context.Context, preemptedTimeoutM
 }
 
 func (r *taskRepository) Acquire(ctx context.Context, id, version int64, scheduleNodeID string) (domain.Task, error) {
-	task, err := r.dao.Acquire(ctx, id, version, scheduleNodeID)
+	task, err := r.taskDAO.Acquire(ctx, id, version, scheduleNodeID)
 	if err != nil {
 		return domain.Task{}, err
 	}
@@ -112,7 +149,7 @@ func (r *taskRepository) Acquire(ctx context.Context, id, version int64, schedul
 }
 
 func (r *taskRepository) Release(ctx context.Context, id int64, scheduleNodeID string) (domain.Task, error) {
-	task, err := r.dao.Release(ctx, id, scheduleNodeID)
+	task, err := r.taskDAO.Release(ctx, id, scheduleNodeID)
 	if err != nil {
 		return domain.Task{}, err
 	}
@@ -120,11 +157,11 @@ func (r *taskRepository) Release(ctx context.Context, id int64, scheduleNodeID s
 }
 
 func (r *taskRepository) Renew(ctx context.Context, scheduleNodeID string) error {
-	return r.dao.Renew(ctx, scheduleNodeID)
+	return r.taskDAO.Renew(ctx, scheduleNodeID)
 }
 
 func (r *taskRepository) UpdateNextTime(ctx context.Context, id, version, nextTime int64) (domain.Task, error) {
-	task, err := r.dao.UpdateNextTime(ctx, id, version, nextTime)
+	task, err := r.taskDAO.UpdateNextTime(ctx, id, version, nextTime)
 	if err != nil {
 		return domain.Task{}, err
 	}
@@ -132,7 +169,7 @@ func (r *taskRepository) UpdateNextTime(ctx context.Context, id, version, nextTi
 }
 
 func (r *taskRepository) UpdateScheduleParams(ctx context.Context, id, version int64, scheduleParams map[string]string) (domain.Task, error) {
-	task, err := r.dao.UpdateScheduleParams(ctx, id, version, scheduleParams)
+	task, err := r.taskDAO.UpdateScheduleParams(ctx, id, version, scheduleParams)
 	if err != nil {
 		return domain.Task{}, err
 	}
@@ -141,7 +178,7 @@ func (r *taskRepository) UpdateScheduleParams(ctx context.Context, id, version i
 
 // UpdateStatus 更新任务状态
 func (r *taskRepository) UpdateStatus(ctx context.Context, id int64, status domain.TaskStatus) (domain.Task, error) {
-	task, err := r.dao.UpdateStatus(ctx, id, status.String())
+	task, err := r.taskDAO.UpdateStatus(ctx, id, status.String())
 	if err != nil {
 		return domain.Task{}, err
 	}
@@ -150,22 +187,22 @@ func (r *taskRepository) UpdateStatus(ctx context.Context, id int64, status doma
 
 func (r *taskRepository) Start(ctx context.Context, id int64,
 	paramOverrides map[string]string) error {
-	return r.dao.Start(ctx, id, paramOverrides)
+	return r.taskDAO.Start(ctx, id, paramOverrides)
 }
 
 // ResetSchedule 重置一次性任务的调度信息，并保存该次执行的参数覆盖。
 func (r *taskRepository) ResetSchedule(ctx context.Context, task domain.Task,
 	paramOverrides map[string]string) error {
-	return r.dao.ResetSchedule(ctx, r.toEntity(task), paramOverrides)
+	return r.taskDAO.ResetSchedule(ctx, r.toEntity(task), paramOverrides)
 }
 
 // UpdateExecMode 更新任务的执行模式快照
 func (r *taskRepository) UpdateExecMode(ctx context.Context, id int64, mode domain.ExecMode) error {
-	return r.dao.UpdateExecMode(ctx, id, mode.String())
+	return r.taskDAO.UpdateExecMode(ctx, id, mode.String())
 }
 
 func (r *taskRepository) Retry(ctx context.Context, id, version, nextTime int64) (domain.Task, error) {
-	task, err := r.dao.Retry(ctx, id, version, nextTime)
+	task, err := r.taskDAO.Retry(ctx, id, version, nextTime)
 	if err != nil {
 		return domain.Task{}, err
 	}
@@ -173,8 +210,11 @@ func (r *taskRepository) Retry(ctx context.Context, id, version, nextTime int64)
 }
 
 func (r *taskRepository) List(ctx context.Context, bizID int64, offset, limit int) ([]domain.Task, error) {
-	tasks, err := r.dao.List(ctx, bizID, offset, limit)
+	tasks, err := r.taskDAO.List(ctx, bizID, offset, limit)
 	if err != nil {
+		return nil, err
+	}
+	if err = r.loadNotificationRules(ctx, tasks); err != nil {
 		return nil, err
 	}
 	return slice.Map(tasks, func(_ int, src *dao.Task) domain.Task {
@@ -182,16 +222,39 @@ func (r *taskRepository) List(ctx context.Context, bizID int64, offset, limit in
 	}), nil
 }
 
+// loadNotificationRules 批量加载并装配任务列表中的执行通知规则。
+func (r *taskRepository) loadNotificationRules(ctx context.Context, tasks []*dao.Task) error {
+	taskByID := make(map[int64]*dao.Task, len(tasks))
+	taskIDs := make([]int64, 0, len(tasks))
+	for _, task := range tasks {
+		if task == nil {
+			continue
+		}
+		taskByID[task.ID] = task
+		taskIDs = append(taskIDs, task.ID)
+	}
+	rules, err := r.notificationRuleDAO.FindByTaskIDs(ctx, taskIDs)
+	if err != nil {
+		return err
+	}
+	for _, rule := range rules {
+		if task := taskByID[rule.TaskID]; task != nil {
+			task.NotificationRules = append(task.NotificationRules, rule)
+		}
+	}
+	return nil
+}
+
 func (r *taskRepository) Count(ctx context.Context, bizID int64) (int64, error) {
-	return r.dao.Count(ctx, bizID)
+	return r.taskDAO.Count(ctx, bizID)
 }
 
 func (r *taskRepository) Update(ctx context.Context, task domain.Task) error {
-	return r.dao.Update(ctx, r.toEntity(task))
+	return r.taskDAO.Update(ctx, r.toEntity(task))
 }
 
 func (r *taskRepository) Delete(ctx context.Context, id int64) error {
-	return r.dao.Delete(ctx, id)
+	return r.taskDAO.Delete(ctx, id)
 }
 
 // toEntity 将领域模型转换为DAO模型
@@ -259,6 +322,7 @@ func (r *taskRepository) toEntity(task domain.Task) dao.Task {
 		Utime:               task.UTime,
 		ExecMode:            task.ExecMode.String(),
 		Metadata:            metadata,
+		NotificationRules:   toDAOExecutionNotificationRules(task.NotificationRules),
 		ParamOverrideRules:  toDAOOverrideRules(task.ParamOverrideRules),
 	}
 }
@@ -327,9 +391,43 @@ func (r *taskRepository) toDomain(daoTask *dao.Task) domain.Task {
 		CTime:                 daoTask.Ctime,
 		ExecMode:              domain.ExecMode(daoTask.ExecMode),
 		Metadata:              metadata,
+		NotificationRules:     toDomainExecutionNotificationRules(daoTask.NotificationRules),
 		PendingParamOverrides: daoTask.PendingParamOverrides.Val,
 		ParamOverrideRules:    toDomainOverrideRules(daoTask.ParamOverrideRules),
 	}
+}
+
+func toDAOExecutionNotificationRules(
+	rules []domain.ExecutionNotificationRule) []dao.TaskExecutionNotificationRule {
+	result := make([]dao.TaskExecutionNotificationRule, 0, len(rules))
+	for _, rule := range rules {
+		result = append(result, dao.TaskExecutionNotificationRule{
+			TriggerStatus:  rule.TriggerStatus.String(),
+			TemplateSetKey: rule.TemplateSetKey,
+			Enabled:        rule.Enabled,
+			Recipients: sqlx.JSONColumn[[]domain.NotificationRecipient]{
+				Val: rule.Recipients, Valid: true,
+			},
+			Channels: sqlx.JSONColumn[[]domain.NotificationChannel]{
+				Val: rule.Channels, Valid: true,
+			},
+		})
+	}
+	return result
+}
+
+func toDomainExecutionNotificationRules(
+	rules []dao.TaskExecutionNotificationRule) []domain.ExecutionNotificationRule {
+	result := make([]domain.ExecutionNotificationRule, 0, len(rules))
+	for _, rule := range rules {
+		result = append(result, domain.ExecutionNotificationRule{
+			TriggerStatus:  domain.TaskExecutionStatus(rule.TriggerStatus),
+			TemplateSetKey: rule.TemplateSetKey,
+			Enabled:        rule.Enabled,
+			Recipients:     rule.Recipients.Val, Channels: rule.Channels.Val,
+		})
+	}
+	return result
 }
 
 func toDAOOverrideRules(rules []domain.TaskParamOverrideRule) []dao.TaskParamOverrideRule {

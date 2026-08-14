@@ -5,12 +5,15 @@ import (
 	"errors"
 	"strings"
 
+	notificationv1 "github.com/Duke1616/etask/api/proto/gen/ealert/notification/v1"
+	executorv1 "github.com/Duke1616/etask/api/proto/gen/etask/executor/v1"
 	taskv1 "github.com/Duke1616/etask/api/proto/gen/etask/task/v1"
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/errs"
 	"github.com/Duke1616/etask/internal/service/task"
 	"github.com/Duke1616/etask/pkg/grpc/interceptors/bizid"
 	"github.com/gotomicro/ego/core/elog"
+	"github.com/samber/lo"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"gorm.io/gorm"
@@ -79,6 +82,7 @@ func (s *TaskServer) toDomainTask(bizID int64, req *taskv1.CreateTaskRequest) do
 		Metadata:            req.GetMetadata(),
 		Program:             s.toDomainProgramSpec(req.GetProgram()),
 		RunnerID:            req.GetRunnerId(),
+		NotificationRules:   s.toDomainExecutionNotifications(req.GetExecutionNotifications()),
 		Status:              domain.TaskStatusActive,
 		Version:             1,
 	}
@@ -177,25 +181,98 @@ func (s *TaskServer) convertToTaskErrorCode(err error) taskv1.TaskErrorCode {
 // toProtoTask 将 domain.Task 转换为 protobuf Task
 func (s *TaskServer) toProtoTask(t domain.Task) *taskv1.Task {
 	return &taskv1.Task{
-		Id:                  t.ID,
-		Name:                t.Name,
-		Type:                s.toProtoTaskType(t.Type),
-		CronExpr:            t.CronExpr,
-		MaxExecutionSeconds: t.MaxExecutionSeconds,
-		ScheduleNodeId:      t.ScheduleNodeID,
-		ScheduleParams:      t.ScheduleParams,
-		NextTime:            t.NextTime,
-		Status:              s.toProtoTaskStatus(t.Status),
-		Version:             t.Version,
-		Ctime:               t.CTime,
-		Utime:               t.UTime,
-		ExecMode:            t.ExecMode.ToProto(),
-		Metadata:            t.Metadata,
-		Program:             s.toProtoProgramSpec(t.Program),
-		RunnerId:            t.RunnerID,
-		GrpcConfig:          s.toProtoGrpcConfig(t.GrpcConfig),
-		HttpConfig:          s.toProtoHTTPConfig(t.HTTPConfig),
-		RetryConfig:         s.toProtoRetryConfig(t.RetryConfig),
+		Id:                     t.ID,
+		Name:                   t.Name,
+		Type:                   s.toProtoTaskType(t.Type),
+		CronExpr:               t.CronExpr,
+		MaxExecutionSeconds:    t.MaxExecutionSeconds,
+		ScheduleNodeId:         t.ScheduleNodeID,
+		ScheduleParams:         t.ScheduleParams,
+		NextTime:               t.NextTime,
+		Status:                 s.toProtoTaskStatus(t.Status),
+		Version:                t.Version,
+		Ctime:                  t.CTime,
+		Utime:                  t.UTime,
+		ExecMode:               t.ExecMode.ToProto(),
+		Metadata:               t.Metadata,
+		Program:                s.toProtoProgramSpec(t.Program),
+		RunnerId:               t.RunnerID,
+		GrpcConfig:             s.toProtoGrpcConfig(t.GrpcConfig),
+		HttpConfig:             s.toProtoHTTPConfig(t.HTTPConfig),
+		RetryConfig:            s.toProtoRetryConfig(t.RetryConfig),
+		ExecutionNotifications: s.toProtoExecutionNotifications(t.NotificationRules),
+	}
+}
+
+func (s *TaskServer) toDomainExecutionNotifications(
+	rules []*taskv1.ExecutionNotificationRule) []domain.ExecutionNotificationRule {
+	return lo.Map(rules, toDomainExecutionNotification)
+}
+
+func (s *TaskServer) toProtoExecutionNotifications(
+	rules []domain.ExecutionNotificationRule) []*taskv1.ExecutionNotificationRule {
+	return lo.Map(rules, toProtoExecutionNotification)
+}
+
+func toDomainExecutionNotification(rule *taskv1.ExecutionNotificationRule, _ int) domain.ExecutionNotificationRule {
+	if rule == nil {
+		return domain.ExecutionNotificationRule{}
+	}
+	return domain.ExecutionNotificationRule{
+		TriggerStatus:  domain.TaskExecutionStatusFromProto(rule.GetTriggerStatus()),
+		TemplateSetKey: rule.GetTemplateSetKey(),
+		Enabled:        rule.GetEnabled(),
+		Recipients:     lo.Map(rule.GetRecipients(), toDomainNotificationRecipient),
+		Channels:       lo.Map(rule.GetChannels(), toDomainNotificationChannel),
+	}
+}
+
+func toDomainNotificationRecipient(recipient *notificationv1.RecipientSelector, _ int) domain.NotificationRecipient {
+	if recipient == nil {
+		return domain.NotificationRecipient{}
+	}
+	return domain.NotificationRecipient{
+		Type:      domain.NotificationRecipientType(recipient.GetType().String()),
+		TargetIDs: recipient.GetTargetIds(),
+	}
+}
+
+func toDomainNotificationChannel(channel notificationv1.Channel, _ int) domain.NotificationChannel {
+	return domain.NotificationChannel(channel.String())
+}
+
+func toProtoExecutionNotification(rule domain.ExecutionNotificationRule, _ int) *taskv1.ExecutionNotificationRule {
+	return &taskv1.ExecutionNotificationRule{
+		TriggerStatus:  toProtoExecutionStatus(rule.TriggerStatus),
+		TemplateSetKey: rule.TemplateSetKey,
+		Enabled:        rule.Enabled,
+		Recipients:     lo.Map(rule.Recipients, toProtoNotificationRecipient),
+		Channels:       lo.Map(rule.Channels, toProtoNotificationChannel),
+	}
+}
+
+func toProtoNotificationRecipient(recipient domain.NotificationRecipient, _ int) *notificationv1.RecipientSelector {
+	return &notificationv1.RecipientSelector{
+		Type: notificationv1.RecipientSelectorType(
+			notificationv1.RecipientSelectorType_value[string(recipient.Type)]),
+		TargetIds: recipient.TargetIDs,
+	}
+}
+
+func toProtoNotificationChannel(channel domain.NotificationChannel, _ int) notificationv1.Channel {
+	return notificationv1.Channel(notificationv1.Channel_value[string(channel)])
+}
+
+func toProtoExecutionStatus(status domain.TaskExecutionStatus) executorv1.ExecutionStatus {
+	switch status {
+	case domain.TaskExecutionStatusSuccess:
+		return executorv1.ExecutionStatus_SUCCESS
+	case domain.TaskExecutionStatusFailed:
+		return executorv1.ExecutionStatus_FAILED
+	case domain.TaskExecutionStatusCancelled:
+		return executorv1.ExecutionStatus_CANCELLED
+	default:
+		return executorv1.ExecutionStatus_UNKNOWN
 	}
 }
 

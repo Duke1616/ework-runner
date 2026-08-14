@@ -1,0 +1,97 @@
+{
+  "schema": "2.0",
+  "config": {
+    "wide_screen_mode": false,
+    "update_multi": true
+  },
+  "header": {
+    "template": "{{ if eq .Execution.Status `SUCCESS` }}green{{ else if eq .Execution.Status `FAILED` }}red{{ else }}grey{{ end }}",
+    "title": {
+      "tag": "plain_text",
+      "content": "{{ .Task.Name | escapeJSON }} 执行{{ .Execution.StatusText | escapeJSON }}"
+    }
+  },
+  "body": {
+    "direction": "vertical",
+    "horizontal_spacing": "8px",
+    "vertical_spacing": "10px",
+    "horizontal_align": "left",
+    "vertical_align": "top",
+    "padding": "0px 12px 12px 12px",
+    "elements": [
+      {
+        "tag": "column_set",
+        "background_style": "grey-100",
+        "horizontal_spacing": "12px",
+        "columns": [
+          {
+            "tag": "column",
+            "width": "weighted",
+            "weight": 1,
+            "vertical_spacing": "8px",
+            "elements": [
+              {
+                "tag": "markdown",
+                "content": "执行耗时\n**{{ .Execution.Duration | escapeJSON }}**\n<font color='grey'>本次执行耗时</font>",
+                "text_align": "center"
+              }
+            ]
+          },
+          {
+            "tag": "column",
+            "width": "weighted",
+            "weight": 1,
+            "vertical_spacing": "8px",
+            "elements": [
+              {
+                "tag": "markdown",
+                "content": "重试次数\n**{{ .Execution.RetryCount }} 次**\n<font color='grey'>自动重试次数</font>",
+                "text_align": "center"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tag": "markdown",
+        "content": "**执行详情**"
+      },
+      {
+        "tag": "column_set",
+        "horizontal_spacing": "12px",
+        "columns": [
+          {
+            "tag": "column",
+            "width": "weighted",
+            "weight": 1,
+            "elements": [
+              {
+                "tag": "markdown",
+                "content": "**任务 ID**\n{{ .Task.ID | escapeJSON }}"
+              }
+            ]
+          },
+          {
+            "tag": "column",
+            "width": "weighted",
+            "weight": 1,
+            "elements": [
+              {
+                "tag": "markdown",
+                "content": "**执行 ID**\n{{ .Execution.ID | escapeJSON }}"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tag": "markdown",
+        "content": "**执行节点**：{{ .Execution.ExecutorNodeID | escapeJSON }}\n**开始时间**：{{ .Execution.StartedAt | reReplaceAll `T` ` ` | reReplaceAll `\\+.*$` `` | escapeJSON }}\n**结束时间**：{{ .Execution.EndedAt | reReplaceAll `T` ` ` | reReplaceAll `\\+.*$` `` | escapeJSON }}{{ if ne .Execution.Source `TASK` }}\n**来源**：{{ if .Execution.SourceText }}{{ .Execution.SourceText | escapeJSON }}{{ else if eq .Execution.Source `WORKFLOW` }}工作流{{ else if eq .Execution.Source `CODEBOOK_PREVIEW` }}Codebook 试运行{{ else }}{{ .Execution.Source | escapeJSON }}{{ end }}{{ end }}{{ if .Execution.RequestID }}\n**请求 ID**：`{{ .Execution.RequestID | escapeJSON }}`{{ end }}"
+      }{{ if or .Execution.ResultData .Execution.Result }},
+      {
+        "tag": "markdown",
+        "content": "**执行结果**{{ if .Execution.ResultData }}\n```json\n{{ .Execution.ResultData | json | escapeJSON }}\n```{{ else }}\n```text\n{{ .Execution.Result | escapeJSON }}\n```{{ end }}"
+      }{{ end }}
+    ]
+  }
+}

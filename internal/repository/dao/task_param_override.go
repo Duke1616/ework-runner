@@ -35,6 +35,24 @@ type TaskRunParamOverride struct {
 
 func (TaskRunParamOverride) TableName() string { return "task_run_param_overrides" }
 
+// TaskParamOverrideDAO 负责读取任务参数覆盖相关表。
+type TaskParamOverrideDAO interface {
+	// FindRulesByTaskID 查询指定任务的参数覆盖规则。
+	FindRulesByTaskID(ctx context.Context, taskID int64) ([]TaskParamOverrideRule, error)
+	// FindPendingByTaskID 查询指定任务下一次执行待消费的参数覆盖；不存在时 found 为 false。
+	FindPendingByTaskID(ctx context.Context, taskID int64) (TaskRunParamOverride, bool, error)
+}
+
+// GORMTaskParamOverrideDAO 基于 GORM 读取任务参数覆盖相关表。
+type GORMTaskParamOverrideDAO struct {
+	db *gorm.DB
+}
+
+// NewGORMTaskParamOverrideDAO 创建任务参数覆盖 DAO。
+func NewGORMTaskParamOverrideDAO(db *gorm.DB) TaskParamOverrideDAO {
+	return &GORMTaskParamOverrideDAO{db: db}
+}
+
 func replaceOverrideRules(tx *gorm.DB, tenantID, taskID int64, rules []TaskParamOverrideRule) error {
 	if err := tx.Where("task_id = ?", taskID).Delete(&TaskParamOverrideRule{}).Error; err != nil {
 		return err
@@ -53,22 +71,27 @@ func replaceOverrideRules(tx *gorm.DB, tenantID, taskID int64, rules []TaskParam
 	return tx.Create(&rules).Error
 }
 
-func (g *GORMTaskDAO) loadOverrideRules(ctx context.Context, task *Task) error {
-	return g.db.WithContext(ctx).
-		Where("task_id = ?", task.ID).
+// FindRulesByTaskID 查询指定任务的参数覆盖规则。
+func (g *GORMTaskParamOverrideDAO) FindRulesByTaskID(ctx context.Context,
+	taskID int64) ([]TaskParamOverrideRule, error) {
+	var rules []TaskParamOverrideRule
+	err := g.db.WithContext(ctx).
+		Where("task_id = ?", taskID).
 		Order("id ASC").
-		Find(&task.ParamOverrideRules).Error
+		Find(&rules).Error
+	return rules, err
 }
 
-func (g *GORMTaskDAO) loadPendingParamOverrides(ctx context.Context, task *Task) error {
+// FindPendingByTaskID 查询指定任务下一次执行待消费的参数覆盖。
+func (g *GORMTaskParamOverrideDAO) FindPendingByTaskID(ctx context.Context,
+	taskID int64) (TaskRunParamOverride, bool, error) {
 	var pending TaskRunParamOverride
-	err := g.db.WithContext(ctx).Where("task_id = ?", task.ID).First(&pending).Error
+	err := g.db.WithContext(ctx).Where("task_id = ?", taskID).First(&pending).Error
 	if err == gorm.ErrRecordNotFound {
-		return nil
+		return TaskRunParamOverride{}, false, nil
 	}
 	if err != nil {
-		return err
+		return TaskRunParamOverride{}, false, err
 	}
-	task.PendingParamOverrides = pending.Overrides
-	return nil
+	return pending, true, nil
 }

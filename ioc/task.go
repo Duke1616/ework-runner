@@ -2,6 +2,7 @@ package ioc
 
 import (
 	"github.com/Duke1616/etask/internal/compensator"
+	notificationSvc "github.com/Duke1616/etask/internal/service/notification"
 	poolSvc "github.com/Duke1616/etask/internal/service/pool"
 	internalSSE "github.com/Duke1616/etask/internal/sse"
 )
@@ -15,6 +16,7 @@ func InitTasks(
 	t6 *poolSvc.Syncer,
 	t7 *AgentEventConsumer,
 	t8 *internalSSE.Hubs,
+	t9 *notificationSvc.TemplateBootstrapTask,
 ) []Task {
 	return []Task{
 		t1,
@@ -25,5 +27,6 @@ func InitTasks(
 		t6,
 		t7,
 		t8,
+		t9,
 	}
 }

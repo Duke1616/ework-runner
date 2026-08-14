@@ -8,6 +8,7 @@ import (
 	artifactSvc "github.com/Duke1616/etask/internal/service/artifact"
 	codeassistSvc "github.com/Duke1616/etask/internal/service/codeassist"
 	codebookSvc "github.com/Duke1616/etask/internal/service/codebook"
+	notificationSvc "github.com/Duke1616/etask/internal/service/notification"
 	poolSvc "github.com/Duke1616/etask/internal/service/pool"
 	previewSvc "github.com/Duke1616/etask/internal/service/preview"
 	programSvc "github.com/Duke1616/etask/internal/service/program"
@@ -58,6 +59,8 @@ var (
 	TaskSet = wire.NewSet(
 		InitDB,
 		dao.NewGORMTaskDAO,
+		dao.NewGORMTaskParamOverrideDAO,
+		dao.NewGORMTaskNotificationRuleDAO,
 		repository.NewTaskRepository,
 		repository.NewTaskExecutionLogRepository,
 		taskSvc.NewService,
@@ -184,10 +187,15 @@ var (
 	)
 
 	GrpcSet = wire.NewSet(
+		InitEAlertClientConn,
 		InitExecutorServiceGRPCClients,
+		InitEAlertNotificationClient,
+		InitEAlertTemplateClient,
+		notificationSvc.NewTemplateBootstrapTask,
 	)
 
 	ConsumerSet = wire.NewSet(
+		notificationSvc.NewEAlertCompletionNotifier,
 		InitCompleteEventConsumer,
 		InitAgentEventConsumer,
 	)

@@ -7,6 +7,7 @@ func InitTables(db *gorm.DB) error {
 		&Task{},
 		&TaskParamOverrideRule{},
 		&TaskRunParamOverride{},
+		&TaskExecutionNotificationRule{},
 		&CodebookProject{},
 		&Codebook{},
 		&CodebookVersion{},

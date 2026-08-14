@@ -15,6 +15,7 @@ import (
 	"github.com/ecodeclub/ekit/slice"
 	"github.com/ecodeclub/ginx"
 	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
 )
 
 var _ ginx.Handler = &Handler{}
@@ -50,16 +51,18 @@ func NewHandler(svc task.Service, logSvc task.LogService, execSvc task.Execution
 
 func (h *Handler) PrivateRoutes(server *gin.Engine) {
 	g := server.Group("/api/manager")
-	// --- 任务事件 ---
-	g.GET("/task-events/stream", h.Capability("订阅任务状态事件", "task_events").
+	// --- 实时事件流 ---
+	// 流式接口统一收敛到 /api/streams/<module>/，便于网关按稳定前缀应用 SSE 策略。
+	streams := server.Group("/api/streams/manager")
+	streams.GET("/task-events", h.Capability("订阅任务状态事件", "task_events").
 		NoSync().
 		Handle(ginx.W(h.StreamEvents)),
 	)
-	g.GET("/tasks/:id/executions/stream", h.Capability("订阅任务执行事件", "execution_events").
+	streams.GET("/tasks/:id/executions", h.Capability("订阅任务执行事件", "execution_events").
 		NoSync().
 		Handle(ginx.W(h.StreamTaskExecutions)),
 	)
-	g.GET("/executions/:id/logs/stream", h.executionRegistry.Capability("查看执行日志流", "logs").
+	streams.GET("/executions/:id/logs", h.executionRegistry.Capability("查看执行日志流", "logs").
 		NoSync().
 		Handle(ginx.W(h.StreamExecutionLogs)),
 	)
@@ -236,7 +239,7 @@ func (h *Handler) Run(ctx *ginx.Context, req RunTaskReq) (ginx.Result, error) {
 func (h *Handler) StreamEvents(ctx *ginx.Context) (ginx.Result, error) {
 	tenantID := ctxutil.GetTenantID(ctx).Int64()
 	h.events.Tasks.Stream(ctx, tenantID, sse.TASK_STATUS_CHANGE_EVENT, 20*time.Second)
-	return ginx.Result{}, nil
+	return ginx.Result{}, ginx.ErrNoResponse
 }
 
 // StreamExecutionLogs 实时推送特定执行记录的日志流的 SSE 接口
@@ -249,7 +252,7 @@ func (h *Handler) StreamExecutionLogs(ctx *ginx.Context) (ginx.Result, error) {
 		return systemErrorResult, err
 	}
 	h.events.Logs.Stream(ctx, id, sse.TASK_LOG_EVENT, 20*time.Second)
-	return ginx.Result{}, nil
+	return ginx.Result{}, ginx.ErrNoResponse
 }
 
 // StreamTaskExecutions 实时推送特定任务的执行记录及进度流的 SSE 接口
@@ -262,7 +265,7 @@ func (h *Handler) StreamTaskExecutions(ctx *ginx.Context) (ginx.Result, error) {
 		return systemErrorResult, err
 	}
 	h.events.Executions.Stream(ctx, id, sse.TASK_EXECUTION_EVENT, 20*time.Second)
-	return ginx.Result{}, nil
+	return ginx.Result{}, ginx.ErrNoResponse
 }
 
 func (h *Handler) Update(ctx *ginx.Context, req UpdateTaskReq) (ginx.Result, error) {
@@ -350,7 +353,7 @@ func (h *Handler) List(ctx *ginx.Context, req PageReq) (ginx.Result, error) {
 	return ginx.Result{
 		Data: ListTaskResp{
 			Total: total,
-			Tasks: sliceMap(tasks, func(src domain.Task) TaskVO {
+			Tasks: lo.Map(tasks, func(src domain.Task, _ int) TaskVO {
 				return toVO(src)
 			}),
 		},
@@ -358,31 +361,24 @@ func (h *Handler) List(ctx *ginx.Context, req PageReq) (ginx.Result, error) {
 	}, nil
 }
 
-func sliceMap[T, R any](data []T, f func(src T) R) []R {
-	res := make([]R, 0, len(data))
-	for _, v := range data {
-		res = append(res, f(v))
-	}
-	return res
-}
-
 func toVO(src domain.Task) TaskVO {
 	vo := TaskVO{
-		ID:                  src.ID,
-		RunnerID:            src.RunnerID,
-		Name:                src.Name,
-		Type:                src.Type.String(),
-		CronExpr:            src.CronExpr,
-		Status:              src.Status.String(),
-		NextTime:            src.NextTime,
-		MaxExecutionSeconds: src.MaxExecutionSeconds,
-		ScheduleParams:      src.ScheduleParams,
-		Metadata:            src.Metadata,
-		Program:             toProgramVO(src.Program),
-		ParamOverrideRules:  src.ParamOverrideRules,
-		CTime:               src.CTime,
-		UTime:               src.UTime,
-		Version:             src.Version,
+		ID:                     src.ID,
+		RunnerID:               src.RunnerID,
+		Name:                   src.Name,
+		Type:                   src.Type.String(),
+		CronExpr:               src.CronExpr,
+		Status:                 src.Status.String(),
+		NextTime:               src.NextTime,
+		MaxExecutionSeconds:    src.MaxExecutionSeconds,
+		ScheduleParams:         src.ScheduleParams,
+		Metadata:               src.Metadata,
+		Program:                toProgramVO(src.Program),
+		ParamOverrideRules:     src.ParamOverrideRules,
+		ExecutionNotifications: toNotificationVOs(src.NotificationRules),
+		CTime:                  src.CTime,
+		UTime:                  src.UTime,
+		Version:                src.Version,
 	}
 
 	if src.GrpcConfig != nil {
@@ -425,6 +421,7 @@ func toDomain(req CreateTaskReq) domain.Task {
 		Metadata:            req.Metadata,
 		Program:             toDomainProgram(req.Program),
 		ParamOverrideRules:  req.ParamOverrideRules,
+		NotificationRules:   toDomainNotifications(req.ExecutionNotifications),
 	}
 
 	if req.GrpcConfig != nil {
@@ -467,6 +464,7 @@ func toUpdateDomain(req UpdateTaskReq) domain.Task {
 		Metadata:            req.Metadata,
 		Program:             toDomainProgram(req.Program),
 		ParamOverrideRules:  req.ParamOverrideRules,
+		NotificationRules:   toDomainNotifications(req.ExecutionNotifications),
 	}
 
 	if req.GrpcConfig != nil {
@@ -494,6 +492,56 @@ func toUpdateDomain(req UpdateTaskReq) domain.Task {
 	}
 
 	return t
+}
+
+func toDomainNotifications(src []ExecutionNotificationRule) []domain.ExecutionNotificationRule {
+	return lo.Map(src, toDomainNotification)
+}
+
+func toNotificationVOs(src []domain.ExecutionNotificationRule) []ExecutionNotificationRule {
+	return lo.Map(src, toNotificationVO)
+}
+
+func toDomainNotification(rule ExecutionNotificationRule, _ int) domain.ExecutionNotificationRule {
+	return domain.ExecutionNotificationRule{
+		TriggerStatus:  domain.TaskExecutionStatus(rule.TriggerStatus),
+		TemplateSetKey: rule.TemplateSetKey,
+		Enabled:        rule.Enabled,
+		Channels:       lo.Map(rule.Channels, toDomainNotificationChannel),
+		Recipients:     lo.Map(rule.Recipients, toDomainNotificationRecipient),
+	}
+}
+
+func toDomainNotificationChannel(channel string, _ int) domain.NotificationChannel {
+	return domain.NotificationChannel(channel)
+}
+
+func toDomainNotificationRecipient(recipient NotificationRecipient, _ int) domain.NotificationRecipient {
+	return domain.NotificationRecipient{
+		Type:      domain.NotificationRecipientType(recipient.Type),
+		TargetIDs: recipient.TargetIDs,
+	}
+}
+
+func toNotificationVO(rule domain.ExecutionNotificationRule, _ int) ExecutionNotificationRule {
+	return ExecutionNotificationRule{
+		TriggerStatus:  rule.TriggerStatus.String(),
+		TemplateSetKey: rule.TemplateSetKey,
+		Enabled:        rule.Enabled,
+		Channels:       lo.Map(rule.Channels, toNotificationChannel),
+		Recipients:     lo.Map(rule.Recipients, toNotificationRecipient),
+	}
+}
+
+func toNotificationChannel(channel domain.NotificationChannel, _ int) string {
+	return string(channel)
+}
+
+func toNotificationRecipient(recipient domain.NotificationRecipient, _ int) NotificationRecipient {
+	return NotificationRecipient{
+		Type:      string(recipient.Type),
+		TargetIDs: recipient.TargetIDs,
+	}
 }
 
 func toDomainProgram(src *ProgramSpec) *domain.ProgramSpec {

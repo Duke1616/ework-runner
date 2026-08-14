@@ -1,0 +1,135 @@
+syntax = "proto3";
+
+package ealert.template.v1;
+
+import "ealert/notification/v1/notification.proto";
+
+option go_package = "ealert/template/v1;templatev1";
+
+// Scope 表示模板的可见范围。
+enum Scope {
+  SCOPE_UNSPECIFIED = 0;
+  TENANT = 1;
+  GLOBAL = 2;
+}
+
+// ChannelTemplate 表示一个渠道模板及其版本。
+message ChannelTemplate {
+  int64 id = 1; // 模板 ID。
+  int64 owner_id = 2; // 模板拥有者 ID。
+  string name = 3; // 模板名称。
+  string description = 4; // 模板描述。
+  notification.v1.Channel channel = 5; // 模板所属渠道。
+  int64 active_version_id = 6; // 当前生效的版本 ID。
+  int64 ctime = 7; // 创建时间戳。
+  int64 utime = 8; // 更新时间戳。
+  repeated ChannelTemplateVersion versions = 9; // 模板版本列表。
+  Scope scope = 10; // 模板可见范围。
+}
+
+// ChannelTemplateVersion 表示渠道模板的一个版本快照。
+message ChannelTemplateVersion {
+  int64 id = 1; // 版本 ID。
+  int64 channel_template_id = 2; // 所属渠道模板 ID。
+  string name = 3; // 版本名称。
+  string signature = 4; // 内容签名。
+  string content = 5; // 模板内容。
+  string desc = 6; // 版本说明。
+  int64 ctime = 7; // 创建时间戳。
+  int64 utime = 8; // 更新时间戳。
+}
+
+// TemplateSet 表示按渠道聚合的模板集合。
+message TemplateSet {
+  int64 id = 1; // 模板集 ID。
+  string key = 2; // 业务唯一 key。
+  int64 biz_id = 3; // 模板集所属业务 ID。
+  int64 owner_id = 4; // 模板集拥有者 ID。
+  string name = 5; // 模板集名称。
+  string description = 6; // 模板集描述。
+  Scope scope = 7; // 模板集可见范围。
+  int64 ctime = 8; // 创建时间戳。
+  int64 utime = 9; // 更新时间戳。
+  repeated TemplateSetItem items = 10; // 模板集中的渠道模板。
+}
+
+// TemplateSetItem 表示模板集合中的一个渠道模板。
+message TemplateSetItem {
+  int64 id = 1; // 条目 ID。
+  int64 set_id = 2; // 所属模板集 ID。
+  notification.v1.Channel channel = 3; // 渠道类型。
+  int64 template_id = 4; // 渠道模板 ID。
+  int64 ctime = 5; // 创建时间戳。
+}
+
+// TemplateService 提供模板和模板集合的管理、解析能力。
+service TemplateService {
+  rpc GetTemplateByID(GetTemplateByIDRequest) returns (GetTemplateByIDResponse);
+  rpc CreateTemplate(CreateTemplateRequest) returns (CreateTemplateResponse);
+  rpc UpdateTemplate(UpdateTemplateRequest) returns (UpdateTemplateResponse);
+  rpc PublishTemplate(PublishTemplateRequest) returns (PublishTemplateResponse);
+  rpc CreateTemplateVersion(CreateTemplateVersionRequest) returns (CreateTemplateVersionResponse);
+  rpc CreateTemplateSet(CreateTemplateSetRequest) returns (CreateTemplateSetResponse);
+  rpc ResolveTemplateSet(ResolveTemplateSetRequest) returns (ResolveTemplateSetResponse);
+  rpc ResolveTemplateID(ResolveTemplateIDRequest) returns (ResolveTemplateIDResponse);
+}
+
+message GetTemplateByIDRequest {
+  int64 id = 1; // 模板 ID。
+}
+message GetTemplateByIDResponse {
+  ChannelTemplate template = 1; // 模板详情。
+}
+message CreateTemplateRequest {
+  ChannelTemplate template = 1; // 待创建模板。
+}
+message CreateTemplateResponse {
+  ChannelTemplate template = 1; // 创建后的模板。
+}
+message UpdateTemplateRequest {
+  ChannelTemplate template = 1; // 待更新模板。
+}
+message UpdateTemplateResponse {}
+message PublishTemplateRequest {
+  int64 template_id = 1; // 模板 ID。
+  int64 version_id = 2; // 版本 ID。
+}
+message PublishTemplateResponse {}
+message CreateTemplateVersionRequest {
+  int64 template_id = 1; // 模板 ID。
+  string name = 2; // 版本名称。
+  string signature = 3; // 内容签名。
+  string content = 4; // 模板内容。
+  string desc = 5; // 版本说明。
+}
+message CreateTemplateVersionResponse {
+  ChannelTemplateVersion version = 1; // 创建后的版本。
+}
+message CreateTemplateSetRequest {
+  string key = 1; // 业务唯一 key。
+  int64 biz_id = 2; // 所属业务 ID。
+  int64 owner_id = 3; // 模板集拥有者 ID。
+  string name = 4; // 模板集名称。
+  string description = 5; // 模板集描述。
+  Scope scope = 6; // 可见范围。
+  repeated TemplateSetItem items = 7; // 初始渠道模板条目。
+}
+message CreateTemplateSetResponse {
+  TemplateSet template_set = 1; // 创建后的模板集。
+}
+message ResolveTemplateSetRequest {
+  int64 biz_id = 1; // 所属业务 ID。
+  string key = 2; // 模板集业务 key。
+}
+message ResolveTemplateSetResponse {
+  TemplateSet template_set = 1; // 解析到的模板集，未命中时为空。
+}
+message ResolveTemplateIDRequest {
+  int64 biz_id = 1; // 所属业务 ID。
+  string key = 2; // 模板集业务 key。
+  notification.v1.Channel channel = 3; // 目标渠道。
+}
+message ResolveTemplateIDResponse {
+  int64 template_id = 1; // 解析到的渠道模板 ID，未命中时为 0。
+  int64 template_set_id = 2; // 解析到的模板集 ID，未命中时为 0。
+}

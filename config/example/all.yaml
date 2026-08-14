@@ -156,6 +156,10 @@ grpc:
       # 身份认证 Token，留空则不启用
       auth_token: ""
   client:
+    # 调度中心投递任务执行通知时使用。
+    ealert:
+      name: "ealert"
+      auth_token: ""
     # Executor 和 Agent 访问调度中心时使用，需与 server.scheduler.auth_token 一致
     scheduler:
       name: "scheduler"

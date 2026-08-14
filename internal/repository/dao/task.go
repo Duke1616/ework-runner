@@ -45,6 +45,7 @@ type Task struct {
 	Metadata              sqlx.JSONColumn[map[string]string]  `gorm:"type:json;comment:'任务参数元数据'"`
 	PendingParamOverrides sqlx.JSONColumn[map[string]string]  `gorm:"-"`
 	ParamOverrideRules    []TaskParamOverrideRule             `gorm:"-"`
+	NotificationRules     []TaskExecutionNotificationRule     `gorm:"-"`
 }
 
 // TableName 指定表名
@@ -118,7 +119,10 @@ func (g *GORMTaskDAO) Create(ctx context.Context, task Task) (*Task, error) {
 		if err := tx.Create(&task).Error; err != nil {
 			return err
 		}
-		return replaceOverrideRules(tx, task.TenantID, task.ID, task.ParamOverrideRules)
+		if err := replaceOverrideRules(tx, task.TenantID, task.ID, task.ParamOverrideRules); err != nil {
+			return err
+		}
+		return replaceExecutionNotificationRules(tx, task.TenantID, task.ID, task.NotificationRules)
 	})
 	if err != nil {
 		if isDuplicateKeyError(err) {
@@ -135,12 +139,6 @@ func (g *GORMTaskDAO) GetByID(ctx context.Context, id int64) (*Task, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = g.loadOverrideRules(ctx, &task); err != nil {
-		return nil, err
-	}
-	if err = g.loadPendingParamOverrides(ctx, &task); err != nil {
-		return nil, err
-	}
 	return &task, nil
 }
 
@@ -148,12 +146,6 @@ func (g *GORMTaskDAO) GetByName(ctx context.Context, name string) (*Task, error)
 	var task Task
 	err := g.db.WithContext(ctx).Where("name = ?", name).First(&task).Error
 	if err != nil {
-		return nil, err
-	}
-	if err = g.loadOverrideRules(ctx, &task); err != nil {
-		return nil, err
-	}
-	if err = g.loadPendingParamOverrides(ctx, &task); err != nil {
 		return nil, err
 	}
 	return &task, nil
@@ -472,7 +464,10 @@ func (g *GORMTaskDAO) List(ctx context.Context, bizID int64, offset, limit int) 
 		Offset(offset).
 		Limit(limit).
 		Find(&tasks).Error
-	return tasks, err
+	if err != nil {
+		return nil, err
+	}
+	return tasks, nil
 }
 
 func (g *GORMTaskDAO) Count(ctx context.Context, bizID int64) (int64, error) {
@@ -490,7 +485,10 @@ func (g *GORMTaskDAO) Update(ctx context.Context, task Task) error {
 		if res.RowsAffected == 0 {
 			return fmt.Errorf("更新失败：该任务不存在 (ID=%d)", task.ID)
 		}
-		return replaceOverrideRules(tx, task.TenantID, task.ID, task.ParamOverrideRules)
+		if err := replaceOverrideRules(tx, task.TenantID, task.ID, task.ParamOverrideRules); err != nil {
+			return err
+		}
+		return replaceExecutionNotificationRules(tx, task.TenantID, task.ID, task.NotificationRules)
 	})
 }
 
@@ -519,6 +517,9 @@ func (g *GORMTaskDAO) Delete(ctx context.Context, id int64) error {
 			return err
 		}
 		if err := tx.Where("task_id = ?", id).Delete(&TaskRunParamOverride{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("task_id = ?", id).Delete(&TaskExecutionNotificationRule{}).Error; err != nil {
 			return err
 		}
 		return tx.Delete(&Task{}, id).Error

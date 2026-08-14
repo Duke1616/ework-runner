@@ -3,18 +3,19 @@ package manager
 import "github.com/Duke1616/etask/internal/domain"
 
 type CreateTaskReq struct {
-	Name                string                         `json:"name"`
-	RunnerID            int64                          `json:"runner_id"`
-	Type                string                         `json:"type"`      // 任务类型: RECURRING-定时任务, ONE_TIME-一次性任务
-	CronExpr            string                         `json:"cron_expr"` // cron 表达式（定时任务必填，一次性任务可选用于定时触发）
-	GrpcConfig          *GrpcConfig                    `json:"grpc_config"`
-	HTTPConfig          *HTTPConfig                    `json:"http_config"`
-	RetryConfig         *RetryConfig                   `json:"retry_config"`
-	MaxExecutionSeconds int64                          `json:"max_execution_seconds"` // 最大执行秒数，默认24小时
-	ScheduleParams      map[string]string              `json:"schedule_params"`       // 调度参数（如分页偏移量、处理进度等）
-	Metadata            map[string]string              `json:"metadata"`              // 任务参数元数据
-	Program             *ProgramSpec                   `json:"program"`               // 程序来源
-	ParamOverrideRules  []domain.TaskParamOverrideRule `json:"param_override_rules"`
+	Name                   string                         `json:"name"`
+	RunnerID               int64                          `json:"runner_id"`
+	Type                   string                         `json:"type"`      // 任务类型: RECURRING-定时任务, ONE_TIME-一次性任务
+	CronExpr               string                         `json:"cron_expr"` // cron 表达式（定时任务必填，一次性任务可选用于定时触发）
+	GrpcConfig             *GrpcConfig                    `json:"grpc_config"`
+	HTTPConfig             *HTTPConfig                    `json:"http_config"`
+	RetryConfig            *RetryConfig                   `json:"retry_config"`
+	MaxExecutionSeconds    int64                          `json:"max_execution_seconds"` // 最大执行秒数，默认24小时
+	ScheduleParams         map[string]string              `json:"schedule_params"`       // 调度参数（如分页偏移量、处理进度等）
+	Metadata               map[string]string              `json:"metadata"`              // 任务参数元数据
+	Program                *ProgramSpec                   `json:"program"`               // 程序来源
+	ParamOverrideRules     []domain.TaskParamOverrideRule `json:"param_override_rules"`
+	ExecutionNotifications []ExecutionNotificationRule    `json:"execution_notifications"`
 }
 
 type ProgramSpec struct {
@@ -50,6 +51,21 @@ type RetryConfig struct {
 	MaxInterval     int64 `json:"max_interval"`     // 毫秒
 }
 
+// ExecutionNotificationRule 定义一个任务执行终态对应的消息通知规则。
+type ExecutionNotificationRule struct {
+	TriggerStatus  string                  `json:"trigger_status"`   // FAILED、SUCCESS 或 CANCELLED。
+	Recipients     []NotificationRecipient `json:"recipients"`       // 接收对象规则。
+	Channels       []string                `json:"channels"`         // EAlert 投递渠道。
+	TemplateSetKey string                  `json:"template_set_key"` // 模板集稳定业务 key。
+	Enabled        bool                    `json:"enabled"`          // 是否启用规则。
+}
+
+// NotificationRecipient 保存接收对象类型及已标准化 ID。
+type NotificationRecipient struct {
+	Type      string  `json:"type"`       // EAlert 接收对象解析规则。
+	TargetIDs []int64 `json:"target_ids"` // 调用方预先转换的数值 ID。
+}
+
 type PageReq struct {
 	Offset int `json:"offset"`
 	Limit  int `json:"limit"`
@@ -66,40 +82,42 @@ type RunTaskReq struct {
 }
 
 type UpdateTaskReq struct {
-	ID                  int64                          `json:"id"`
-	RunnerID            int64                          `json:"runner_id"`
-	Name                string                         `json:"name"`
-	Type                string                         `json:"type"`      // 任务类型: RECURRING-定时任务, ONE_TIME-一次性任务
-	CronExpr            string                         `json:"cron_expr"` // cron 表达式（定时任务必填，一次性任务可选用于定时触发）
-	GrpcConfig          *GrpcConfig                    `json:"grpc_config"`
-	HTTPConfig          *HTTPConfig                    `json:"http_config"`
-	RetryConfig         *RetryConfig                   `json:"retry_config"`
-	MaxExecutionSeconds int64                          `json:"max_execution_seconds"` // 最大执行秒数，默认24小时
-	ScheduleParams      map[string]string              `json:"schedule_params"`       // 调度参数
-	Metadata            map[string]string              `json:"metadata"`              // 任务参数元数据
-	Program             *ProgramSpec                   `json:"program"`               // 程序来源
-	ParamOverrideRules  []domain.TaskParamOverrideRule `json:"param_override_rules"`
+	ID                     int64                          `json:"id"`
+	RunnerID               int64                          `json:"runner_id"`
+	Name                   string                         `json:"name"`
+	Type                   string                         `json:"type"`      // 任务类型: RECURRING-定时任务, ONE_TIME-一次性任务
+	CronExpr               string                         `json:"cron_expr"` // cron 表达式（定时任务必填，一次性任务可选用于定时触发）
+	GrpcConfig             *GrpcConfig                    `json:"grpc_config"`
+	HTTPConfig             *HTTPConfig                    `json:"http_config"`
+	RetryConfig            *RetryConfig                   `json:"retry_config"`
+	MaxExecutionSeconds    int64                          `json:"max_execution_seconds"` // 最大执行秒数，默认24小时
+	ScheduleParams         map[string]string              `json:"schedule_params"`       // 调度参数
+	Metadata               map[string]string              `json:"metadata"`              // 任务参数元数据
+	Program                *ProgramSpec                   `json:"program"`               // 程序来源
+	ParamOverrideRules     []domain.TaskParamOverrideRule `json:"param_override_rules"`
+	ExecutionNotifications []ExecutionNotificationRule    `json:"execution_notifications"`
 }
 
 type TaskVO struct {
-	ID                  int64                          `json:"id"`
-	RunnerID            int64                          `json:"runner_id"`
-	Name                string                         `json:"name"`
-	Type                string                         `json:"type"`
-	CronExpr            string                         `json:"cron_expr"`
-	Status              string                         `json:"status"`
-	NextTime            int64                          `json:"next_time"`
-	MaxExecutionSeconds int64                          `json:"max_execution_seconds"`
-	GrpcConfig          *GrpcConfig                    `json:"grpc_config"`
-	HTTPConfig          *HTTPConfig                    `json:"http_config"`
-	RetryConfig         *RetryConfig                   `json:"retry_config"`
-	ScheduleParams      map[string]string              `json:"schedule_params"`
-	CTime               int64                          `json:"ctime"`
-	UTime               int64                          `json:"utime"`
-	Version             int64                          `json:"version"`
-	Metadata            map[string]string              `json:"metadata"`
-	Program             *ProgramSpec                   `json:"program"`
-	ParamOverrideRules  []domain.TaskParamOverrideRule `json:"param_override_rules"`
+	ID                     int64                          `json:"id"`
+	RunnerID               int64                          `json:"runner_id"`
+	Name                   string                         `json:"name"`
+	Type                   string                         `json:"type"`
+	CronExpr               string                         `json:"cron_expr"`
+	Status                 string                         `json:"status"`
+	NextTime               int64                          `json:"next_time"`
+	MaxExecutionSeconds    int64                          `json:"max_execution_seconds"`
+	GrpcConfig             *GrpcConfig                    `json:"grpc_config"`
+	HTTPConfig             *HTTPConfig                    `json:"http_config"`
+	RetryConfig            *RetryConfig                   `json:"retry_config"`
+	ScheduleParams         map[string]string              `json:"schedule_params"`
+	CTime                  int64                          `json:"ctime"`
+	UTime                  int64                          `json:"utime"`
+	Version                int64                          `json:"version"`
+	Metadata               map[string]string              `json:"metadata"`
+	Program                *ProgramSpec                   `json:"program"`
+	ParamOverrideRules     []domain.TaskParamOverrideRule `json:"param_override_rules"`
+	ExecutionNotifications []ExecutionNotificationRule    `json:"execution_notifications"`
 }
 
 type ListTaskResp struct {

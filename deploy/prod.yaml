@@ -106,6 +106,9 @@ grpc:
       advertise_addr: ""
       auth_token: ""
   client:
+    ealert:
+      name: ealert
+      auth_token: ""
     scheduler:
       name: scheduler
       auth_token: ""

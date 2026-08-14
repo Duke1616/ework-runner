@@ -7,6 +7,7 @@ import (
 	"github.com/Duke1616/etask/internal/event/complete"
 	executionevent "github.com/Duke1616/etask/internal/event/execution"
 	"github.com/Duke1616/etask/internal/service/acquirer"
+	"github.com/Duke1616/etask/internal/service/notification"
 	"github.com/Duke1616/etask/internal/service/task"
 	internalSSE "github.com/Duke1616/etask/internal/sse"
 	mqx "github.com/Duke1616/etask/pkg/mpx"
@@ -18,11 +19,12 @@ func InitCompleteEventConsumer(q mq.MQ,
 	execSvc task.ExecutionService,
 	acquire acquirer.TaskAcquirer,
 	events *internalSSE.Hubs,
+	notifier notification.CompletionNotifier,
 ) *CompleteConsumer {
 	topic := "complete_topic"
 	group := "reporter"
 	con := mqx.NewConsumer(name(topic, group), q, topic)
-	comConsumer := complete.NewConsumer(execSvc, taskSvc, acquire, events)
+	comConsumer := complete.NewConsumer(execSvc, taskSvc, acquire, events, notifier)
 	return &CompleteConsumer{
 		com:      con,
 		Consumer: comConsumer,

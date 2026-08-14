@@ -66,6 +66,10 @@ grpc:
       # 身份认证 Token，留空则不启用
       auth_token: ""
   client:
+    # 调度中心投递任务执行通知时使用。
+    ealert:
+      name: "ealert"
+      auth_token: ""
     # 调度中心访问 Executor 时使用，需与 Executor Server 的 auth_token 一致
     executor:
       auth_token: ""

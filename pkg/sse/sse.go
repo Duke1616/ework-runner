@@ -16,15 +16,20 @@ type Subscription[T any] struct {
 // SSE 执行通用的 SSE 流式推送逻辑
 func SSE[T any](ctx *ginx.Context, sub Subscription[T], eventName string, heartbeat time.Duration) {
 	ctx.Header("Content-Type", "text/event-stream")
-	ctx.Header("Cache-Control", "no-cache")
-	ctx.Header("Connection", "keep-alive")
+	ctx.Header("Cache-Control", "no-cache, no-transform")
 
 	// 强制禁用网关或反向代理的 Buffer 缓存，保证流式推送的实时性
 	ctx.Header("X-Accel-Buffering", "no")
-
 	if sub.CloseFunc != nil {
 		defer sub.CloseFunc()
 	}
+
+	// 立即提交响应头和首个注释帧，避免在第一个业务事件或心跳到来前，
+	// 浏览器一直停留在 Provisional headers 状态。
+	if _, err := ctx.Writer.WriteString(": connected\n\n"); err != nil {
+		return
+	}
+	ctx.Writer.Flush()
 
 	hb := heartbeat
 	if hb <= 0 {

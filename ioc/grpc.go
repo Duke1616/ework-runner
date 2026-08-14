@@ -5,6 +5,8 @@ import (
 	"os"
 	"time"
 
+	notificationv1 "github.com/Duke1616/etask/api/proto/gen/ealert/notification/v1"
+	templatev1 "github.com/Duke1616/etask/api/proto/gen/ealert/template/v1"
 	artifactv1 "github.com/Duke1616/etask/api/proto/gen/etask/artifact/v1"
 	codebookv1 "github.com/Duke1616/etask/api/proto/gen/etask/codebook/v1"
 	executorv1 "github.com/Duke1616/etask/api/proto/gen/etask/executor/v1"
@@ -23,6 +25,38 @@ import (
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 )
+
+// InitEAlertClientConn 初始化 EAlert gRPC 连接，供通知和模板客户端复用。
+func InitEAlertClientConn(reg registrysdk.Registry) *grpc.ClientConn {
+	var cfg grpcpkg.ClientConfig
+	if err := config.UnmarshalKey("grpc.client.ealert", &cfg); err != nil {
+		panic(err)
+	}
+	opts := []grpcpkg.ClientOption{grpcpkg.WithClientJWTAuth(cfg.AuthToken)}
+	var (
+		conn *grpc.ClientConn
+		err  error
+	)
+	if cfg.Address != "" {
+		conn, err = grpcpkg.NewDirectClientConn(cfg.Address, opts...)
+	} else {
+		conn, err = grpcpkg.NewClientConn(reg, append(opts, grpcpkg.WithServiceName(cfg.Name))...)
+	}
+	if err != nil {
+		panic(err)
+	}
+	return conn
+}
+
+// InitEAlertNotificationClient 初始化 EAlert 通知客户端。
+func InitEAlertNotificationClient(conn *grpc.ClientConn) notificationv1.NotificationServiceClient {
+	return notificationv1.NewNotificationServiceClient(conn)
+}
+
+// InitEAlertTemplateClient 初始化 EAlert 模板服务客户端。
+func InitEAlertTemplateClient(conn *grpc.ClientConn) templatev1.TemplateServiceClient {
+	return templatev1.NewTemplateServiceClient(conn)
+}
 
 // InitExecutor 初始化原生 gRPC 执行器节点
 func InitExecutor(reg registrysdk.Registry,

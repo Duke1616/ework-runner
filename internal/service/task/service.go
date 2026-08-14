@@ -63,16 +63,7 @@ func NewService(repo repository.TaskRepository, bindingSvc poolSvc.BindingServic
 }
 
 func (s *service) Create(ctx context.Context, task domain.Task) (domain.Task, error) {
-	if err := s.bindRunner(ctx, &task); err != nil {
-		return domain.Task{}, err
-	}
-	if err := validateProgramConfig(task); err != nil {
-		return domain.Task{}, err
-	}
-	if err := s.AuthorizeExecutionPool(ctx, task); err != nil {
-		return domain.Task{}, err
-	}
-	if err := s.validateParamOverrideRules(ctx, task); err != nil {
+	if err := s.prepareTaskConfiguration(ctx, &task); err != nil {
 		return domain.Task{}, err
 	}
 	if err := s.setNextScheduleTime(&task); err != nil {
@@ -95,7 +86,9 @@ func (s *service) UpdateNextTime(ctx context.Context, id int64) (domain.Task, er
 	// 一次性任务：如果 NextTime 在过去（或为0表示立即执行），说明已执行完成，直接设置为 COMPLETED
 	// 这样可以避免 CalculateNextTime 计算出下一次时间
 	if task.Type.IsOneTime() && task.NextTime >= 0 && task.NextTime < time.Now().UnixMilli() {
-		return s.repo.UpdateStatus(ctx, id, domain.TaskStatusCompleted)
+		updated, updateErr := s.repo.UpdateStatus(ctx, id, domain.TaskStatusCompleted)
+		updated.NotificationRules = task.NotificationRules
+		return updated, updateErr
 	}
 
 	// 计算下次执行时间
@@ -108,7 +101,9 @@ func (s *service) UpdateNextTime(ctx context.Context, id int64) (domain.Task, er
 		return task, nil
 	}
 
-	return s.repo.UpdateNextTime(ctx, task.ID, task.Version, task.NextTime)
+	updated, err := s.repo.UpdateNextTime(ctx, task.ID, task.Version, task.NextTime)
+	updated.NotificationRules = task.NotificationRules
+	return updated, err
 }
 
 func (s *service) GetByID(ctx context.Context, id int64) (domain.Task, error) {
@@ -186,16 +181,7 @@ func (s *service) Update(ctx context.Context, task domain.Task) error {
 	if task.TenantID == 0 {
 		task.TenantID = oldTask.TenantID
 	}
-	if err = s.bindRunner(ctx, &task); err != nil {
-		return err
-	}
-	if err = validateProgramConfig(task); err != nil {
-		return err
-	}
-	if err = s.AuthorizeExecutionPool(ctx, task); err != nil {
-		return err
-	}
-	if err = s.validateParamOverrideRules(ctx, task); err != nil {
+	if err = s.prepareTaskConfiguration(ctx, &task); err != nil {
 		return err
 	}
 
@@ -209,6 +195,20 @@ func (s *service) Update(ctx context.Context, task domain.Task) error {
 	}
 
 	return s.repo.Update(ctx, task)
+}
+
+// prepareTaskConfiguration 补全并校验创建、更新任务时使用的配置。
+func (s *service) prepareTaskConfiguration(ctx context.Context, task *domain.Task) error {
+	if err := s.bindRunner(ctx, task); err != nil {
+		return err
+	}
+	if err := task.Validate(); err != nil {
+		return err
+	}
+	if err := s.AuthorizeExecutionPool(ctx, *task); err != nil {
+		return err
+	}
+	return s.validateParamOverrideRules(ctx, *task)
 }
 
 // bindRunner 将执行单元提供的程序和执行路由固化到任务配置，任务参数只作为覆盖值保留。
@@ -247,16 +247,6 @@ func (s *service) bindRunner(ctx context.Context, task *domain.Task) error {
 		ServiceName: runner.Target,
 		HandlerName: runner.Handler,
 		Params:      overrides,
-	}
-	return nil
-}
-
-func validateProgramConfig(task domain.Task) error {
-	if task.Program == nil {
-		return nil
-	}
-	if err := task.Program.Validate(); err != nil {
-		return fmt.Errorf("程序配置非法: %w", err)
 	}
 	return nil
 }

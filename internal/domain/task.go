@@ -57,18 +57,19 @@ type Task struct {
 	Program               *ProgramSpec
 	HTTPConfig            *HTTPConfig
 	RetryConfig           *RetryConfig
-	MaxExecutionSeconds   int64                   // 最大执行秒数，默认24小时
-	ScheduleNodeID        string                  // 调度节点ID
-	ScheduleParams        map[string]string       // 调度参数（如分页偏移量、处理进度等）
-	NextTime              int64                   // 下次执行时间戳
-	Status                TaskStatus              // 任务状态
-	Version               int64                   // 版本号，用于乐观锁
-	CTime                 int64                   // 创建时间戳
-	UTime                 int64                   // 更新时间戳
-	ExecMode              ExecMode                // 执行模式：PUSH 或 PULL
-	Metadata              map[string]string       // 任务参数元数据 (存储绑定关系或模式)
-	ParamOverrideRules    []TaskParamOverrideRule // 手动启动参数的任务级输入约束
-	PendingParamOverrides map[string]string       // 仅供下一次手动启动消费的参数覆盖
+	MaxExecutionSeconds   int64                       // 最大执行秒数，默认24小时
+	ScheduleNodeID        string                      // 调度节点ID
+	ScheduleParams        map[string]string           // 调度参数（如分页偏移量、处理进度等）
+	NextTime              int64                       // 下次执行时间戳
+	Status                TaskStatus                  // 任务状态
+	Version               int64                       // 版本号，用于乐观锁
+	CTime                 int64                       // 创建时间戳
+	UTime                 int64                       // 更新时间戳
+	ExecMode              ExecMode                    // 执行模式：PUSH 或 PULL
+	Metadata              map[string]string           // 任务参数元数据 (存储绑定关系或模式)
+	ParamOverrideRules    []TaskParamOverrideRule     // 手动启动参数的任务级输入约束
+	PendingParamOverrides map[string]string           // 仅供下一次手动启动消费的参数覆盖
+	NotificationRules     []ExecutionNotificationRule // 执行终态消息通知规则
 }
 
 type TaskParamInputMode string

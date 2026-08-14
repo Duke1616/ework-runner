@@ -9,9 +9,11 @@ import (
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/event"
 	"github.com/Duke1616/etask/internal/service/acquirer"
+	"github.com/Duke1616/etask/internal/service/notification"
 	"github.com/Duke1616/etask/internal/service/task"
 	"github.com/Duke1616/etask/internal/sse"
 	"github.com/ecodeclub/mq-api"
+	"github.com/gotomicro/ego/core/elog"
 )
 
 const (
@@ -21,22 +23,27 @@ const (
 
 type Consumer struct {
 	// 更新
-	execSvc task.ExecutionService
-	taskSvc task.Service
-	acquire acquirer.TaskAcquirer
-	events  *sse.Hubs
+	execSvc  task.ExecutionService
+	taskSvc  task.Service
+	acquire  acquirer.TaskAcquirer
+	events   *sse.Hubs
+	notifier notification.CompletionNotifier
+	logger   *elog.Component
 }
 
 func NewConsumer(execSvc task.ExecutionService,
 	taskSvc task.Service,
 	acquirer acquirer.TaskAcquirer,
 	events *sse.Hubs,
+	notifier notification.CompletionNotifier,
 ) *Consumer {
 	return &Consumer{
-		taskSvc: taskSvc,
-		execSvc: execSvc,
-		acquire: acquirer,
-		events:  events,
+		taskSvc:  taskSvc,
+		execSvc:  execSvc,
+		acquire:  acquirer,
+		events:   events,
+		notifier: notifier,
+		logger:   elog.DefaultLogger.With(elog.FieldComponentName("event.complete")),
 	}
 }
 
@@ -75,6 +82,7 @@ func (c *Consumer) handleTask(ctx context.Context, evt event.Event) error {
 	if err != nil {
 		return err
 	}
+	c.notifyCompletion(ctx, evt, t, status)
 
 	// 只有状态还是 PREEMPTED 的任务才需要释放
 	// 定时任务由 Release 广播最终的 ACTIVE 状态和下次触发时间。
@@ -90,6 +98,34 @@ func (c *Consumer) handleTask(ctx context.Context, evt event.Event) error {
 		Version:  t.Version,
 	})
 	return nil
+}
+
+// notifyCompletion 投递命中的任务执行终态通知；通知失败只记录日志，不影响任务状态收敛。
+func (c *Consumer) notifyCompletion(ctx context.Context, evt event.Event, t domain.Task,
+	status domain.TaskExecutionStatus) {
+	if c.notifier == nil {
+		return
+	}
+	rule, ok := t.EnabledNotificationRule(status)
+	if !ok {
+		return
+	}
+
+	execution, err := c.execSvc.FindByID(ctx, evt.ExecID)
+	if err != nil {
+		c.logger.Error("查询任务执行通知快照失败",
+			elog.Int64("taskID", evt.TaskID),
+			elog.Int64("executionID", evt.ExecID),
+			elog.FieldErr(err))
+		return
+	}
+	if err = c.notifier.Notify(ctx, rule, execution); err != nil {
+		c.logger.Error("投递任务执行通知失败",
+			elog.Int64("taskID", evt.TaskID),
+			elog.Int64("executionID", evt.ExecID),
+			elog.String("status", status.String()),
+			elog.FieldErr(err))
+	}
 }
 
 func completionState(status domain.TaskExecutionStatus) (domain.TaskExecutionStatus, int32, error) {

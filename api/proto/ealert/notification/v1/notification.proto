@@ -1,0 +1,161 @@
+syntax = "proto3";
+
+package ealert.notification.v1;
+
+import "google/protobuf/struct.proto";
+
+option go_package = "ealert/notification/v1;notificationv1";
+
+// Business 表示通知所属业务。
+enum Business {
+  // 未指定业务类型。
+  BUSINESS_UNSPECIFIED = 0;
+  // 任务执行消息。
+  TASK = 3;
+}
+
+// Channel 表示通知投递渠道。
+enum Channel {
+  // 未指定渠道。
+  CHANNEL_UNSPECIFIED = 0;
+  // 飞书卡片。
+  LARK_CARD = 1;
+  // 邮件。
+  EMAIL = 2;
+  // 站内信。
+  IN_APP = 3;
+  // 微信。
+  WECHAT = 4;
+}
+
+// SendStatus 表示单渠道发送状态。
+enum SendStatus {
+  // 未指定发送状态。
+  SEND_STATUS_UNSPECIFIED = 0;
+  // 事务消息准备阶段。
+  PREPARE = 1;
+  // 已取消。
+  CANCELED = 2;
+  // 等待发送。
+  PENDING = 3;
+  // 发送成功。
+  SUCCEEDED = 4;
+  // 发送失败。
+  FAILED = 5;
+}
+
+// RecipientSelectorType 表示接收对象的解析规则。
+enum RecipientSelectorType {
+  // 未指定解析规则。
+  RECIPIENT_SELECTOR_TYPE_UNSPECIFIED = 0;
+  // EIAM 用户 ID。
+  RECIPIENT_USER = 1;
+  // EAlert 团队 ID。
+  RECIPIENT_TEAM = 2;
+  // EIAM 部门 ID。
+  RECIPIENT_DEPARTMENT = 3;
+  // EAlert 值班计划 ID。
+  RECIPIENT_ONCALL = 4;
+  // 指定 EIAM 用户所在部门的领导。
+  RECIPIENT_DEPARTMENT_LEADER = 5;
+  // 指定 EIAM 用户所在部门的分管领导。
+  RECIPIENT_SUPERVISING_LEADER = 6;
+}
+
+// ErrorCode 表示 EAlert 业务错误。
+enum ErrorCode {
+  // 未指定错误，通常表示成功。
+  ERROR_CODE_UNSPECIFIED = 0;
+  // 请求参数非法。
+  INVALID_PARAMETER = 1;
+  // 频率受限。
+  RATE_LIMITED = 2;
+  // 模板不存在。
+  TEMPLATE_NOT_FOUND = 3;
+  // 渠道已禁用。
+  CHANNEL_DISABLED = 4;
+  // 创建通知失败。
+  CREATE_NOTIFICATION_FAILED = 5;
+  // 业务 ID 不存在。
+  BIZ_ID_NOT_FOUND = 6;
+  // 通知不存在。
+  NOTIFICATION_NOT_FOUND = 7;
+  // 没有可用供应商。
+  NO_AVAILABLE_PROVIDER = 8;
+  // 没有可用渠道。
+  NO_AVAILABLE_CHANNEL = 9;
+  // 发送通知失败。
+  SEND_NOTIFICATION_FAILED = 10;
+  // 业务配置不存在。
+  CONFIG_NOT_FOUND = 11;
+  // 未提供配额配置。
+  NO_QUOTA_CONFIG = 12;
+  // 配额已耗尽。
+  NO_QUOTA = 13;
+  // 配额记录不存在。
+  QUOTA_NOT_FOUND = 14;
+  // 供应商不存在。
+  PROVIDER_NOT_FOUND = 15;
+  // 未知渠道。
+  UNKNOWN_CHANNEL = 16;
+  // 接收对象解析失败。
+  RECIPIENT_RESOLUTION_FAILED = 17;
+}
+
+// RecipientSelector 描述一组已标准化为数值 ID 的接收对象。
+message RecipientSelector {
+  // 解析规则，决定 target_ids 所属的 ID 空间。
+  RecipientSelectorType type = 1;
+  // 接收对象 ID；调用方必须在请求 EAlert 前完成标识转换。
+  repeated int64 target_ids = 2;
+}
+
+// DispatchNotificationRequest 请求 EAlert 解析接收对象并投递通知。
+message DispatchNotificationRequest {
+  // 通知所属业务。
+  Business business = 1;
+  // 业务事件幂等键；重复投递同一事件时必须保持不变。
+  string idempotency_key = 2;
+  // 接收对象规则；多个规则的结果取并集。
+  repeated RecipientSelector recipients = 3;
+  // 需要投递的渠道。
+  repeated Channel channels = 4;
+  // EAlert 模板集 ID。
+  int64 template_set_id = 5;
+  // 模板渲染参数。
+  google.protobuf.Struct template_params = 6;
+  // 模板集稳定业务 key；与 template_set_id 二选一。
+  string template_set_key = 7;
+}
+
+// NotificationDispatchResult 表示单渠道投递结果。
+message NotificationDispatchResult {
+  // 实际投递渠道。
+  Channel channel = 1;
+  // EAlert 通知记录 ID。
+  uint64 notification_id = 2;
+  // 发送状态。
+  SendStatus status = 3;
+  // 失败错误码。
+  ErrorCode error_code = 4;
+  // 失败详情。
+  string error_message = 5;
+}
+
+// DispatchNotificationResponse 表示一次业务通知的处理结果。
+message DispatchNotificationResponse {
+  // 各渠道投递结果。
+  repeated NotificationDispatchResult results = 1;
+  // 去重后的接收用户数量。
+  int32 resolved_recipient_count = 2;
+  // 请求级错误码。
+  ErrorCode error_code = 3;
+  // 请求级错误详情。
+  string error_message = 4;
+}
+
+// NotificationService 提供 EAlert 通知投递能力。
+service NotificationService {
+  // 解析接收对象，按模板集和渠道同步投递通知。
+  rpc DispatchNotification(DispatchNotificationRequest) returns (DispatchNotificationResponse);
+}
