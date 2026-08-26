@@ -178,3 +178,5 @@ require (
 )
 
 tool go.uber.org/mock/mockgen
+
+replace github.com/ecodeclub/ginx => github.com/ecodeclub/ginx v0.0.2-0.20250919074712-66377c661570

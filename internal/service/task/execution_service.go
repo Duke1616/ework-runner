@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"time"
 
@@ -142,6 +143,7 @@ func (s *executionService) Create(ctx context.Context, execution domain.TaskExec
 	// 路由中的派发模式属于本次执行快照，不能被任务表里的上一次模式覆盖。
 	snapshot.ExecMode = execution.Route.DispatchMode
 	execution.Task = snapshot
+	execution.ParamOverrides = maps.Clone(snapshot.PendingParamOverrides)
 	execution.Variables = variables
 	execution.Program = selection.Program
 	// 执行记录同时固定项目源码和依赖制品，运行时不会漂移到新版本。

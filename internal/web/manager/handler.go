@@ -2,6 +2,8 @@ package manager
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -96,6 +98,10 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 	g.POST("/executions", h.Capability("执行记录", "executions").
 		Needs("task:manager:execution_events").
 		Handle(ginx.B[ListExecutionsReq](h.ListExecutions)),
+	)
+	g.GET("/executions/:id/parameters", h.Capability("执行参数", "execution_parameters").
+		Needs("task:manager:executions").
+		Handle(ginx.W(h.ExecutionParameters)),
 	)
 	g.POST("/executions/:id/terminate", h.executionRegistry.Capability("终止执行", "terminate").
 		Handle(ginx.B[TerminateExecutionReq](h.TerminateExecution)),
@@ -330,6 +336,73 @@ func (h *Handler) ListExecutions(ctx *ginx.Context, req ListExecutionsReq) (ginx
 		},
 		Msg: "success",
 	}, nil
+}
+
+func (h *Handler) ExecutionParameters(ctx *ginx.Context) (ginx.Result, error) {
+	id, err := ctx.Param("id").AsInt64()
+	if err != nil || id <= 0 {
+		return invalidParameterResult(fmt.Errorf("执行 ID 非法")), nil
+	}
+	execution, err := h.execSvc.FindByID(ctx, id)
+	if err != nil {
+		return systemErrorResult, err
+	}
+	return ginx.Result{Data: toExecutionParametersVO(execution), Msg: "success"}, nil
+}
+
+func toExecutionParametersVO(execution domain.TaskExecution) ExecutionParametersVO {
+	params := make(map[string]string)
+	if execution.Task.GrpcConfig != nil {
+		for key, value := range execution.Task.GrpcConfig.Params {
+			params[key] = value
+		}
+	} else if execution.Task.HTTPConfig != nil {
+		for key, value := range execution.Task.HTTPConfig.Params {
+			params[key] = value
+		}
+	}
+	// ParamOverrides is the authoritative record of manual-start overrides.
+	// Apply it explicitly so the endpoint remains correct even when an older
+	// execution snapshot did not fold the override into its protocol config.
+	for key, value := range execution.ParamOverrides {
+		params[key] = value
+	}
+	for key, value := range execution.Task.ScheduleParams {
+		params[key] = value
+	}
+
+	parameters := make([]ExecutionParameterVO, 0, len(params))
+	for _, key := range slices.Sorted(maps.Keys(params)) {
+		_, manualOverride := execution.ParamOverrides[key]
+		_, scheduleOverride := execution.Task.ScheduleParams[key]
+		source := "TASK_SNAPSHOT"
+		switch {
+		case scheduleOverride:
+			source = "SCHEDULE_OVERRIDE"
+		case manualOverride:
+			source = "MANUAL_OVERRIDE"
+		}
+		parameters = append(parameters, ExecutionParameterVO{
+			Key: key, Value: params[key], Source: source,
+			ManualOverride: manualOverride, ScheduleOverride: scheduleOverride,
+		})
+	}
+	slices.SortStableFunc(parameters, func(left, right ExecutionParameterVO) int {
+		leftOverridden := left.ManualOverride || left.ScheduleOverride
+		rightOverridden := right.ManualOverride || right.ScheduleOverride
+		if leftOverridden != rightOverridden {
+			if leftOverridden {
+				return -1
+			}
+			return 1
+		}
+		return strings.Compare(left.Key, right.Key)
+	})
+	return ExecutionParametersVO{
+		ExecutionID: execution.ID, Parameters: parameters,
+		ManualOverrideCount:   len(execution.ParamOverrides),
+		ScheduleOverrideCount: len(execution.Task.ScheduleParams),
+	}
 }
 
 func (h *Handler) Create(ctx *ginx.Context, req CreateTaskReq) (ginx.Result, error) {

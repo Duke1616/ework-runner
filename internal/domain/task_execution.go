@@ -1,10 +1,6 @@
 package domain
 
-import (
-	"strconv"
-
-	executorv1 "github.com/Duke1616/etask/api/proto/gen/etask/executor/v1"
-)
+import executorv1 "github.com/Duke1616/etask/api/proto/gen/etask/executor/v1"
 
 // TaskExecutionSource 表示执行记录的业务来源。
 type TaskExecutionSource string
@@ -187,6 +183,7 @@ type TaskExecution struct {
 	Artifacts       []ArtifactRef         // 本次执行固定的 SYSTEM 和具名依赖制品层
 	Variables       *ExecutionVariableSet // 本次执行固定的变量快照；普通 Handler 可不提供
 	Route           ExecutionRoute        // 创建时固定的传输和派发路由
+	ParamOverrides  map[string]string     // 本次手动启动消费的参数覆盖快照
 }
 
 func (te *TaskExecution) MergeTaskScheduleParams(scheduleParams map[string]string) {
@@ -221,9 +218,6 @@ func (te *TaskExecution) GRPCParams() map[string]string {
 			result[k] = v
 		}
 	}
-
-	// 3. 添加任务执行超时参数
-	result["max_execution_seconds"] = strconv.FormatInt(te.Task.MaxExecutionSeconds, 10)
 
 	return result
 }

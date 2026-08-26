@@ -166,6 +166,21 @@ type TaskExecutionVO struct {
 	CTime           int64  `json:"ctime"`
 }
 
+type ExecutionParameterVO struct {
+	Key              string `json:"key"`
+	Value            string `json:"value"`
+	Source           string `json:"source"`
+	ManualOverride   bool   `json:"manual_override"`
+	ScheduleOverride bool   `json:"schedule_override"`
+}
+
+type ExecutionParametersVO struct {
+	ExecutionID           int64                  `json:"execution_id"`
+	Parameters            []ExecutionParameterVO `json:"parameters"`
+	ManualOverrideCount   int                    `json:"manual_override_count"`
+	ScheduleOverrideCount int                    `json:"schedule_override_count"`
+}
+
 type ListExecutionResp struct {
 	Total      int64             `json:"total"`
 	Executions []TaskExecutionVO `json:"executions"`

@@ -281,6 +281,10 @@ func (r *taskExecutionRepository) toEntity(execution domain.TaskExecution) (dao.
 	if execution.Task.ScheduleParams != nil {
 		taskScheduleParams = sqlx.JSONColumn[map[string]string]{Val: execution.Task.ScheduleParams, Valid: true}
 	}
+	var taskParamOverrides sqlx.JSONColumn[map[string]string]
+	if len(execution.ParamOverrides) > 0 {
+		taskParamOverrides = sqlx.JSONColumn[map[string]string]{Val: execution.ParamOverrides, Valid: true}
+	}
 
 	var artifact sqlx.JSONColumn[[]domain.ArtifactRef]
 	if len(execution.Artifacts) > 0 {
@@ -329,6 +333,7 @@ func (r *taskExecutionRepository) toEntity(execution domain.TaskExecution) (dao.
 		TaskVersion:             execution.Task.Version,
 		TaskScheduleNodeID:      execution.Task.ScheduleNodeID,
 		TaskScheduleParams:      taskScheduleParams,
+		TaskParamOverrides:      taskParamOverrides,
 		Artifact:                artifact,
 		Variables:               variables,
 		Program:                 program,
@@ -368,6 +373,10 @@ func (r *taskExecutionRepository) toDomain(daoExecution dao.TaskExecution) (doma
 	var taskScheduleParams map[string]string
 	if daoExecution.TaskScheduleParams.Valid {
 		taskScheduleParams = daoExecution.TaskScheduleParams.Val
+	}
+	var taskParamOverrides map[string]string
+	if daoExecution.TaskParamOverrides.Valid {
+		taskParamOverrides = daoExecution.TaskParamOverrides.Val
 	}
 
 	var artifacts []domain.ArtifactRef
@@ -434,6 +443,7 @@ func (r *taskExecutionRepository) toDomain(daoExecution dao.TaskExecution) (doma
 		Variables:       variables,
 		Program:         program,
 		Route:           executionRoute,
+		ParamOverrides:  taskParamOverrides,
 		CTime:           daoExecution.Ctime,
 		UTime:           daoExecution.Utime,
 	}, nil

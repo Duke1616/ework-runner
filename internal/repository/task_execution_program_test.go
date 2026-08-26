@@ -60,6 +60,26 @@ func TestTaskExecutionVariablesRoundTrip(t *testing.T) {
 	require.Equal(t, execution.Variables, restored.Variables)
 }
 
+func TestTaskExecutionParamOverridesRoundTrip(t *testing.T) {
+	repository := &taskExecutionRepository{}
+	execution := domain.TaskExecution{
+		ID:   42,
+		Task: domain.Task{},
+		ParamOverrides: map[string]string{
+			"args":   `{"env":"prod"}`,
+			"region": "cn",
+		},
+	}
+
+	entity, err := repository.toEntity(execution)
+	require.NoError(t, err)
+	require.True(t, entity.TaskParamOverrides.Valid)
+
+	restored, err := repository.toDomain(entity)
+	require.NoError(t, err)
+	require.Equal(t, execution.ParamOverrides, restored.ParamOverrides)
+}
+
 func roundTripTaskExecution(t *testing.T, repository *taskExecutionRepository,
 	execution domain.TaskExecution) domain.TaskExecution {
 	t.Helper()

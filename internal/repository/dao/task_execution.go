@@ -45,6 +45,7 @@ type TaskExecution struct {
 	TaskVersion             int64                                        `gorm:"type:bigint;not null;comment:'创建时Task的版本号'"`
 	TaskScheduleNodeID      string                                       `gorm:"type:varchar(255);not null;comment:'创建此执行的调度节点ID'"`
 	TaskScheduleParams      sqlx.JSONColumn[map[string]string]           `gorm:"type:json;comment:'创建时Task的调度参数快照'"`
+	TaskParamOverrides      sqlx.JSONColumn[map[string]string]           `gorm:"type:json;comment:'本次手动启动消费的参数覆盖快照'"`
 	Artifact                sqlx.JSONColumn[[]domain.ArtifactRef]        `gorm:"type:json;comment:'本次执行固定的代码制品层'"`
 	Variables               sqlx.JSONColumn[domain.ExecutionVariableSet] `gorm:"type:json;comment:'本次执行固定的变量快照'"`
 	Program                 sqlx.JSONColumn[domain.Program]              `gorm:"type:json;comment:'本次执行固定的程序来源'"`
