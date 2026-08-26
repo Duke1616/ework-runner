@@ -180,8 +180,42 @@ func bindCancellation(tx *gorm.DB, cancellation ExecutionCancellation,
 		if err := cancelExecution(tx, execution.ID, reason); err != nil {
 			return err
 		}
+		// 任务抢占状态不能依赖执行器回传完成事件才能释放。
+		// 执行器可能已经断开，或者 HTTP/Local 路由根本没有独立的终止控制面；
+		// 此时取消事务仍应让正式任务恢复到可调度状态。
+		if err := releaseTaskOnCancellation(tx, execution); err != nil {
+			return err
+		}
 	}
 	return scheduleCancellationDelivery(tx, cancellation, execution.ID, reason)
+}
+
+// releaseTaskOnCancellation 在取消执行的同一事务中释放其抢占的正式任务。
+// 调度节点条件是必要的：取消请求可能晚于一次新的抢占到达，不能清除新节点的锁。
+// 一次性任务不应重新进入调度队列，因此直接置为 COMPLETED；手动 Start/Retry 仍可再次执行。
+func releaseTaskOnCancellation(tx *gorm.DB, execution TaskExecution) error {
+	if execution.TaskID <= 0 || execution.TaskScheduleNodeID == "" {
+		return nil
+	}
+	status := StatusActive
+	if execution.TaskType == string(domain.TaskTypeOneTime) {
+		status = StatusCompleted
+	}
+	result := tx.Model(&Task{}).
+		Where("id = ? AND status = ? AND schedule_node_id = ?",
+			execution.TaskID, StatusPreempted, execution.TaskScheduleNodeID).
+		Updates(map[string]any{
+			"status":           status,
+			"schedule_node_id": gorm.Expr("NULL"),
+			"version":          gorm.Expr("version + 1"),
+			"utime":            time.Now().UnixMilli(),
+		})
+	if result.Error != nil {
+		return fmt.Errorf("取消执行后释放任务失败: %w", result.Error)
+	}
+	// RowsAffected 为 0 是幂等场景（任务已经释放、被停用或由其他节点重新抢占），
+	// 不应阻止取消状态提交。
+	return nil
 }
 
 func cancelExecution(tx *gorm.DB, executionID int64, reason string) error {
