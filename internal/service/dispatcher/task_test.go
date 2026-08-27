@@ -12,6 +12,7 @@ import (
 	dispatchermocks "github.com/Duke1616/etask/internal/service/dispatcher/mocks"
 	invokermocks "github.com/Duke1616/etask/internal/service/invoker/mocks"
 	taskmocks "github.com/Duke1616/etask/internal/service/task/mocks"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -57,6 +58,21 @@ func TestTaskDispatcherRunPlansAfterAcquire(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTaskDispatcherSkipsExpiredPreemptionWithActiveExecution(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	executions := taskmocks.NewMockExecutionService(ctrl)
+	executions.EXPECT().HasNonTerminalByTaskID(gomock.Any(), int64(10)).Return(true, nil)
+
+	acquirer := acquirermocks.NewMockTaskAcquirer(ctrl)
+	acquirer.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
+	d := dispatcher.NewTaskDispatcher("scheduler-1", executions, acquirer, nil, nil, dispatcher.Config{})
+	err := d.Run(t.Context(), domain.Task{
+		ID: 10, Status: domain.TaskStatusPreempted,
+	})
+	require.NoError(t, err)
 }
 
 func TestTaskDispatcherRetryClaimsExecutionBeforeInvoke(t *testing.T) {

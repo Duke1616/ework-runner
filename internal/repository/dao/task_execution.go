@@ -33,7 +33,7 @@ type TaskExecution struct {
 	// RequestID 仅供外部来源幂等提交使用；NULL 不参与唯一约束。
 	RequestID sql.NullString `gorm:"type:varchar(128);uniqueIndex:uk_execution_request,priority:3;comment:'外部幂等请求标识'"`
 	// 下面都是创建当前 TaskExecution 时从对应的Task直接拷贝过来的冗余信息
-	TaskID                  int64                                        `gorm:"type:bigint;not null;comment:'任务ID'"`
+	TaskID                  int64                                        `gorm:"type:bigint;not null;index:idx_execution_task_status,priority:1;comment:'任务ID'"`
 	TaskRunnerID            int64                                        `gorm:"type:bigint;not null;default:0;comment:'创建时Task引用的执行单元ID'"`
 	TaskName                string                                       `gorm:"type:varchar(255);not null;comment:'任务名称'"`
 	TaskType                string                                       `gorm:"type:ENUM('RECURRING', 'ONE_TIME');not null;default:'RECURRING';comment:'任务类型: RECURRING-定时任务(循环执行), ONE_TIME-一次性任务(执行一次后停止)'"`
@@ -53,17 +53,17 @@ type TaskExecution struct {
 
 	// 下面这些是 TaskExecution 的自身信息
 	ExecutorNodeID  sql.NullString `gorm:"type:varchar(255);comment:'执行节点的 nodeID，用于记录是哪个节点处理了任务'"`
-	Deadline        int64          `gorm:"type:bigint;not null;comment:'任务执行截止时间（毫秒时间戳）'"`
+	Deadline        int64          `gorm:"type:bigint;not null;index:idx_execution_timeout,priority:2;comment:'任务执行截止时间（毫秒时间戳）'"`
 	Stime           int64          `gorm:"type:bigint;comment:'开始时间'"`
 	Etime           int64          `gorm:"type:bigint;comment:'结束时间'"`
 	RetryCount      int64          `gorm:"type:bigint;not null;default:0;comment:'已重试次数'"`
-	NextRetryTime   int64          `gorm:"type:bigint;comment:'下次重试时间'"`
+	NextRetryTime   int64          `gorm:"type:bigint;index:idx_execution_retry,priority:2;comment:'下次重试时间'"`
 	RunningProgress int32          `gorm:"type:int;default:0;comment:'执行进度0-100，RUNNING状态下有效'"`
-	Status          string         `gorm:"type:ENUM('WAITING_PULL', 'PREPARE', 'RUNNING', 'FAILED_RETRYABLE', 'FAILED_RESCHEDULED', 'FAILED', 'SUCCESS', 'CANCELLED');not null;default:'PREPARE';comment:'执行状态: PREPARE-初始化，RUNNING-执行中，FAILED_RETRYABLE-可重试失败，FAILED_RESCHEDULED-重调度失败，FAILED-失败，SUCCESS-成功，CANCELLED-强制终止'"`
+	Status          string         `gorm:"type:ENUM('WAITING_PULL', 'PREPARE', 'RUNNING', 'FAILED_RETRYABLE', 'FAILED_RESCHEDULED', 'FAILED', 'SUCCESS', 'CANCELLED');not null;default:'PREPARE';index:idx_execution_task_status,priority:2;index:idx_execution_retry,priority:1;index:idx_execution_reschedule,priority:1;index:idx_execution_timeout,priority:1;index:idx_execution_pull,priority:1;comment:'执行状态: PREPARE-初始化，RUNNING-执行中，FAILED_RETRYABLE-可重试失败，FAILED_RESCHEDULED-重调度失败，FAILED-失败，SUCCESS-成功，CANCELLED-强制终止'"`
 	ExecMode        string         `gorm:"type:ENUM('PUSH', 'PULL');not null;default:'PUSH';comment:'本次执行采用的模式（PUSH-中心推送/PULL-边缘拉取）'"`
 	TaskResult      string         `gorm:"type:text;comment:'任务执行的结构化结果（JSON格式）'"`
-	Ctime           int64          `gorm:"comment:'创建时间'"`
-	Utime           int64          `gorm:"comment:'更新时间'"`
+	Ctime           int64          `gorm:"index:idx_execution_pull,priority:2;comment:'创建时间'"`
+	Utime           int64          `gorm:"index:idx_execution_reschedule,priority:2;comment:'更新时间'"`
 }
 
 // TableName 指定表名
@@ -102,6 +102,8 @@ type TaskExecutionDAO interface {
 	FindExecutionByPlanID(ctx context.Context, planExecID int64) (map[int64]TaskExecution, error)
 	// FindByTaskID 根据任务ID查找执行记录
 	FindByTaskID(ctx context.Context, taskID int64) ([]TaskExecution, error)
+	// HasNonTerminalByTaskID 判断任务是否存在未结束的执行记录。
+	HasNonTerminalByTaskID(ctx context.Context, taskID int64) (bool, error)
 	// ListByTaskID 根据任务ID分页查找执行记录
 	ListByTaskID(ctx context.Context, taskID int64, offset, limit int) ([]TaskExecution, error)
 	// CountByTaskID 根据任务ID统计执行记录总数
@@ -142,6 +144,31 @@ func (g *GORMTaskExecutionDAO) FindByTaskID(ctx context.Context, taskID int64) (
 		return nil, fmt.Errorf("查询任务 %d 的执行记录失败: %w", taskID, err)
 	}
 	return executions, nil
+}
+
+// HasNonTerminalByTaskID 使用带 LIMIT 的存在性查询，避免为防重复调度加载完整执行快照。
+func (g *GORMTaskExecutionDAO) HasNonTerminalByTaskID(ctx context.Context, taskID int64) (bool, error) {
+	var row struct {
+		TaskID int64 `gorm:"column:task_id"`
+	}
+	result := g.db.WithContext(ctx).
+		Model(&TaskExecution{}).
+		// 选择组合索引中的字段，避免加载完整执行记录，也避免 SELECT 1 的列名无法映射。
+		Select("task_id").
+		Where("task_id = ? AND status IN ?", taskID, nonTerminalExecutionStatuses()).
+		Limit(1).
+		Find(&row)
+	return result.RowsAffected > 0, result.Error
+}
+
+func nonTerminalExecutionStatuses() []string {
+	return []string{
+		TaskExecutionStatusWaitingPull,
+		TaskExecutionStatusPrepare,
+		TaskExecutionStatusRunning,
+		TaskExecutionStatusFailedRetryable,
+		TaskExecutionStatusFailedRescheduled,
+	}
 }
 
 func (g *GORMTaskExecutionDAO) ListByTaskID(ctx context.Context, taskID int64, offset, limit int) ([]TaskExecution, error) {
@@ -301,13 +328,8 @@ func (g *GORMTaskExecutionDAO) FindRetryableExecutions(ctx context.Context, limi
 	var executions []TaskExecution
 	now := time.Now().UnixMilli()
 
-	// 复杂查询：查找可重试的执行记录
 	err := g.db.WithContext(ctx).
-		// 过滤掉已达最大重试次数的记录
-		// FAILED_RETRYABLE状态 - 执行失败但可重试
-		Where(`status=? AND next_retry_time <= ?`, TaskExecutionStatusFailedRetryable, now).
-		// 确保到了可以执行的时间
-		Where(" next_retry_time <= ?", now).
+		Where("status = ? AND next_retry_time <= ?", TaskExecutionStatusFailedRetryable, now).
 		Limit(limit).
 		Find(&executions).Error
 	return executions, err

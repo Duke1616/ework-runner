@@ -432,6 +432,45 @@ func (c *MockExecutionServiceFindWorkflowByRequestIDCall) DoAndReturn(f func(con
 	return c
 }
 
+// HasNonTerminalByTaskID mocks base method.
+func (m *MockExecutionService) HasNonTerminalByTaskID(ctx context.Context, taskID int64) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HasNonTerminalByTaskID", ctx, taskID)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// HasNonTerminalByTaskID indicates an expected call of HasNonTerminalByTaskID.
+func (mr *MockExecutionServiceMockRecorder) HasNonTerminalByTaskID(ctx, taskID any) *MockExecutionServiceHasNonTerminalByTaskIDCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasNonTerminalByTaskID", reflect.TypeOf((*MockExecutionService)(nil).HasNonTerminalByTaskID), ctx, taskID)
+	return &MockExecutionServiceHasNonTerminalByTaskIDCall{Call: call}
+}
+
+// MockExecutionServiceHasNonTerminalByTaskIDCall wrap *gomock.Call
+type MockExecutionServiceHasNonTerminalByTaskIDCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockExecutionServiceHasNonTerminalByTaskIDCall) Return(arg0 bool, arg1 error) *MockExecutionServiceHasNonTerminalByTaskIDCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockExecutionServiceHasNonTerminalByTaskIDCall) Do(f func(context.Context, int64) (bool, error)) *MockExecutionServiceHasNonTerminalByTaskIDCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockExecutionServiceHasNonTerminalByTaskIDCall) DoAndReturn(f func(context.Context, int64) (bool, error)) *MockExecutionServiceHasNonTerminalByTaskIDCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // ListByTaskID mocks base method.
 func (m *MockExecutionService) ListByTaskID(ctx context.Context, taskID int64, offset, limit int) ([]domain.TaskExecution, int64, error) {
 	m.ctrl.T.Helper()

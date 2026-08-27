@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -67,6 +68,12 @@ func startServer() {
 	app.StartBackgroundTasks(ctx)
 
 	if err := ego.New().Serve(app.GetServers()...).Run(); err != nil {
+		// Ego 使用 context deadline 表示关闭窗口耗尽；任务状态会由调度补偿器继续收敛，
+		// 不应把这个预期的停止结果再次升级为 panic。
+		if errors.Is(err, context.DeadlineExceeded) {
+			elog.Warn("应用优雅停止超时，剩余任务交由补偿器处理", elog.FieldErr(err))
+			return
+		}
 		elog.Panic("app_run_error", elog.FieldErr(err))
 	}
 }

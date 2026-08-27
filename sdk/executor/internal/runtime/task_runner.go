@@ -140,6 +140,10 @@ func (e *Executor) reportFinalResult(ctx context.Context, eid int64, status exec
 	defer cancel()
 	if _, err := e.reporterClient.Report(reportCtx,
 		&reporterv1.ReportRequest{ExecutionState: state}, grpc.WaitForReady(true)); err != nil {
+		if isConnectionClosingError(err) {
+			e.logger.Debug("停止期间最终状态未上报", elog.FieldErr(err))
+			return
+		}
 		e.logger.Error("上报最终状态失败", elog.FieldErr(err))
 	}
 }

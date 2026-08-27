@@ -46,6 +46,8 @@ type ExecutionService interface {
 	FindReschedulableExecutions(ctx context.Context, limit int) ([]domain.TaskExecution, error)
 	// FindExecutionByTaskIDAndPlanExecID 根据任务和计划执行 ID 查询执行记录。
 	FindExecutionByTaskIDAndPlanExecID(ctx context.Context, taskID int64, planExecID int64) (domain.TaskExecution, error)
+	// HasNonTerminalByTaskID 判断任务是否存在未结束的执行记录。
+	HasNonTerminalByTaskID(ctx context.Context, taskID int64) (bool, error)
 	// FindTimeoutExecutions 查找超时的执行记录
 	FindTimeoutExecutions(ctx context.Context, limit int) ([]domain.TaskExecution, error)
 	// RequeuePull 将失败的 PULL 执行重新放回等待拉取队列。
@@ -362,6 +364,10 @@ func (s *executionService) FindReschedulableExecutions(ctx context.Context, limi
 
 func (s *executionService) FindExecutionByTaskIDAndPlanExecID(ctx context.Context, taskID, planExecID int64) (domain.TaskExecution, error) {
 	return s.repo.FindExecutionByTaskIDAndPlanExecID(ctx, taskID, planExecID)
+}
+
+func (s *executionService) HasNonTerminalByTaskID(ctx context.Context, taskID int64) (bool, error) {
+	return s.repo.HasNonTerminalByTaskID(ctx, taskID)
 }
 
 func (s *executionService) FindTimeoutExecutions(ctx context.Context, limit int) ([]domain.TaskExecution, error) {

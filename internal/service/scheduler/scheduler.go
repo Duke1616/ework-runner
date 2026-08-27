@@ -228,14 +228,18 @@ func (s *Scheduler) renewLoop() {
 func (s *Scheduler) Stop() error {
 	s.logger.Info("停止分布式任务调度器", elog.String("nodeID", s.nodeID))
 	// 取消上下文
-	s.cancel()
+	if s.cancel != nil {
+		s.cancel()
+	}
 	return nil
 }
 
 // GracefulStop 停止调度循环和续约循环。
 func (s *Scheduler) GracefulStop(_ context.Context) error {
 	s.logger.Info("停止分布式任务调度器", elog.String("nodeID", s.nodeID))
-	s.cancel()
+	if s.cancel != nil {
+		s.cancel()
+	}
 	return nil
 }
 

@@ -44,13 +44,14 @@ func openDB() (*gorm.DB, error) {
 		MaxIdleConns              int    //空闲连接池中连接的最大数量
 		MaxOpenConns              int    //打开数据库连接的最大数量
 		ConnMaxLifetime           int    //连接可复用的最大时间（分钟）
+		ConnMaxIdleTime           int    //连接空闲后可复用的最大时间（分钟）
 		SlowThreshold             int64  //慢SQL阈值(秒)
 		LogLevel                  int    //日志级别 1:Silent  2:Error 3:Warn 4:Info
 		IgnoreRecordNotFoundError bool   //忽略ErrRecordNotFound（记录未找到）错误
 		Colorful                  bool   //使用彩色打印
 	}
 	var DBConnConfigurator = DataBaseConnConfigurator{
-		MaxIdleConns: 10, MaxOpenConns: 100, ConnMaxLifetime: 3600, SlowThreshold: 2, LogLevel: 3,
+		MaxIdleConns: 10, MaxOpenConns: 100, ConnMaxLifetime: 30, ConnMaxIdleTime: 5, SlowThreshold: 2, LogLevel: 3,
 		IgnoreRecordNotFoundError: true, Colorful: true}
 
 	myLogger := logger.New(
@@ -73,6 +74,16 @@ func openDB() (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+	// 显式配置连接池。未配置时 database/sql 使用默认池参数，长时间运行后
+	// 可能复用已被 MySQL 或中间网络设备关闭的连接，表现为 unexpected EOF。
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("获取数据库连接池失败: %w", err)
+	}
+	sqlDB.SetMaxIdleConns(DBConnConfigurator.MaxIdleConns)
+	sqlDB.SetMaxOpenConns(DBConnConfigurator.MaxOpenConns)
+	sqlDB.SetConnMaxLifetime(time.Duration(DBConnConfigurator.ConnMaxLifetime) * time.Minute)
+	sqlDB.SetConnMaxIdleTime(time.Duration(DBConnConfigurator.ConnMaxIdleTime) * time.Minute)
 	return db, nil
 }
 

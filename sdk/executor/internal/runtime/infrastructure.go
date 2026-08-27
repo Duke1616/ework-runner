@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"errors"
 
 	artifactv1 "github.com/Duke1616/etask/api/proto/gen/etask/artifact/v1"
 	executorv1 "github.com/Duke1616/etask/api/proto/gen/etask/executor/v1"
@@ -10,6 +11,8 @@ import (
 	"github.com/Duke1616/etask/sdk/executor/artifact"
 	"github.com/Duke1616/etask/sdk/executor/internal/task"
 	"github.com/gotomicro/ego/core/elog"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type grpcLogSink struct {
@@ -32,9 +35,17 @@ func (e *Executor) newExecutionLogger(ctx context.Context, executionID int64) ta
 	}
 	return tasklog.New(ctx, grpcLogSink{executionID: executionID, reporter: e.reporterClient}, tasklog.Options{
 		OnError: func(err error) {
+			if isConnectionClosingError(err) {
+				e.logger.Debug("停止期间任务日志未上报", elog.FieldErr(err))
+				return
+			}
 			e.logger.Error("上报任务日志失败", elog.FieldErr(err))
 		},
 	})
+}
+
+func isConnectionClosingError(err error) bool {
+	return errors.Is(err, context.Canceled) || status.Code(err) == codes.Canceled
 }
 
 func artifactRefs(values []*artifactv1.ArtifactRef) []artifact.Ref {

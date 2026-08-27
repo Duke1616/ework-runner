@@ -13,16 +13,35 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 const Number = 1
 
+const integrationDSNEnv = "ETASK_TEST_DSN"
+
+// initIntegrationDB 只允许集成测试连接显式指定的专用数据库。
+// 不提供 DSN 时跳过测试，避免 go test ./... 意外写入共享环境。
+func initIntegrationDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	dsn := os.Getenv(integrationDSNEnv)
+	if dsn == "" {
+		t.Skipf("集成测试已跳过：请通过 %s 指定专用测试数据库", integrationDSNEnv)
+	}
+	initViper()
+	viper.Set("mysql.dsn", dsn)
+	db := ioc.InitDB()
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("获取集成测试数据库连接失败: %v", err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	return db
+}
+
 // 这个方法用于初始化任务,需要提前将执行节点，调度节点启动
 func TestDemoStart(t *testing.T) {
-	initViper()
-
-	// 初始化db
-	db := ioc.InitDB()
+	db := initIntegrationDB(t)
 	taskDAO := dao.NewGORMTaskDAO(db)
 	// 初始化task
 	for i := 0; i < Number; i++ {
@@ -55,10 +74,7 @@ func TestDemoStart(t *testing.T) {
 }
 
 func TestShellStart(t *testing.T) {
-	initViper()
-
-	// 初始化db
-	db := ioc.InitDB()
+	db := initIntegrationDB(t)
 	taskDAO := dao.NewGORMTaskDAO(db)
 	for i := 0; i < Number; i++ {
 		// 初始化task

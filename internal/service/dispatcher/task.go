@@ -84,6 +84,20 @@ func NewTaskDispatcher(
 
 // Run 抢占最新任务快照，完成路由规划后创建并派发执行记录。
 func (s *TaskDispatcher) Run(ctx context.Context, task domain.Task) error {
+	// 父任务的抢占租约超时后可能再次出现在调度列表中。若其旧 execution
+	// 仍未结束，跳过本轮调度，等待旧 execution 自己收敛，避免重复创建记录。
+	if task.Status == domain.TaskStatusPreempted && s.execSvc != nil {
+		active, err := s.execSvc.HasNonTerminalByTaskID(ctx, task.ID)
+		if err != nil {
+			return fmt.Errorf("检查任务未完成执行记录失败: %w", err)
+		}
+		if active {
+			s.logger.Debug("任务已有未完成执行记录，跳过重复调度",
+				elog.Int64("taskID", task.ID), elog.String("taskName", task.Name))
+			return nil
+		}
+	}
+
 	// 先抢占并取得数据库最新快照，避免基于过期配置选择节点和执行模式。
 	acquiredTask, err := s.acquireTask(ctx, task)
 	if err != nil {

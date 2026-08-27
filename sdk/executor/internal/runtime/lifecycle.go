@@ -59,6 +59,8 @@ func (e *Executor) Stop() error {
 func (e *Executor) GracefulStop(ctx context.Context) error {
 	e.stopPullLoop()
 	e.stopAcceptingExecutions()
+	// 停止时主动中断正在运行的任务，让它们有机会在关闭窗口内完成清理和最终上报。
+	e.executions.CancelAll(execution.ErrInterrupted)
 	var err error
 	if e.server == nil {
 		err = nil
@@ -66,7 +68,6 @@ func (e *Executor) GracefulStop(ctx context.Context) error {
 		err = e.server.GracefulStop(ctx)
 	}
 	if waitErr := e.waitExecutions(ctx); waitErr != nil {
-		e.executions.CancelAll(execution.ErrInterrupted)
 		err = errors.Join(err, waitErr)
 	}
 	return errors.Join(err, e.closeConnection())

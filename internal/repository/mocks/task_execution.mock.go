@@ -471,6 +471,45 @@ func (c *MockTaskExecutionRepositoryGetByIDCall) DoAndReturn(f func(context.Cont
 	return c
 }
 
+// HasNonTerminalByTaskID mocks base method.
+func (m *MockTaskExecutionRepository) HasNonTerminalByTaskID(ctx context.Context, taskID int64) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HasNonTerminalByTaskID", ctx, taskID)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// HasNonTerminalByTaskID indicates an expected call of HasNonTerminalByTaskID.
+func (mr *MockTaskExecutionRepositoryMockRecorder) HasNonTerminalByTaskID(ctx, taskID any) *MockTaskExecutionRepositoryHasNonTerminalByTaskIDCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasNonTerminalByTaskID", reflect.TypeOf((*MockTaskExecutionRepository)(nil).HasNonTerminalByTaskID), ctx, taskID)
+	return &MockTaskExecutionRepositoryHasNonTerminalByTaskIDCall{Call: call}
+}
+
+// MockTaskExecutionRepositoryHasNonTerminalByTaskIDCall wrap *gomock.Call
+type MockTaskExecutionRepositoryHasNonTerminalByTaskIDCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockTaskExecutionRepositoryHasNonTerminalByTaskIDCall) Return(arg0 bool, arg1 error) *MockTaskExecutionRepositoryHasNonTerminalByTaskIDCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockTaskExecutionRepositoryHasNonTerminalByTaskIDCall) Do(f func(context.Context, int64) (bool, error)) *MockTaskExecutionRepositoryHasNonTerminalByTaskIDCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockTaskExecutionRepositoryHasNonTerminalByTaskIDCall) DoAndReturn(f func(context.Context, int64) (bool, error)) *MockTaskExecutionRepositoryHasNonTerminalByTaskIDCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // ListByTaskID mocks base method.
 func (m *MockTaskExecutionRepository) ListByTaskID(ctx context.Context, taskID int64, offset, limit int) ([]domain.TaskExecution, int64, error) {
 	m.ctrl.T.Helper()
