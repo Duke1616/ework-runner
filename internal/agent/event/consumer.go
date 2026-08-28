@@ -32,19 +32,12 @@ type ExecuteConsumer struct {
 // NewExecuteConsumer 创建指定 Topic 的 Agent 消费者。
 func NewExecuteConsumer(q mq.MQ, svc service.Service, topic string, publisher ExecutionEventPublisher,
 	reg registry.Registry, instance registry.ServiceInstance, workerCount int) (*ExecuteConsumer, error) {
-	consumer, err := q.Consumer(topic, "agent-execution-"+topic)
-	if err != nil {
-		return nil, err
-	}
+	consumer := mqx.NewResilientConsumer(q, topic, "agent-execution-"+topic)
 	if workerCount <= 0 {
 		workerCount = 1
 	}
 	// 控制消息必须广播到每个 Agent，只有实际持有 execution 的实例会触发取消。
-	control, err := q.Consumer(executionevent.ControlTopic(topic), controlConsumerGroup(topic, instance))
-	if err != nil {
-		_ = consumer.Close()
-		return nil, err
-	}
+	control := mqx.NewResilientConsumer(q, executionevent.ControlTopic(topic), controlConsumerGroup(topic, instance))
 	return &ExecuteConsumer{
 		consumer: consumer, control: control, publisher: publisher, svc: svc, reg: reg, instance: instance,
 		workerCount: workerCount,
@@ -66,6 +59,7 @@ func (c *ExecuteConsumer) Start(ctx context.Context) error {
 	for workerID := 0; workerID < c.workerCount; workerID++ {
 		go c.consumeLoop(ctx, workerID)
 	}
+
 	go c.controlLoop(ctx)
 	// Etcd 只承担能力发现；短暂故障不应关闭已经建立的 Kafka 数据面。
 	regCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
@@ -77,25 +71,15 @@ func (c *ExecuteConsumer) Start(ctx context.Context) error {
 }
 
 func (c *ExecuteConsumer) controlLoop(ctx context.Context) {
-	for {
-		if err := c.ConsumeControl(ctx); err != nil {
-			if errors.Is(err, context.Canceled) || ctx.Err() != nil {
-				return
-			}
-			c.logger.Error("处理 Agent 终止命令失败", elog.FieldErr(err))
-		}
-	}
+	mqx.ConsumeLoop(ctx, c.ConsumeControl, func(err error) {
+		c.logger.Error("处理 Agent 终止命令失败", elog.FieldErr(err))
+	})
 }
 
 func (c *ExecuteConsumer) consumeLoop(ctx context.Context, workerID int) {
-	for {
-		if err := c.Consume(ctx); err != nil {
-			if errors.Is(err, context.Canceled) || ctx.Err() != nil {
-				return
-			}
-			c.logger.Error("处理 Agent 命令失败", elog.Int("worker", workerID), elog.FieldErr(err))
-		}
-	}
+	mqx.ConsumeLoop(ctx, c.Consume, func(err error) {
+		c.logger.Error("处理 Agent 命令失败", elog.Int("worker", workerID), elog.FieldErr(err))
+	})
 }
 
 // Consume 消费并同步处理一条命令。
