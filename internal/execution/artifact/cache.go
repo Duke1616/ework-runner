@@ -58,7 +58,7 @@ func (l cacheLayout) ensure() error {
 type artifactCache struct {
 	cfg    Config
 	layout cacheLayout
-	codec  *artifactarchive.Codec
+	codec  artifactarchive.IArchiveCodec
 	group  singleflight.Group
 }
 

@@ -42,9 +42,9 @@ type Service interface {
 type service struct {
 	repo    repository.ArtifactRepository
 	store   blobstore.Store
-	archive *artifactarchive.Codec
+	archive artifactarchive.IArchiveCodec
 }
 
-func NewService(repo repository.ArtifactRepository, store blobstore.Store, archive *artifactarchive.Codec) Service {
+func NewService(repo repository.ArtifactRepository, store blobstore.Store, archive artifactarchive.IArchiveCodec) Service {
 	return &service{repo: repo, store: store, archive: archive}
 }

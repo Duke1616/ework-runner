@@ -250,3 +250,37 @@ func TestResolveProject_ConcurrentSingleflight(t *testing.T) {
 		require.Equal(t, "main.yml", res.Program.Project.EntryPoint)
 	}
 }
+
+func TestResolveProject_SingleflightContextDecoupled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	repo := repositorymocks.NewMockProjectSourceRepository(ctrl)
+
+	cancelledCtx, cancel := context.WithCancel(ctxutil.WithTenantID(context.Background(), 10))
+	cancel() // 立刻取消外部上下文
+
+	repo.EXPECT().GetProject(gomock.Any(), int64(9)).Return(domain.CodebookProject{
+		ID: 9, Scope: domain.CodebookScopeTenant, SourceRevision: 3,
+	}, nil)
+
+	// 核心验证：即使调用方传入的 Context 已经被 Cancel，由于使用了 WithoutCancel 脱钩，
+	// 进入底层的 Context 依然活跃（ctx.Err() == nil），保证落盘与查询不受单点超时/取消破坏。
+	repo.EXPECT().FindByRevision(gomock.Any(), int64(9), int64(3)).DoAndReturn(
+		func(ctx context.Context, projectID, revision int64) (domain.ProjectSource, error) {
+			require.NoError(t, ctx.Err(), "底层任务上下文应与外部取消脱钩")
+			return domain.ProjectSource{
+				ID: 99, TenantID: 10, ProjectID: 9, SourceRevision: 3,
+				Digest: strings.Repeat("a", 64), BlobChecksum: strings.Repeat("a", 64),
+				Size: 1024, Format: "tar.zst", FormatVersion: 1,
+			}, nil
+		})
+
+	svc := program.NewService(codebooks{values: map[int64]domain.Codebook{
+		11: {ID: 11, ProjectID: 9, Name: "main.yml", Kind: domain.CodebookKindFile, Scope: domain.CodebookScopeTenant},
+	}}, repo, blobstoremocks.NewMockStore(ctrl), artifactarchive.New(""))
+
+	res, err := svc.Resolve(cancelledCtx, &domain.ProgramSpec{
+		Kind: domain.ProgramProject, Project: &domain.ProjectProgramSpec{EntryCodebookID: 11},
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(99), res.Program.Project.Source.SourceID)
+}

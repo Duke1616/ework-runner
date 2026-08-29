@@ -60,28 +60,22 @@ func SpecFromRunnerBinding(codebookID int64, kind domain.ProgramKind) (*domain.P
 	return spec, nil
 }
 
-type modeResolver interface {
-	// Resolve 解析当前模式的程序声明。
-	Resolve(context.Context, *domain.ProgramSpec) (Resolution, error)
-}
-
 type service struct {
 	codebooks CodebookReader
 	repo      repository.ProjectSourceRepository
 	store     blobstore.Store
-	archive   *artifactarchive.Codec
-	modes     map[domain.ProgramKind]modeResolver
+	archive   artifactarchive.IArchiveCodec
 	sf        singleflight.Group
 }
 
 func NewService(codebooks CodebookReader, repo repository.ProjectSourceRepository,
-	store blobstore.Store, archive *artifactarchive.Codec) Service {
-	svc := &service{codebooks: codebooks, repo: repo, store: store, archive: archive}
-	svc.modes = map[domain.ProgramKind]modeResolver{
-		domain.ProgramInline:  inlineResolver{codebooks: codebooks},
-		domain.ProgramProject: projectResolver{service: svc},
+	store blobstore.Store, archive artifactarchive.IArchiveCodec) Service {
+	return &service{
+		codebooks: codebooks,
+		repo:      repo,
+		store:     store,
+		archive:   archive,
 	}
-	return svc
 }
 
 func (s *service) Resolve(ctx context.Context, spec *domain.ProgramSpec) (Resolution, error) {
@@ -91,17 +85,21 @@ func (s *service) Resolve(ctx context.Context, spec *domain.ProgramSpec) (Resolu
 	if err := spec.Validate(); err != nil {
 		return Resolution{}, fmt.Errorf("程序配置非法: %w", err)
 	}
-	resolver := s.modes[spec.Kind]
-	return resolver.Resolve(ctx, spec)
+	switch spec.Kind {
+	case domain.ProgramInline:
+		return s.resolveInline(ctx, spec)
+	case domain.ProgramProject:
+		return s.resolveProject(ctx, spec)
+	default:
+		return Resolution{}, fmt.Errorf("不支持的程序模式: %s", spec.Kind)
+	}
 }
 
-type inlineResolver struct{ codebooks CodebookReader }
-
-func (r inlineResolver) Resolve(ctx context.Context, spec *domain.ProgramSpec) (Resolution, error) {
+func (s *service) resolveInline(ctx context.Context, spec *domain.ProgramSpec) (Resolution, error) {
 	if spec.Inline.Code != "" {
 		return Resolution{Program: domain.NewInlineProgram(spec.Inline.Code)}, nil
 	}
-	codebook, err := loadFile(ctx, r.codebooks, spec.Inline.CodebookID)
+	codebook, err := loadFile(ctx, s.codebooks, spec.Inline.CodebookID)
 	if err != nil {
 		return Resolution{}, err
 	}
@@ -111,10 +109,7 @@ func (r inlineResolver) Resolve(ctx context.Context, spec *domain.ProgramSpec) (
 	return Resolution{Program: domain.NewInlineProgram(codebook.Code), SourceProjectID: codebook.ProjectID}, nil
 }
 
-type projectResolver struct{ service *service }
-
-func (r projectResolver) Resolve(ctx context.Context, spec *domain.ProgramSpec) (Resolution, error) {
-	s := r.service
+func (s *service) resolveProject(ctx context.Context, spec *domain.ProgramSpec) (Resolution, error) {
 	codebook, err := loadFile(ctx, s.codebooks, spec.Project.EntryCodebookID)
 	if err != nil {
 		return Resolution{}, err
@@ -200,17 +195,18 @@ func (s *service) prepareSource(ctx context.Context, projectID int64) (domain.Pr
 	if project.ID != projectID || project.Scope != domain.CodebookScopeTenant {
 		return domain.ProjectSource{}, fmt.Errorf("代码项目与 PROJECT 来源不匹配")
 	}
-	// 通过 singleflight 抑制并发打包，避免高并发调度时重复扫描、重复压缩与唯一键冲突
+	// 通过 singleflight 抑制并发打包，避免重复扫描与压缩冲突
+	asyncCtx := context.WithoutCancel(ctx)
 	flightKey := fmt.Sprintf("%d:%d", projectID, project.SourceRevision)
 	res, err, _ := s.sf.Do(flightKey, func() (any, error) {
-		current, findErr := s.repo.FindByRevision(ctx, projectID, project.SourceRevision)
+		current, findErr := s.repo.FindByRevision(asyncCtx, projectID, project.SourceRevision)
 		if findErr == nil {
 			return current, nil
 		}
 		if !errors.Is(findErr, gorm.ErrRecordNotFound) {
 			return domain.ProjectSource{}, fmt.Errorf("查询项目源码失败: %w", findErr)
 		}
-		return s.packAndPersistSource(ctx, tenantID, projectID, target)
+		return s.packAndPersistSource(asyncCtx, tenantID, projectID, target)
 	})
 	if err != nil {
 		return domain.ProjectSource{}, err

@@ -24,6 +24,6 @@ func InitArtifactStore(cfg artifactSvc.Config) blobstore.Store {
 }
 
 // InitArtifactArchive 创建制品发布和读取使用的归档编解码器。
-func InitArtifactArchive(cfg artifactSvc.Config) *artifactarchive.Codec {
+func InitArtifactArchive(cfg artifactSvc.Config) artifactarchive.IArchiveCodec {
 	return artifactarchive.New(cfg.TempDir)
 }

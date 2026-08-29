@@ -13,7 +13,7 @@ import (
 )
 
 // Extract 将制品安全解压到目标目录，并校验清单和全部文件内容。
-func (c *Codec) Extract(source, target string, expected Metadata, limits ExtractLimits) error {
+func (c *codec) Extract(source, target string, expected Metadata, limits ExtractLimits) error {
 	if !Supports(expected.Format, expected.FormatVersion) {
 		return fmt.Errorf("不支持的制品格式: %s/%d", expected.Format, expected.FormatVersion)
 	}
