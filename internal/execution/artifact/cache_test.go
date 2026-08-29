@@ -9,10 +9,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -262,5 +265,173 @@ func buildTestRef(t *testing.T, name, content string) ([]byte, executorartifact.
 		ReleaseID: 1, Digest: digest,
 		BlobChecksum: hex.EncodeToString(checksum[:]), Size: int64(len(archive)),
 		Format: artifactarchive.Format, FormatVersion: artifactarchive.FormatVersion,
+	}
+}
+
+type countingDownloader struct {
+	executorartifact.Downloader
+	calls atomic.Int64
+	delay time.Duration
+}
+
+func (d *countingDownloader) DownloadArtifact(ctx context.Context, ref executorartifact.Ref, target io.Writer) error {
+	d.calls.Add(1)
+	if d.delay > 0 {
+		time.Sleep(d.delay)
+	}
+	return d.Downloader.DownloadArtifact(ctx, ref, target)
+}
+
+func TestArtifactCacheConcurrency(t *testing.T) {
+	testCases := []struct {
+		name string
+		run  func(t *testing.T, cache *artifactCache, dl *countingDownloader, layer layerRef)
+	}{
+		{
+			name: "SingleFlight 并发合并确保仅下载一次",
+			run: func(t *testing.T, cache *artifactCache, dl *countingDownloader, layer layerRef) {
+				const concurrency = 10
+				var wg sync.WaitGroup
+				wg.Add(concurrency)
+
+				roots := make([]string, concurrency)
+				errs := make([]error, concurrency)
+
+				for i := 0; i < concurrency; i++ {
+					go func(idx int) {
+						defer wg.Done()
+						root, err := cache.Ensure(context.Background(), dl, layer)
+						roots[idx] = root
+						errs[idx] = err
+					}(i)
+				}
+				wg.Wait()
+
+				for i := 0; i < concurrency; i++ {
+					require.NoError(t, errs[i])
+					require.Equal(t, roots[0], roots[i])
+					content, readErr := os.ReadFile(filepath.Join(roots[i], "concurrency.txt"))
+					require.NoError(t, readErr)
+					require.Equal(t, "concurrency data\n", string(content))
+				}
+				// 验证 SingleFlight 确实合并了并发调用，实际物理下载只发生了一次
+				require.Equal(t, int64(1), dl.calls.Load())
+			},
+		},
+		{
+			name: "并发中单个调用方取消不影响其他调用方成功物化",
+			run: func(t *testing.T, cache *artifactCache, dl *countingDownloader, layer layerRef) {
+				cancelCtx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+
+				var wg sync.WaitGroup
+				wg.Add(2)
+
+				var err1, err2 error
+				var root2 string
+
+				// 请求者 1：中途取消
+				go func() {
+					defer wg.Done()
+					time.Sleep(10 * time.Millisecond)
+					cancel()
+					_, err1 = cache.Ensure(cancelCtx, dl, layer)
+				}()
+
+				// 请求者 2：使用正常未取消的 context
+				go func() {
+					defer wg.Done()
+					root2, err2 = cache.Ensure(context.Background(), dl, layer)
+				}()
+
+				wg.Wait()
+
+				// 请求者 1 收到 context.Canceled，但后台任务脱钩执行不受影响
+				require.ErrorIs(t, err1, context.Canceled)
+				// 请求者 2 正常拿到解压目录
+				require.NoError(t, err2)
+				content, err := os.ReadFile(filepath.Join(root2, "concurrency.txt"))
+				require.NoError(t, err)
+				require.Equal(t, "concurrency data\n", string(content))
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cache := newArtifactCache(Config{Dir: t.TempDir()})
+			archive, ref := buildTestRef(t, "concurrency.txt", "concurrency data\n")
+			client, closeServer := newArtifactClient(t, archive)
+			defer closeServer()
+
+			countingDl := &countingDownloader{
+				Downloader: artifactgrpc.NewDownloader(client),
+				delay:      40 * time.Millisecond,
+			}
+			layer, err := parseArtifactLayerRef(ref)
+			require.NoError(t, err)
+
+			tc.run(t, cache, countingDl, layer)
+		})
+	}
+}
+
+func TestArtifactCacheSelfHealing(t *testing.T) {
+	testCases := []struct {
+		name   string
+		setup  func(t *testing.T, cache *artifactCache, layer layerRef)
+		verify func(t *testing.T, cache *artifactCache, layer layerRef)
+	}{
+		{
+			name: "清理无 ready 标记的半解压目录",
+			setup: func(t *testing.T, cache *artifactCache, layer layerRef) {
+				targetDir := cache.layout.layerDir(layer)
+				require.NoError(t, os.MkdirAll(targetDir, artifactarchive.PermDir))
+				require.NoError(t, os.WriteFile(filepath.Join(targetDir, "partial.tmp"), []byte("bad"), artifactarchive.PermReadOnly))
+			},
+			verify: func(t *testing.T, cache *artifactCache, layer layerRef) {
+				targetDir := cache.layout.layerDir(layer)
+				_, err := os.Stat(targetDir)
+				require.ErrorIs(t, err, os.ErrNotExist)
+			},
+		},
+		{
+			name: "清理 layers 根目录下的非法普通文件",
+			setup: func(t *testing.T, cache *artifactCache, layer layerRef) {
+				require.NoError(t, os.MkdirAll(cache.layout.layersDir(), artifactarchive.PermDir))
+				badFile := filepath.Join(cache.layout.layersDir(), "corrupt_layer_file")
+				require.NoError(t, os.WriteFile(badFile, []byte("junk"), artifactarchive.PermReadOnly))
+			},
+			verify: func(t *testing.T, cache *artifactCache, layer layerRef) {
+				badFile := filepath.Join(cache.layout.layersDir(), "corrupt_layer_file")
+				_, err := os.Stat(badFile)
+				require.ErrorIs(t, err, os.ErrNotExist)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cacheDir := t.TempDir()
+			cache := newArtifactCache(Config{Dir: cacheDir})
+			archive, ref := buildTestRef(t, "heal.py", "heal=True\n")
+			client, closeServer := newArtifactClient(t, archive)
+			defer closeServer()
+
+			downloader := artifactgrpc.NewDownloader(client)
+			layer, err := parseArtifactLayerRef(ref)
+			require.NoError(t, err)
+
+			tc.setup(t, cache, layer)
+
+			require.NoError(t, cache.Prune())
+			tc.verify(t, cache, layer)
+
+			root, err := cache.Ensure(context.Background(), downloader, layer)
+			require.NoError(t, err)
+			content, err := os.ReadFile(filepath.Join(root, "heal.py"))
+			require.NoError(t, err)
+			require.Equal(t, "heal=True\n", string(content))
+		})
 	}
 }

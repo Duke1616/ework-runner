@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"time"
+
+	artifactarchive "github.com/Duke1616/etask/internal/artifact/archive"
 )
 
 const artifactTempMaxAge = 24 * time.Hour
@@ -21,10 +23,10 @@ type cachedLayer struct {
 func pruneCache(root string, maxSize int64) error {
 	tempDir := filepath.Join(root, "tmp")
 	layersDir := filepath.Join(root, "layers")
-	if err := os.MkdirAll(tempDir, 0o750); err != nil {
+	if err := os.MkdirAll(tempDir, artifactarchive.PermDir); err != nil {
 		return fmt.Errorf("创建制品缓存临时目录失败: %w", err)
 	}
-	if err := os.MkdirAll(layersDir, 0o750); err != nil {
+	if err := os.MkdirAll(layersDir, artifactarchive.PermDir); err != nil {
 		return fmt.Errorf("创建制品缓存层目录失败: %w", err)
 	}
 	// 先清理异常中断遗留的临时文件，再统计可复用缓存层。
@@ -35,8 +37,10 @@ func pruneCache(root string, maxSize int64) error {
 	if err != nil {
 		return err
 	}
-	// 超出容量时按 .ready 的最近使用时间淘汰最旧内容层。
-	sort.Slice(layers, func(i, j int) bool { return layers[i].lastUsed.Before(layers[j].lastUsed) })
+	// 超出容量时按 .ready 的最近使用时间淘汰最旧内容层 (LRU 策略)。
+	slices.SortFunc(layers, func(a, b cachedLayer) int {
+		return a.lastUsed.Compare(b.lastUsed)
+	})
 	for _, layer := range layers {
 		if total <= maxSize {
 			break
@@ -57,6 +61,9 @@ func removeStaleTemps(dir string, deadline time.Time) error {
 	for _, entry := range entries {
 		info, infoErr := entry.Info()
 		if infoErr != nil {
+			if os.IsNotExist(infoErr) {
+				continue
+			}
 			return fmt.Errorf("读取制品缓存临时文件信息失败: %w", infoErr)
 		}
 		if info.ModTime().Before(deadline) {
@@ -88,7 +95,7 @@ func inspectLayers(dir string) ([]cachedLayer, int64, error) {
 		if sizeErr != nil {
 			return nil, 0, sizeErr
 		}
-		info, infoErr := os.Stat(filepath.Join(path, ".ready"))
+		info, infoErr := os.Stat(filepath.Join(path, readyMarkerFile))
 		if infoErr != nil {
 			// 没有提交标记的目录不是有效缓存层，启动清理时直接回收。
 			if removeErr := os.RemoveAll(path); removeErr != nil {
@@ -125,5 +132,5 @@ func directorySize(root string) (int64, error) {
 
 func touchArtifact(dir string) {
 	now := time.Now()
-	_ = os.Chtimes(filepath.Join(dir, ".ready"), now, now)
+	_ = os.Chtimes(filepath.Join(dir, readyMarkerFile), now, now)
 }

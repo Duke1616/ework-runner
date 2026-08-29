@@ -30,19 +30,8 @@ func validateExtractedArtifact(root string, expected Metadata) error {
 	if err = json.Unmarshal(data, &manifest); err != nil {
 		return fmt.Errorf("解析制品清单失败: %w", err)
 	}
-	if manifest.FormatVersion != expected.FormatVersion || !strings.EqualFold(manifest.Digest, expected.Digest) {
-		return fmt.Errorf("制品清单与制品引用不一致")
-	}
-
-	digest := manifest.Digest
-	manifest.Digest = ""
-	identity, err := json.Marshal(manifest)
-	if err != nil {
-		return fmt.Errorf("计算制品清单摘要失败: %w", err)
-	}
-	actualDigest := sha256.Sum256(identity)
-	if !strings.EqualFold(hex.EncodeToString(actualDigest[:]), digest) {
-		return fmt.Errorf("制品清单摘要校验失败")
+	if err = manifest.VerifyDigest(expected.Digest); err != nil {
+		return fmt.Errorf("制品清单与制品引用不一致: %w", err)
 	}
 	expectedFiles, err := validateManifestFiles(root, manifest.Files)
 	if err != nil {

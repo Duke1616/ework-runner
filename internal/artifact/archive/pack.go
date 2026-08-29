@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -27,9 +27,11 @@ func buildManifest(files []domain.ArtifactFile) (preparedArtifact, error) {
 	if len(files) == 0 {
 		return preparedArtifact{}, fmt.Errorf("代码资源中没有可发布的文件")
 	}
-	files = append([]domain.ArtifactFile(nil), files...)
-	// 固定文件顺序是生成稳定 manifest 摘要和压缩内容的前提。
-	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
+	// 拷贝切片避免污染外部入参；按文件路径严格字典序排序，保证每次生成的 Manifest 摘要与压缩包字节流完全确定，从而最大化命中缓存。
+	files = slices.Clone(files)
+	slices.SortFunc(files, func(a, b domain.ArtifactFile) int {
+		return strings.Compare(a.Path, b.Path)
+	})
 
 	manifest := Manifest{FormatVersion: FormatVersion, Files: make([]ManifestFile, 0, len(files))}
 	seen := make(map[string]struct{}, len(files))
@@ -69,13 +71,11 @@ func buildManifest(files []domain.ArtifactFile) (preparedArtifact, error) {
 		})
 	}
 
-	// Digest 只覆盖语义清单且计算时不包含自身，因此同一文件树得到同一摘要。
-	identityJSON, err := json.Marshal(manifest)
+	digest, err := manifest.CalculateDigest()
 	if err != nil {
-		return preparedArtifact{}, fmt.Errorf("序列化制品清单失败: %w", err)
+		return preparedArtifact{}, err
 	}
-	digestBytes := sha256.Sum256(identityJSON)
-	manifest.Digest = hex.EncodeToString(digestBytes[:])
+	manifest.Digest = digest
 	manifestJSON, err := json.Marshal(manifest)
 	if err != nil {
 		return preparedArtifact{}, fmt.Errorf("序列化制品清单失败: %w", err)
@@ -86,7 +86,7 @@ func buildManifest(files []domain.ArtifactFile) (preparedArtifact, error) {
 func writeArchive(ctx context.Context, tempDir string, prepared preparedArtifact,
 	open OpenFile) (PackedArtifact, error) {
 	if tempDir != "" {
-		if err := os.MkdirAll(tempDir, 0o750); err != nil {
+		if err := os.MkdirAll(tempDir, PermDir); err != nil {
 			return PackedArtifact{}, fmt.Errorf("创建制品临时目录失败: %w", err)
 		}
 	}
@@ -156,11 +156,7 @@ func writeTarStream(ctx context.Context, writer *tar.Writer, file domain.Artifac
 	if open == nil {
 		return fmt.Errorf("制品源文件 %s 缺少内容读取器", file.Path)
 	}
-	header := &tar.Header{
-		Name: file.Path, Mode: 0o444, Size: file.Size, Typeflag: tar.TypeReg,
-		ModTime: time.Unix(0, 0), AccessTime: time.Unix(0, 0), ChangeTime: time.Unix(0, 0),
-		Uid: 0, Gid: 0, Uname: "", Gname: "", Format: tar.FormatPAX,
-	}
+	header := newDeterministicTarHeader(file.Path, file.Size)
 	if err := writer.WriteHeader(header); err != nil {
 		return err
 	}
@@ -197,15 +193,19 @@ func validSHA256(value string) bool {
 }
 
 func writeTarFile(writer *tar.Writer, name string, content []byte) error {
-	// 清零时间和用户字段，避免机器环境让同一内容产生不同压缩包。
-	header := &tar.Header{
-		Name: name, Mode: 0o444, Size: int64(len(content)), Typeflag: tar.TypeReg,
-		ModTime: time.Unix(0, 0), AccessTime: time.Unix(0, 0), ChangeTime: time.Unix(0, 0),
-		Uid: 0, Gid: 0, Uname: "", Gname: "", Format: tar.FormatPAX,
-	}
+	header := newDeterministicTarHeader(name, int64(len(content)))
 	if err := writer.WriteHeader(header); err != nil {
 		return err
 	}
 	_, err := writer.Write(content)
 	return err
+}
+
+// newDeterministicTarHeader 创建确定性归档的 tar 文件头（清零时间戳与系统用户元数据，固定 PAX 格式和只读权限）。
+func newDeterministicTarHeader(name string, size int64) *tar.Header {
+	return &tar.Header{
+		Name: name, Mode: int64(PermReadOnly), Size: size, Typeflag: tar.TypeReg,
+		ModTime: time.Unix(0, 0), AccessTime: time.Unix(0, 0), ChangeTime: time.Unix(0, 0),
+		Uid: 0, Gid: 0, Uname: "", Gname: "", Format: tar.FormatPAX,
+	}
 }

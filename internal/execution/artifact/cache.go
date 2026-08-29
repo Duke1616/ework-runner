@@ -41,14 +41,14 @@ func (l cacheLayout) layerDir(ref layerRef) string {
 }
 
 func (l cacheLayout) ensure() error {
-	if err := os.MkdirAll(l.tempDir(), 0o750); err != nil {
+	if err := os.MkdirAll(l.tempDir(), artifactarchive.PermDir); err != nil {
 		return fmt.Errorf("创建制品缓存临时目录失败: %w", err)
 	}
-	if err := os.MkdirAll(l.layersDir(), 0o750); err != nil {
+	if err := os.MkdirAll(l.layersDir(), artifactarchive.PermDir); err != nil {
 		return fmt.Errorf("创建制品缓存层目录失败: %w", err)
 	}
 	for _, dir := range []string{l.root, l.tempDir(), l.layersDir()} {
-		if err := os.Chmod(dir, 0o750); err != nil {
+		if err := os.Chmod(dir, artifactarchive.PermDir); err != nil {
 			return fmt.Errorf("收紧制品缓存目录权限失败: %w", err)
 		}
 	}
@@ -99,7 +99,10 @@ func (c *artifactCache) Ensure(ctx context.Context, downloader executorartifact.
 		return "", fmt.Errorf("制品大小超出限制: %d", ref.size)
 	}
 
-	// 相同内容的并发请求共享物化过程；每个等待者仍可独立响应自身取消。
+	// 并发控制设计：
+	// 1. 使用 SingleFlight 合并相同 cacheKey 的并发请求，防止并发任务引发网络带宽与磁盘 I/O 尖峰；
+	// 2. 使用 context.WithoutCancel(ctx) 将底层下载物化与单个调用方的 Context 解绑；即便某个任务
+	//    中途取消，物化仍可在后台以 artifactDownloadTimeout 独立完成，使其余并发者和未来任务仍可复用缓存。
 	result := c.group.DoChan(ref.cacheKey(), func() (any, error) {
 		workCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), artifactDownloadTimeout)
 		defer cancel()

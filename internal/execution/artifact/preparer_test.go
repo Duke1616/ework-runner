@@ -45,40 +45,64 @@ func TestValidateArtifactLayers(t *testing.T) {
 	}
 }
 
-func TestRuntimePrepareReturnsImmutableNamedLayers(t *testing.T) {
-	archive, defaultRef := buildTestRef(t, "python/private/util.py", "VALUE = 1\n")
-	namedRef := defaultRef
-	namedRef.ReleaseID = 2
-	namedRef.MountName = "ops_common"
-	client, closeServer := newArtifactClient(t, archive)
-	defer closeServer()
+func TestRuntimePrepare(t *testing.T) {
+	testCases := []struct {
+		name       string
+		setup      func(t *testing.T) (executorartifact.Downloader, *executorartifact.SourceRef, []executorartifact.Ref, func())
+		assertions func(t *testing.T, prepared executorartifact.PreparedArtifacts, cacheDir string)
+		wantError  string
+	}{
+		{
+			name: "准备默认层与具名层并保证目录不可变及临时目录清空",
+			setup: func(t *testing.T) (executorartifact.Downloader, *executorartifact.SourceRef, []executorartifact.Ref, func()) {
+				archive, defaultRef := buildTestRef(t, "python/private/util.py", "VALUE = 1\n")
+				namedRef := defaultRef
+				namedRef.ReleaseID = 2
+				namedRef.MountName = "ops_common"
+				client, closeServer := newArtifactClient(t, archive)
+				return artifactgrpc.NewDownloader(client), nil, []executorartifact.Ref{defaultRef, namedRef}, closeServer
+			},
+			assertions: func(t *testing.T, prepared executorartifact.PreparedArtifacts, cacheDir string) {
+				roots := prepared.Roots()
+				require.NotEmpty(t, roots.Default)
+				require.Equal(t, roots.Default, roots.Named["ops_common"])
+				require.DirExists(t, roots.Default)
 
-	cacheDir := t.TempDir()
-	runtime := NewRuntime(Config{Dir: cacheDir})
-	prepared, err := runtime.Prepare(t.Context(), artifactgrpc.NewDownloader(client),
-		nil, []executorartifact.Ref{defaultRef, namedRef})
-	require.NoError(t, err)
-	roots := prepared.Roots()
-	require.NotEmpty(t, roots.Default)
-	require.Equal(t, roots.Default, roots.Named["ops_common"])
-	require.DirExists(t, roots.Default)
+				entries, err := os.ReadDir(filepath.Join(cacheDir, "tmp"))
+				require.NoError(t, err)
+				require.Empty(t, entries)
+			},
+		},
+		{
+			name: "准备项目源码并正确返回 SourceRoot 物理目录",
+			setup: func(t *testing.T) (executorartifact.Downloader, *executorartifact.SourceRef, []executorartifact.Ref, func()) {
+				archive, artifactRef := buildTestRef(t, "playbooks/deploy.yml", "---\n")
+				source := sourceRef(artifactRef)
+				client, closeServer := newArtifactClient(t, archive)
+				return artifactgrpc.NewDownloader(client), &source, nil, closeServer
+			},
+			assertions: func(t *testing.T, prepared executorartifact.PreparedArtifacts, cacheDir string) {
+				require.FileExists(t, filepath.Join(prepared.SourceRoot(), "playbooks", "deploy.yml"))
+			},
+		},
+	}
 
-	entries, err := os.ReadDir(filepath.Join(cacheDir, "tmp"))
-	require.NoError(t, err)
-	require.Empty(t, entries)
-}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			dl, source, refs, closeFn := tc.setup(t)
+			defer closeFn()
 
-func TestRuntimePrepareReturnsProjectSource(t *testing.T) {
-	archive, artifactRef := buildTestRef(t, "playbooks/deploy.yml", "---\n")
-	projectSource := sourceRef(artifactRef)
-	client, closeServer := newArtifactClient(t, archive)
-	defer closeServer()
-
-	prepared, err := NewRuntime(Config{Dir: t.TempDir()}).Prepare(
-		t.Context(), artifactgrpc.NewDownloader(client), &projectSource, nil,
-	)
-	require.NoError(t, err)
-	require.FileExists(t, filepath.Join(prepared.SourceRoot(), "playbooks", "deploy.yml"))
+			cacheDir := t.TempDir()
+			runtime := NewRuntime(Config{Dir: cacheDir})
+			prepared, err := runtime.Prepare(t.Context(), dl, source, refs)
+			if tc.wantError != "" {
+				require.ErrorContains(t, err, tc.wantError)
+				return
+			}
+			require.NoError(t, err)
+			tc.assertions(t, prepared, cacheDir)
+		})
+	}
 }
 
 func validRef(namespace string) executorartifact.Ref {

@@ -65,7 +65,7 @@ func extractArchive(source, target string, limits ExtractLimits) error {
 		}
 		switch header.Typeflag {
 		case tar.TypeDir:
-			if err = os.MkdirAll(path, 0o750); err != nil {
+			if err = os.MkdirAll(path, PermDir); err != nil {
 				return fmt.Errorf("创建制品目录失败: %w", err)
 			}
 		case tar.TypeReg, tar.TypeRegA:
@@ -73,16 +73,17 @@ func extractArchive(source, target string, limits ExtractLimits) error {
 				return err
 			}
 		default:
+			// 严禁软链接 (Symlink)、硬链接 (Link) 等特殊文件类型，杜绝通过链接逃逸缓存目录的安全漏洞。
 			return fmt.Errorf("制品包含不支持的文件类型: %s", header.Name)
 		}
 	}
 }
 
 func extractFile(reader io.Reader, path string, size int64) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), PermDir); err != nil {
 		return fmt.Errorf("创建制品父目录失败: %w", err)
 	}
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o444)
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, PermReadOnly)
 	if err != nil {
 		return fmt.Errorf("创建制品文件失败: %w", err)
 	}
@@ -94,7 +95,7 @@ func extractFile(reader io.Reader, path string, size int64) error {
 	if closeErr != nil {
 		return fmt.Errorf("关闭制品文件失败: %w", closeErr)
 	}
-	if err = os.Chmod(path, 0o444); err != nil {
+	if err = os.Chmod(path, PermReadOnly); err != nil {
 		return fmt.Errorf("设置制品文件只读权限失败: %w", err)
 	}
 	return nil

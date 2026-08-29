@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/klauspost/compress/zstd"
+	"github.com/samber/lo"
 )
 
 func readManifest(reader io.Reader, expectedDigest string) (Manifest, error) {
@@ -37,14 +38,10 @@ func readFile(reader io.Reader, expectedDigest, filePath string) (string, error)
 	if err != nil {
 		return "", err
 	}
-	var expected *ManifestFile
-	for index := range manifest.Files {
-		if manifest.Files[index].Path == clean {
-			expected = &manifest.Files[index]
-			break
-		}
-	}
-	if expected == nil {
+	expected, found := lo.Find(manifest.Files, func(file ManifestFile) bool {
+		return file.Path == clean
+	})
+	if !found {
 		return "", fmt.Errorf("制品清单中不存在文件: %s", clean)
 	}
 	for {
@@ -82,19 +79,8 @@ func readManifestEntry(reader *tar.Reader, expectedDigest string) (Manifest, err
 	if err = json.NewDecoder(reader).Decode(&manifest); err != nil {
 		return Manifest{}, fmt.Errorf("解析制品清单失败: %w", err)
 	}
-	if manifest.FormatVersion != FormatVersion || !strings.EqualFold(manifest.Digest, expectedDigest) {
-		return Manifest{}, fmt.Errorf("制品清单版本或摘要不匹配")
+	if err = manifest.VerifyDigest(expectedDigest); err != nil {
+		return Manifest{}, err
 	}
-	digest := manifest.Digest
-	manifest.Digest = ""
-	identity, err := json.Marshal(manifest)
-	if err != nil {
-		return Manifest{}, fmt.Errorf("校验制品清单失败: %w", err)
-	}
-	actual := sha256.Sum256(identity)
-	if !strings.EqualFold(digest, hex.EncodeToString(actual[:])) {
-		return Manifest{}, fmt.Errorf("制品清单内容摘要校验失败")
-	}
-	manifest.Digest = digest
 	return manifest, nil
 }

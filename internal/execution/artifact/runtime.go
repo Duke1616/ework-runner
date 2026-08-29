@@ -3,9 +3,11 @@ package artifact
 
 import (
 	"context"
+	"sync"
 
 	"github.com/Duke1616/etask/sdk/executor"
 	executorartifact "github.com/Duke1616/etask/sdk/executor/artifact"
+	"golang.org/x/sync/errgroup"
 )
 
 // Prepared 描述任务可直接使用的不可变缓存目录。
@@ -47,28 +49,50 @@ func (r *Runtime) Prepare(ctx context.Context, downloader executorartifact.Downl
 		return nil, err
 	}
 	prepared := Prepared{roots: executor.ArtifactRoots{}}
-	if layers.sourceLayer != nil {
-		prepared.sourceRoot, err = r.cache.Ensure(ctx, downloader, *layers.sourceLayer)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if layers.hasDefault {
-		prepared.roots.Default, err = r.cache.Ensure(ctx, downloader, layers.defaultLayer)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	if len(layers.namedLayers) > 0 {
 		prepared.roots.Named = make(map[string]string, len(layers.namedLayers))
 	}
+
+	// 源码层、默认层和各具名层互相独立，使用 errgroup 并行拉取与物化，降低任务准备耗时。
+	g, gCtx := errgroup.WithContext(ctx)
+	if layers.sourceLayer != nil {
+		g.Go(func() error {
+			root, ensureErr := r.cache.Ensure(gCtx, downloader, *layers.sourceLayer)
+			if ensureErr != nil {
+				return ensureErr
+			}
+			prepared.sourceRoot = root
+			return nil
+		})
+	}
+	if layers.hasDefault {
+		g.Go(func() error {
+			root, ensureErr := r.cache.Ensure(gCtx, downloader, layers.defaultLayer)
+			if ensureErr != nil {
+				return ensureErr
+			}
+			prepared.roots.Default = root
+			return nil
+		})
+	}
+
+	var mu sync.Mutex
 	for _, ref := range layers.namedLayers {
-		root, ensureErr := r.cache.Ensure(ctx, downloader, ref)
-		if ensureErr != nil {
-			return nil, ensureErr
-		}
-		prepared.roots.Named[ref.mountName] = root
+		namedRef := ref
+		g.Go(func() error {
+			root, ensureErr := r.cache.Ensure(gCtx, downloader, namedRef)
+			if ensureErr != nil {
+				return ensureErr
+			}
+			mu.Lock()
+			prepared.roots.Named[namedRef.mountName] = root
+			mu.Unlock()
+			return nil
+		})
+	}
+
+	if err = g.Wait(); err != nil {
+		return nil, err
 	}
 	return prepared, nil
 }

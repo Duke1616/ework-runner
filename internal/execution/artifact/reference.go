@@ -39,6 +39,8 @@ type layerSet struct {
 	namedLayers  []layerRef
 }
 
+const readyMarkerFile = ".ready"
+
 type cacheMarker struct {
 	Digest        string `json:"digest"`
 	BlobChecksum  string `json:"blob_checksum"`
@@ -82,23 +84,46 @@ func parseLayerSet(source *executorartifact.SourceRef, refs []executorartifact.R
 	return result, nil
 }
 
+type rawLayerMeta struct {
+	id            int64
+	idName        string
+	size          int64
+	digest        string
+	blobChecksum  string
+	format        string
+	formatVersion int32
+	kindName      string
+}
+
+func validateAndNormalizeLayer(meta rawLayerMeta) (normalizedDigest, normalizedChecksum string, err error) {
+	if meta.id <= 0 {
+		return "", "", fmt.Errorf("%s 非法", meta.idName)
+	}
+	if meta.size <= 0 {
+		return "", "", fmt.Errorf("%s大小非法: %d", meta.kindName, meta.size)
+	}
+	digest, err := normalizeDigest(meta.digest)
+	if err != nil {
+		return "", "", err
+	}
+	checksum, err := normalizeDigest(meta.blobChecksum)
+	if err != nil {
+		return "", "", fmt.Errorf("%s压缩包校验和非法: %w", meta.kindName, err)
+	}
+	if !artifactarchive.Supports(meta.format, meta.formatVersion) {
+		return "", "", fmt.Errorf("不支持的%s格式: %s/%d", meta.kindName, meta.format, meta.formatVersion)
+	}
+	return digest, checksum, nil
+}
+
 func parseArtifactLayerRef(value executorartifact.Ref) (layerRef, error) {
-	if value.ReleaseID <= 0 {
-		return layerRef{}, fmt.Errorf("制品发布 ID 非法")
-	}
-	if value.Size <= 0 {
-		return layerRef{}, fmt.Errorf("制品大小非法: %d", value.Size)
-	}
-	digest, err := normalizeDigest(value.Digest)
+	digest, checksum, err := validateAndNormalizeLayer(rawLayerMeta{
+		id: value.ReleaseID, idName: "制品发布 ID", size: value.Size, digest: value.Digest,
+		blobChecksum: value.BlobChecksum, format: value.Format, formatVersion: value.FormatVersion,
+		kindName: "制品",
+	})
 	if err != nil {
 		return layerRef{}, err
-	}
-	checksum, err := normalizeDigest(value.BlobChecksum)
-	if err != nil {
-		return layerRef{}, fmt.Errorf("制品压缩包校验和非法: %w", err)
-	}
-	if !artifactarchive.Supports(value.Format, value.FormatVersion) {
-		return layerRef{}, fmt.Errorf("不支持的制品格式: %s/%d", value.Format, value.FormatVersion)
 	}
 	return layerRef{
 		kind: layerArtifact, releaseID: value.ReleaseID, digest: digest, blobChecksum: checksum,
@@ -108,22 +133,13 @@ func parseArtifactLayerRef(value executorartifact.Ref) (layerRef, error) {
 }
 
 func parseSourceLayerRef(value executorartifact.SourceRef) (layerRef, error) {
-	if value.SourceID <= 0 {
-		return layerRef{}, fmt.Errorf("项目源码 ID 非法")
-	}
-	if value.Size <= 0 {
-		return layerRef{}, fmt.Errorf("项目源码大小非法: %d", value.Size)
-	}
-	digest, err := normalizeDigest(value.Digest)
+	digest, checksum, err := validateAndNormalizeLayer(rawLayerMeta{
+		id: value.SourceID, idName: "项目源码 ID", size: value.Size, digest: value.Digest,
+		blobChecksum: value.BlobChecksum, format: value.Format, formatVersion: value.FormatVersion,
+		kindName: "项目源码",
+	})
 	if err != nil {
 		return layerRef{}, err
-	}
-	checksum, err := normalizeDigest(value.BlobChecksum)
-	if err != nil {
-		return layerRef{}, fmt.Errorf("项目源码压缩包校验和非法: %w", err)
-	}
-	if !artifactarchive.Supports(value.Format, value.FormatVersion) {
-		return layerRef{}, fmt.Errorf("不支持的项目源码格式: %s/%d", value.Format, value.FormatVersion)
 	}
 	return layerRef{
 		kind: layerProjectSource, sourceID: value.SourceID,
@@ -179,7 +195,7 @@ func (r layerRef) marker() cacheMarker {
 }
 
 func readyArtifact(dir string, ref layerRef) bool {
-	data, err := os.ReadFile(filepath.Join(dir, ".ready"))
+	data, err := os.ReadFile(filepath.Join(dir, readyMarkerFile))
 	if err != nil {
 		return false
 	}
