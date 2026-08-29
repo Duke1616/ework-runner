@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	taskinput "github.com/Duke1616/etask/internal/service/task/input"
 )
 
+// prepareResult 聚合试运行任务所需的上下文与快照数据。
 type prepareResult struct {
 	runner          domain.Runner
 	program         *domain.Program
@@ -23,6 +26,7 @@ type prepareResult struct {
 	variables       []domain.RunnerVariable
 }
 
+// prepare 校验命令合法性，合并默认参数与临时入参，并解析不可变程序快照。
 func (s *service) prepare(ctx context.Context, command RunCommand) (prepareResult, error) {
 	if err := validateCommand(command); err != nil {
 		return prepareResult{}, err
@@ -32,6 +36,8 @@ func (s *service) prepare(ctx context.Context, command RunCommand) (prepareResul
 		return prepareResult{}, err
 	}
 	runner := spec.Runner
+
+	// 合并执行单元默认参数与用户本次输入的参数
 	params, err := (taskinput.ParameterMerger{}).Merge(taskinput.ParameterMergeInput{
 		RunnerDefaults: runner.ParameterDefaults,
 		TaskParams:     command.Params,
@@ -39,15 +45,20 @@ func (s *service) prepare(ctx context.Context, command RunCommand) (prepareResul
 	if err != nil {
 		return prepareResult{}, err
 	}
-	args, err := normalizeArgs(params[runnerSvc.ParameterKeyArgs], nil)
+
+	// 校验并归一化 args 参数（若为空自动兜底为 "{}"）
+	args, err := normalizeArgs(params[runnerSvc.ParameterKeyArgs])
 	if err != nil {
 		return prepareResult{}, err
 	}
 	params[runnerSvc.ParameterKeyArgs] = args
+
 	timeout, err := normalizeTimeout(command.MaxExecutionSeconds)
 	if err != nil {
 		return prepareResult{}, err
 	}
+
+	// 合并 Runner 静态变量与试运行临时注入的变量
 	variables, err := (taskinput.VariableMerger{}).Merge(
 		taskinput.VariableLayer{Source: taskinput.VariableSourceRunner, Items: spec.Variables},
 		taskinput.VariableLayer{Source: taskinput.VariableSourceTask, Items: command.Variables},
@@ -55,6 +66,8 @@ func (s *service) prepare(ctx context.Context, command RunCommand) (prepareResul
 	if err != nil {
 		return prepareResult{}, err
 	}
+
+	// 解析关联程序并固定不可变快照
 	resolution, err := s.resolveProgram(ctx, runner)
 	if err != nil {
 		return prepareResult{}, fmt.Errorf("解析试运行程序失败: %w", err)
@@ -62,9 +75,15 @@ func (s *service) prepare(ctx context.Context, command RunCommand) (prepareResul
 	if resolution.Program == nil {
 		return prepareResult{}, fmt.Errorf("试运行程序不能为空")
 	}
+
 	return prepareResult{
-		runner: runner, program: resolution.Program, sourceProjectID: resolution.SourceProjectID,
-		args: args, params: params, timeout: timeout, variables: variables,
+		runner:          runner,
+		program:         resolution.Program,
+		sourceProjectID: resolution.SourceProjectID,
+		args:            args,
+		params:          params,
+		timeout:         timeout,
+		variables:       variables,
 	}, nil
 }
 
@@ -75,6 +94,7 @@ func validateCommand(command RunCommand) error {
 	return nil
 }
 
+// resolveRunner 查询并校验 Runner 处于已启用且配置完备状态。
 func (s *service) resolveRunner(ctx context.Context, id int64) (domain.RunnerExecutionSpec, error) {
 	spec, err := s.runnerSvc.FindForExecution(ctx, id)
 	if err != nil {
@@ -107,20 +127,11 @@ func (s *service) resolveProgram(ctx context.Context, runner domain.Runner) (pro
 	return s.programSvc.Resolve(ctx, spec)
 }
 
-func normalizeArgs(raw string, defaults map[string]json.RawMessage) (string, error) {
+// normalizeArgs 校验并归一化执行参数，空参数默认兜底为空 JSON 对象 "{}"。
+func normalizeArgs(raw string) (string, error) {
 	args := strings.TrimSpace(raw)
 	if args == "" {
-		if value, exists := defaults[runnerSvc.ParameterKeyArgs]; exists {
-			var err error
-			args, err = runnerSvc.ParameterDefaultValue(value)
-			if err != nil {
-				return "", fmt.Errorf("Runner 默认 args 非法: %w", err)
-			}
-			args = strings.TrimSpace(args)
-		}
-		if args == "" {
-			return "{}", nil
-		}
+		return "{}", nil
 	}
 	if !json.Valid([]byte(args)) {
 		return "", fmt.Errorf("试运行参数必须是合法 JSON")
@@ -138,25 +149,23 @@ func normalizeTimeout(seconds int64) (int64, error) {
 	return seconds, nil
 }
 
+// buildDraft 根据预检结果组装未持久化的试运行 TaskExecution 草稿。
 func (s *service) buildDraft(prepared prepareResult) domain.TaskExecution {
-	params := make(map[string]string, len(prepared.params))
-	for key, value := range prepared.params {
-		params[key] = value
-	}
-	variables := append([]domain.RunnerVariable(nil), prepared.variables...)
 	return domain.TaskExecution{
-		Status: domain.TaskExecutionStatusPrepare, StartTime: time.Now().UnixMilli(),
+		Status:    domain.TaskExecutionStatusPrepare,
+		StartTime: time.Now().UnixMilli(),
 		Task: domain.Task{
 			RunnerID:            prepared.runner.ID,
 			Name:                "试运行: " + prepared.runner.Name,
 			MaxExecutionSeconds: prepared.timeout,
 			RetryConfig:         &domain.RetryConfig{MaxRetries: 0},
 			GrpcConfig: &domain.GrpcConfig{
-				ServiceName: prepared.runner.Target, HandlerName: prepared.runner.Handler,
-				Params: params,
+				ServiceName: prepared.runner.Target,
+				HandlerName: prepared.runner.Handler,
+				Params:      maps.Clone(prepared.params),
 			},
 		},
 		Program:   prepared.program,
-		Variables: &domain.ExecutionVariableSet{Items: variables},
+		Variables: &domain.ExecutionVariableSet{Items: slices.Clone(prepared.variables)},
 	}
 }

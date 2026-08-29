@@ -248,19 +248,24 @@ func (s *executionService) resolveArtifacts(ctx context.Context, execution *doma
 func (s *executionService) buildTaskSnapshot(ctx context.Context,
 	task domain.Task) (domain.Task, programSvc.Resolution, *domain.ExecutionVariableSet, error) {
 	// 重新读取持久化任务，调度列表中的旧对象只提供本次动态调度参数。
-	snapshot, err := s.taskSvc.GetByID(ctx, task.ID)
+	persisted, err := s.taskSvc.GetByID(ctx, task.ID)
 	if err != nil {
 		return domain.Task{}, programSvc.Resolution{}, nil, fmt.Errorf("获取Task信息失败: %w", err)
 	}
 
-	snapshot.UpdateScheduleParams(task.ScheduleParams)
+	// 派生带有本次调度参数的执行快照（不污染持久化任务对象）
+	snapshot := persisted.WithScheduleParams(task.ScheduleParams)
+
+	// 校验资源池与 Handler 调用权限
 	if err = s.taskSvc.AuthorizeExecutionPool(ctx, snapshot); err != nil {
 		return domain.Task{}, programSvc.Resolution{}, nil, err
 	}
+	// 解析执行程序与依赖版本
 	selection, err := s.programSvc.Resolve(ctx, snapshot.Program)
 	if err != nil {
 		return domain.Task{}, programSvc.Resolution{}, nil, err
 	}
+	// 组装并合并执行入参与变量
 	assembled, err := s.inputAssembler.Assemble(ctx, snapshot)
 	if err != nil {
 		return domain.Task{}, programSvc.Resolution{}, nil, err

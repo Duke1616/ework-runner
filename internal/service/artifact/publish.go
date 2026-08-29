@@ -41,8 +41,7 @@ func (s *service) publish(ctx context.Context, target domain.ArtifactTarget,
 		return domain.ArtifactRelease{}, fmt.Errorf("打开待上传制品失败: %w", err)
 	}
 	defer file.Close()
-	objectKey := fmt.Sprintf("artifacts/%d/%s/%d/%s.%s", tenantID, target.Scope,
-		target.ProjectID, packed.Digest, packed.Format)
+	objectKey := domain.ArtifactReleaseObjectKey(tenantID, target.Scope, target.ProjectID, packed.Digest, packed.Format)
 	if err = s.store.Put(ctx, objectKey, file, blobstore.PutOptions{
 		Size: packed.Size, Checksum: packed.BlobChecksum, ContentType: "application/zstd",
 	}); err != nil {

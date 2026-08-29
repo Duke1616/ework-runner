@@ -67,13 +67,14 @@ func NewService(
 }
 
 func (s *service) Run(ctx context.Context, command RunCommand) (domain.TaskExecution, error) {
+	// 校验参数、解析 Runner、组装变量与依赖程序快照
 	prepared, err := s.prepare(ctx, command)
 	if err != nil {
 		return domain.TaskExecution{}, err
 	}
 
+	// 构建执行草稿并由路由规划器匹配目标资源池与节点
 	draft := s.buildDraft(prepared)
-
 	route, err := s.routes.Plan(ctx, draft.Task)
 	if err != nil {
 		return domain.TaskExecution{}, fmt.Errorf("规划试运行路由失败: %w", err)
@@ -89,11 +90,13 @@ func (s *service) Run(ctx context.Context, command RunCommand) (domain.TaskExecu
 		draft.Status = domain.TaskExecutionStatusWaitingPull
 	}
 
+	// 持久化试运行执行快照记录
 	execution, err := s.execSvc.CreatePreview(ctx, draft, prepared.sourceProjectID)
 	if err != nil {
 		return domain.TaskExecution{}, fmt.Errorf("创建试运行失败: %w", err)
 	}
 
+	// PUSH 模式下异步触发执行器调用；PULL 模式等待 Agent 主动拉取
 	if !execution.Task.ExecMode.IsPull() {
 		runCtx := route.Context(context.WithoutCancel(ctx))
 		go s.invoke(runCtx, execution)
@@ -126,6 +129,22 @@ func (s *service) Logs(ctx context.Context, executionID, minID int64, limit int)
 }
 
 func (s *service) invoke(ctx context.Context, execution domain.TaskExecution) {
+	// 异步协程 Panic 兜底防护，防止执行异常击垮主服务进程
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.Error("试运行异步执行异常 panic",
+				elog.Int64("executionID", execution.ID),
+				elog.Any("recover", r))
+			_ = s.execSvc.UpdateState(ctx, domain.ExecutionState{
+				ID:         execution.ID,
+				TaskID:     execution.Task.ID,
+				TaskName:   execution.Task.Name,
+				Status:     domain.TaskExecutionStatusFailed,
+				TaskResult: fmt.Sprintf("执行节点发生未知崩溃: %v", r),
+			})
+		}
+	}()
+
 	state, err := s.invoker.Run(ctx, execution)
 	if err != nil {
 		state = domain.ExecutionState{

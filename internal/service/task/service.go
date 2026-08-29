@@ -118,8 +118,8 @@ func (s *service) GetByName(ctx context.Context, name string) (domain.Task, erro
 }
 
 func (s *service) UpdateScheduleParams(ctx context.Context, task domain.Task, params map[string]string) (domain.Task, error) {
-	task.UpdateScheduleParams(params)
-	return s.repo.UpdateScheduleParams(ctx, task.ID, task.Version, task.ScheduleParams)
+	updated := task.WithScheduleParams(params)
+	return s.repo.UpdateScheduleParams(ctx, updated.ID, updated.Version, updated.ScheduleParams)
 }
 
 func (s *service) RetryByID(ctx context.Context, id int64) (domain.Task, error) {

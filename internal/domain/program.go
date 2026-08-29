@@ -165,3 +165,8 @@ func validateProjectEntryPoint(value string) error {
 	}
 	return nil
 }
+
+// ProjectSourceObjectKey 构造项目源码归档在对象存储中的标准路径。
+func ProjectSourceObjectKey(tenantID, projectID, sourceRevision int64, digest, format string) string {
+	return fmt.Sprintf("project-sources/%d/%d/%d/%s.%s", tenantID, projectID, sourceRevision, digest, format)
+}

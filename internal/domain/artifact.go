@@ -217,3 +217,8 @@ type ArtifactFile struct {
 	ObjectKey   string
 	Size        int64
 }
+
+// ArtifactReleaseObjectKey 构造制品归档在对象存储中的标准路径。
+func ArtifactReleaseObjectKey(tenantID int64, scope CodebookScope, projectID int64, digest, format string) string {
+	return fmt.Sprintf("artifacts/%d/%s/%d/%s.%s", tenantID, scope, projectID, digest, format)
+}

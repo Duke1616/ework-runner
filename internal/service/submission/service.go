@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -82,6 +84,7 @@ func NewService(runners runnerSvc.Service, programs programSvc.Service,
 	}
 }
 
+// RunRunner 幂等创建工作流执行记录，并根据通道模式派发或等待拉取。
 func (s *service) RunRunner(ctx context.Context, command RunRunnerCommand) (RunResult, error) {
 	if err := validateCommand(command); err != nil {
 		return RunResult{}, fmt.Errorf("%w: %v", ErrInvalidCommand, err)
@@ -106,25 +109,10 @@ func (s *service) RunRunner(ctx context.Context, command RunRunnerCommand) (RunR
 	if err != nil {
 		return RunResult{}, err
 	}
-	draft := domain.TaskExecution{
-		RequestID: command.RequestID,
-		Status:    domain.TaskExecutionStatusPrepare,
-		StartTime: time.Now().UnixMilli(),
-		Task: domain.Task{
-			RunnerID:            runner.ID,
-			Name:                "工作流执行: " + runner.Name,
-			MaxExecutionSeconds: defaultTimeoutSeconds,
-			RetryConfig:         &domain.RetryConfig{MaxRetries: 0},
-			GrpcConfig: &domain.GrpcConfig{
-				ServiceName: runner.Target,
-				HandlerName: runner.Handler,
-				Params:      params,
-			},
-		},
-		Program:   program.Program,
-		Variables: &domain.ExecutionVariableSet{Items: variables},
-	}
 
+	draft := s.buildDraft(command, runner, program.Program, params, variables)
+
+	// 规划执行路由通道与目标资源池节点
 	route, err := s.routes.Plan(ctx, draft.Task)
 	if err != nil {
 		return RunResult{}, classifyRouteError(runner.Target, err)
@@ -139,6 +127,7 @@ func (s *service) RunRunner(ctx context.Context, command RunRunnerCommand) (RunR
 		draft.Status = domain.TaskExecutionStatusWaitingPull
 	}
 
+	// 幂等持久化工作流任务执行记录
 	execution, created, err := s.executions.CreateWorkflow(ctx, draft, program.SourceProjectID)
 	if err != nil {
 		return RunResult{}, fmt.Errorf("创建工作流执行记录失败: %w", err)
@@ -147,10 +136,34 @@ func (s *service) RunRunner(ctx context.Context, command RunRunnerCommand) (RunR
 	if err != nil {
 		return RunResult{}, fmt.Errorf("绑定工作流取消意图失败: %w", err)
 	}
+	// PUSH 模式下异步触发执行器调用
 	if created && !execution.Task.ExecMode.IsPull() && !execution.Status.IsCancelled() {
 		go s.invoke(route.Context(context.WithoutCancel(ctx)), execution)
 	}
 	return RunResult{Execution: execution, Created: created}, nil
+}
+
+// buildDraft 组装工作流 TaskExecution 初始草稿对象。
+func (s *service) buildDraft(command RunRunnerCommand, runner domain.Runner,
+	program *domain.Program, params map[string]string, variables []domain.RunnerVariable) domain.TaskExecution {
+	return domain.TaskExecution{
+		RequestID: command.RequestID,
+		Status:    domain.TaskExecutionStatusPrepare,
+		StartTime: time.Now().UnixMilli(),
+		Task: domain.Task{
+			RunnerID:            runner.ID,
+			Name:                "工作流执行: " + runner.Name,
+			MaxExecutionSeconds: defaultTimeoutSeconds,
+			RetryConfig:         &domain.RetryConfig{MaxRetries: 0},
+			GrpcConfig: &domain.GrpcConfig{
+				ServiceName: runner.Target,
+				HandlerName: runner.Handler,
+				Params:      maps.Clone(params),
+			},
+		},
+		Program:   program,
+		Variables: &domain.ExecutionVariableSet{Items: slices.Clone(variables)},
+	}
 }
 
 func (s *service) TerminateExecution(ctx context.Context,
@@ -206,16 +219,42 @@ func (s *service) buildParams(runner domain.Runner, command RunRunnerCommand) (m
 	if err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(params[runnerSvc.ParameterKeyArgs]) == "" {
-		params[runnerSvc.ParameterKeyArgs] = "{}"
+	args, err := normalizeArgs(params[runnerSvc.ParameterKeyArgs])
+	if err != nil {
+		return nil, err
 	}
-	if !json.Valid([]byte(params[runnerSvc.ParameterKeyArgs])) {
-		return nil, fmt.Errorf("工作流执行参数必须是合法 JSON")
-	}
+	params[runnerSvc.ParameterKeyArgs] = args
 	return params, nil
 }
 
+func normalizeArgs(raw string) (string, error) {
+	args := strings.TrimSpace(raw)
+	if args == "" {
+		return "{}", nil
+	}
+	if !json.Valid([]byte(args)) {
+		return "", fmt.Errorf("工作流执行参数必须是合法 JSON")
+	}
+	return args, nil
+}
+
 func (s *service) invoke(ctx context.Context, execution domain.TaskExecution) {
+	// 异步协程 Panic 兜底防护，防止执行异常击垮主服务进程
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.Error("工作流异步执行异常 panic",
+				elog.Int64("executionID", execution.ID),
+				elog.Any("recover", r))
+			_ = s.executions.UpdateState(ctx, domain.ExecutionState{
+				ID:         execution.ID,
+				TaskID:     execution.Task.ID,
+				TaskName:   execution.Task.Name,
+				Status:     domain.TaskExecutionStatusFailed,
+				TaskResult: fmt.Sprintf("执行节点发生未知崩溃: %v", r),
+			})
+		}
+	}()
+
 	state, err := s.invoker.Run(ctx, execution)
 	if err != nil {
 		state = domain.ExecutionState{

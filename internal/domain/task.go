@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"maps"
 	"time"
 
 	taskv1 "github.com/Duke1616/etask/api/proto/gen/etask/task/v1"
@@ -224,4 +225,12 @@ func (t *Task) UpdateScheduleParams(params map[string]string) {
 	for k, v := range params {
 		t.ScheduleParams[k] = v
 	}
+}
+
+// WithScheduleParams 基于当前任务生成一个带有指定调度参数的快照副本，不修改原任务对象。
+func (t Task) WithScheduleParams(params map[string]string) Task {
+	replica := t
+	replica.ScheduleParams = maps.Clone(t.ScheduleParams)
+	replica.UpdateScheduleParams(params)
+	return replica
 }

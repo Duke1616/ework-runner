@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"slices"
 	"strings"
 
 	"github.com/Duke1616/eiam/pkg/ctxutil"
@@ -16,6 +17,7 @@ import (
 	"github.com/Duke1616/etask/internal/errs"
 	"github.com/Duke1616/etask/internal/repository"
 	"github.com/Duke1616/etask/pkg/blobstore"
+	"golang.org/x/sync/singleflight"
 	"gorm.io/gorm"
 )
 
@@ -69,6 +71,7 @@ type service struct {
 	store     blobstore.Store
 	archive   *artifactarchive.Codec
 	modes     map[domain.ProgramKind]modeResolver
+	sf        singleflight.Group
 }
 
 func NewService(codebooks CodebookReader, repo repository.ProjectSourceRepository,
@@ -176,9 +179,7 @@ func (s *service) entryPoint(ctx context.Context, node domain.Codebook) (string,
 		}
 		node = parent
 	}
-	for left, right := 0, len(segments)-1; left < right; left, right = left+1, right-1 {
-		segments[left], segments[right] = segments[right], segments[left]
-	}
+	slices.Reverse(segments)
 	return path.Join(segments...), nil
 }
 
@@ -199,13 +200,26 @@ func (s *service) prepareSource(ctx context.Context, projectID int64) (domain.Pr
 	if project.ID != projectID || project.Scope != domain.CodebookScopeTenant {
 		return domain.ProjectSource{}, fmt.Errorf("代码项目与 PROJECT 来源不匹配")
 	}
-	current, err := s.repo.FindByRevision(ctx, projectID, project.SourceRevision)
-	if err == nil {
-		return current, nil
+	// 通过 singleflight 抑制并发打包，避免高并发调度时重复扫描、重复压缩与唯一键冲突
+	flightKey := fmt.Sprintf("%d:%d", projectID, project.SourceRevision)
+	res, err, _ := s.sf.Do(flightKey, func() (any, error) {
+		current, findErr := s.repo.FindByRevision(ctx, projectID, project.SourceRevision)
+		if findErr == nil {
+			return current, nil
+		}
+		if !errors.Is(findErr, gorm.ErrRecordNotFound) {
+			return domain.ProjectSource{}, fmt.Errorf("查询项目源码失败: %w", findErr)
+		}
+		return s.packAndPersistSource(ctx, tenantID, projectID, target)
+	})
+	if err != nil {
+		return domain.ProjectSource{}, err
 	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return domain.ProjectSource{}, fmt.Errorf("查询项目源码失败: %w", err)
-	}
+	return res.(domain.ProjectSource), nil
+}
+
+func (s *service) packAndPersistSource(ctx context.Context, tenantID, projectID int64,
+	target domain.ArtifactTarget) (domain.ProjectSource, error) {
 	files, sourceRevision, err := s.repo.SourceFiles(ctx, target)
 	if err != nil {
 		return domain.ProjectSource{}, err
@@ -220,8 +234,7 @@ func (s *service) prepareSource(ctx context.Context, projectID int64) (domain.Pr
 		return domain.ProjectSource{}, fmt.Errorf("打开项目源码归档失败: %w", err)
 	}
 	defer file.Close()
-	objectKey := fmt.Sprintf("project-sources/%d/%d/%d/%s.%s", tenantID, projectID,
-		sourceRevision, packed.Digest, packed.Format)
+	objectKey := domain.ProjectSourceObjectKey(tenantID, projectID, sourceRevision, packed.Digest, packed.Format)
 	if err = s.store.Put(ctx, objectKey, file, blobstore.PutOptions{
 		Size: packed.Size, Checksum: packed.BlobChecksum, ContentType: "application/zstd",
 	}); err != nil {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/pkg/blobstore"
+	"github.com/samber/lo"
 	"gorm.io/gorm"
 )
 
@@ -28,12 +29,14 @@ func (s *service) ResolveExecution(ctx context.Context, sourceProjectID int64) (
 	if err != nil {
 		return nil, err
 	}
-	for _, release := range libraries {
+	tenantRefs := lo.FilterMap(libraries, func(release domain.ArtifactRelease, _ int) (domain.ArtifactRef, bool) {
 		if release.ProjectID == sourceProjectID {
-			continue
+			return domain.ArtifactRef{}, false
 		}
-		refs = append(refs, release.Ref())
-	}
+		return release.Ref(), true
+	})
+	refs = append(refs, tenantRefs...)
+
 	// 统一校验默认层数量和租户命名空间冲突，避免问题延迟到 Executor。
 	if err = domain.ValidateArtifactRefs(refs); err != nil {
 		return nil, fmt.Errorf("执行制品配置非法: %w", err)

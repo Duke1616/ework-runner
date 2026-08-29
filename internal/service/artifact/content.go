@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	artifactarchive "github.com/Duke1616/etask/internal/artifact/archive"
 	"github.com/Duke1616/etask/internal/domain"
+	"github.com/samber/lo"
 )
 
 // ActiveContents 查询当前执行会使用的全部激活制品及其文件清单。
@@ -28,10 +30,9 @@ func (s *service) ActiveContents(ctx context.Context, sourceProjectID int64) ([]
 		if closeErr != nil {
 			return nil, fmt.Errorf("关闭制品 %d 数据流失败: %w", ref.ReleaseID, closeErr)
 		}
-		files := make([]domain.ArtifactManifestFile, 0, len(manifest.Files))
-		for _, file := range manifest.Files {
-			files = append(files, domain.ArtifactManifestFile{Path: file.Path, Hash: file.Hash, Size: file.Size})
-		}
+		files := lo.Map(manifest.Files, func(file artifactarchive.ManifestFile, _ int) domain.ArtifactManifestFile {
+			return domain.ArtifactManifestFile{Path: file.Path, Hash: file.Hash, Size: file.Size}
+		})
 		contents = append(contents, domain.ArtifactContent{
 			Release: domain.ArtifactRelease{
 				ID: ref.ReleaseID, Scope: ref.Scope, ProjectID: ref.ProjectID,
