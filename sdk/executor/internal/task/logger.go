@@ -4,8 +4,12 @@ package task
 
 import (
 	"fmt"
+	"slices"
+	"sort"
 	"strings"
 	"sync"
+
+	"github.com/samber/lo"
 )
 
 // ExecutionLogger 定义用户可见的任务执行日志写入和关闭行为。
@@ -23,13 +27,31 @@ type maskingExecutionLogger struct {
 }
 
 func newMaskingExecutionLogger(next ExecutionLogger, masks []string) ExecutionLogger {
-	return &maskingExecutionLogger{next: next, masks: append([]string(nil), masks...)}
+	return &maskingExecutionLogger{next: next, masks: cleanMasks(masks)}
+}
+
+func cleanMasks(masks []string) []string {
+	cleaned := lo.Uniq(lo.Filter(masks, func(m string, _ int) bool {
+		return m != ""
+	}))
+	// 按长度从大到小降序排列，防止短敏感词先替换破坏长敏感词导致子串泄露
+	sort.Slice(cleaned, func(i, j int) bool {
+		return len(cleaned[i]) > len(cleaned[j])
+	})
+	return cleaned
 }
 
 func (l *maskingExecutionLogger) Log(format string, args ...any) {
-	message := fmt.Sprintf(format, args...)
 	l.mu.RLock()
-	for _, mask := range l.masks {
+	masks := l.masks
+	// Fast-path: 无敏感词掩码时直接透传输出，避免额外开销
+	if len(masks) == 0 {
+		l.mu.RUnlock()
+		l.next.Log(format, args...)
+		return
+	}
+	message := fmt.Sprintf(format, args...)
+	for _, mask := range masks {
 		message = strings.ReplaceAll(message, mask, "[MASKED]")
 	}
 	l.mu.RUnlock()
@@ -39,21 +61,20 @@ func (l *maskingExecutionLogger) Log(format string, args ...any) {
 func (l *maskingExecutionLogger) AddMasks(masks ...string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	hasNew := false
 	for _, mask := range masks {
-		if mask == "" || containsString(l.masks, mask) {
+		if mask == "" || slices.Contains(l.masks, mask) {
 			continue
 		}
 		l.masks = append(l.masks, mask)
+		hasNew = true
 	}
-}
-
-func containsString(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
+	if hasNew {
+		// 追加新敏感词后重新按长度降序排序
+		sort.Slice(l.masks, func(i, j int) bool {
+			return len(l.masks[i]) > len(l.masks[j])
+		})
 	}
-	return false
 }
 
 func (l *maskingExecutionLogger) Close() {

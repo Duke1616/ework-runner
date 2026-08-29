@@ -1,6 +1,8 @@
 package shell
 
-import "github.com/Duke1616/etask/internal/grpc/scripts/engine"
+import (
+	"github.com/Duke1616/etask/internal/grpc/scripts/engine"
+)
 
 // Config 配置 Shell Handler。
 type Config struct {

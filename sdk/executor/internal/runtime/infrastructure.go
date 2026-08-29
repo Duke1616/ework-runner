@@ -11,6 +11,7 @@ import (
 	"github.com/Duke1616/etask/sdk/executor/artifact"
 	"github.com/Duke1616/etask/sdk/executor/internal/task"
 	"github.com/gotomicro/ego/core/elog"
+	"github.com/samber/lo"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -49,20 +50,17 @@ func isConnectionClosingError(err error) bool {
 }
 
 func artifactRefs(values []*artifactv1.ArtifactRef) []artifact.Ref {
-	refs := make([]artifact.Ref, 0, len(values))
-	for _, value := range values {
+	return lo.Map(values, func(value *artifactv1.ArtifactRef, _ int) artifact.Ref {
 		if value == nil {
-			refs = append(refs, artifact.Ref{})
-			continue
+			return artifact.Ref{}
 		}
-		refs = append(refs, artifact.Ref{
+		return artifact.Ref{
 			ReleaseID: value.GetReleaseId(), Digest: value.GetDigest(),
 			BlobChecksum: value.GetBlobChecksum(), Size: value.GetSize(),
 			Format: value.GetFormat(), FormatVersion: value.GetFormatVersion(),
 			MountName: value.GetMountName(),
-		})
-	}
-	return refs
+		}
+	})
 }
 
 func programFromProto(value *executorv1.ProgramSource) (*task.Program, *artifact.SourceRef) {

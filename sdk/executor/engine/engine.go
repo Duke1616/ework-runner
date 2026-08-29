@@ -75,6 +75,7 @@ func WithSystemLogger(logger executor.SystemLogger) Option {
 
 // Execute 同步执行一次任务。
 func (e *Engine) Execute(ctx context.Context, command Command) (Result, error) {
+	// 调度内部管线执行任务
 	result, err := e.inner.Execute(ctx, internalengine.Command{
 		Task: command.Task, Params: command.Params,
 		Variables: command.Variables,

@@ -14,6 +14,7 @@ import (
 	"github.com/Duke1616/etask/sdk/executor/internal/execution"
 	"github.com/Duke1616/etask/sdk/executor/internal/task"
 	"github.com/gotomicro/ego/core/elog"
+	"github.com/samber/lo"
 	"google.golang.org/grpc"
 )
 
@@ -22,6 +23,7 @@ const finalReportTimeout = 10 * time.Second
 func (e *Executor) startExecution(ctx context.Context, req *executorv1.ExecuteRequest) (*executorv1.ExecuteResponse, error) {
 	eid := req.GetEid()
 	if e.executionClient != nil {
+		// 启动前核实任务是否已在调度端取消或结束
 		response, err := e.executionClient.GetTaskExecution(ctx, &executorv1.GetTaskExecutionRequest{
 			ExecutionId: eid,
 		})
@@ -30,6 +32,7 @@ func (e *Executor) startExecution(ctx context.Context, req *executorv1.ExecuteRe
 		}
 		status := response.GetExecution().GetStatus()
 		if status == executorv1.ExecutionStatus_CANCELLED {
+			// 同步本地状态为已取消
 			state, _ := e.executions.Terminate(eid, response.GetExecution().GetTaskResult())
 			return &executorv1.ExecuteResponse{ExecutionState: state}, nil
 		}
@@ -41,7 +44,7 @@ func (e *Executor) startExecution(ctx context.Context, req *executorv1.ExecuteRe
 			}}, nil
 		}
 	}
-	// 执行上下文脱离单次 RPC 生命周期，但保留租户并允许 Interrupt 主动取消。
+	// 构造独立执行上下文，避免受当前 RPC 超时影响
 	runCtx, cancel := context.WithCancelCause(executionContext(ctx, req.GetTenantId()))
 	e.runMu.Lock()
 	if e.stopping {
@@ -49,7 +52,7 @@ func (e *Executor) startExecution(ctx context.Context, req *executorv1.ExecuteRe
 		cancel(nil)
 		return nil, fmt.Errorf("executor 正在停止，不再接收新任务")
 	}
-	// Begin 同时承担幂等保护，相同执行 ID 正在运行时直接返回已有状态。
+	// 登记运行状态并防重
 	state, started := e.executions.Begin(initialState(req, e.config.Server.ServiceId), cancel)
 	if !started {
 		e.runMu.Unlock()
@@ -60,6 +63,8 @@ func (e *Executor) startExecution(ctx context.Context, req *executorv1.ExecuteRe
 	e.runWG.Add(1)
 	e.runMu.Unlock()
 	e.logger.Info("启动异步任务执行", elog.Int64("eid", eid))
+
+	// 异步执行，避免阻塞当前 RPC
 	go func() {
 		defer e.runWG.Done()
 		defer cancel(nil)
@@ -71,7 +76,6 @@ func (e *Executor) startExecution(ctx context.Context, req *executorv1.ExecuteRe
 func (e *Executor) runTask(ctx context.Context, req *executorv1.ExecuteRequest) {
 	executionID := req.GetEid()
 	logger := e.logger.With(elog.Int64("executionID", executionID), elog.Int64("taskID", req.GetTaskId()))
-	// Handler 属于扩展代码，panic 必须在执行边界收敛并转成可上报的失败状态。
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			err := fmt.Errorf("任务处理器发生 panic: %v", recovered)
@@ -79,8 +83,9 @@ func (e *Executor) runTask(ctx context.Context, req *executorv1.ExecuteRequest) 
 			e.reportFinalResult(ctx, executionID, executorv1.ExecutionStatus_FAILED, err.Error())
 		}
 	}()
-	// Engine 统一完成制品准备、任务 Context 创建、Handler 调用和现场回收。
 	program, projectSource := programFromProto(req.GetProgram())
+
+	// 准备制品并执行 Handler
 	result, err := e.engine.Execute(ctx, enginepkg.Command{
 		Task: task.TaskInfo{
 			ExecutionID: executionID, TaskID: req.GetTaskId(),
@@ -90,8 +95,11 @@ func (e *Executor) runTask(ctx context.Context, req *executorv1.ExecuteRequest) 
 		Params: req.GetParams(), Parameters: e.handlerMetadata(req.GetTaskHandlerName()),
 		Variables: variablesFromProto(req.GetVariableSet()),
 		Program:   program, ProjectSource: projectSource, Artifacts: artifactRefs(req.GetArtifacts()),
+		// 收集日志并流式上报
 		ExecutionLogger: e.newExecutionLogger(ctx, executionID),
 	})
+
+	// 结算终态并触发上报
 	e.finishTask(ctx, executionID, result.Value, logger, err)
 }
 
@@ -99,15 +107,14 @@ func variablesFromProto(set *executorv1.VariableSet) *task.VariableSet {
 	if set == nil {
 		return nil
 	}
-	result := make([]task.Variable, 0, len(set.GetItems()))
-	for _, variable := range set.GetItems() {
+	result := lo.FilterMap(set.GetItems(), func(variable *executorv1.Variable, _ int) (task.Variable, bool) {
 		if variable == nil {
-			continue
+			return task.Variable{}, false
 		}
-		result = append(result, task.Variable{
+		return task.Variable{
 			Key: variable.GetKey(), Value: variable.GetValue(), Secret: variable.GetSecret(),
-		})
-	}
+		}, true
+	})
 	return &task.VariableSet{Items: result}
 }
 
@@ -130,12 +137,12 @@ func (e *Executor) handlerMetadata(name string) []task.Parameter {
 }
 
 func (e *Executor) reportFinalResult(ctx context.Context, eid int64, status executorv1.ExecutionStatus, result string) {
-	// 先原子落本地终态，确保 Query 与重复上报读取到同一份结果。
+	// 更新本地终态
 	state, exists := e.executions.Finish(eid, status, result)
 	if !exists || e.reporterClient == nil {
 		return
 	}
-	// 最终上报不能继承任务取消信号；短暂断连时等待连接恢复。
+	// 剥离取消信号，确保终态能稳定上报
 	reportCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), finalReportTimeout)
 	defer cancel()
 	if _, err := e.reporterClient.Report(reportCtx,

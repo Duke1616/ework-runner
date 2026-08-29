@@ -6,7 +6,10 @@ import (
 	"context"
 	"encoding/json"
 	"maps"
+	"slices"
 	"sync"
+
+	"github.com/samber/lo"
 )
 
 // TaskInfo 描述一次任务执行的只读身份信息。
@@ -77,7 +80,7 @@ func (c *Context) SetProgram(program *Program) {
 
 // NewContext 创建拥有独立参数快照的任务上下文。
 func NewContext(options ContextOptions) *Context {
-	// 参数和元数据都复制为任务私有快照，避免 Handler 修改调用方共享数据。
+	// 复制私有快照，避免修改共享数据
 	ctx := options.Context
 	if ctx == nil {
 		ctx = context.Background()
@@ -92,18 +95,15 @@ func NewContext(options ContextOptions) *Context {
 	}
 	var variables *VariableSet
 	if options.Variables != nil {
-		items := make([]Variable, len(options.Variables.Items))
-		copy(items, options.Variables.Items)
-		variables = &VariableSet{Items: items}
+		variables = &VariableSet{Items: slices.Clone(options.Variables.Items)}
 	}
 	metadata := maps.Clone(options.Metadata)
 	if metadata == nil {
 		metadata = make(map[string]string)
 	}
-	parameters := make(map[string]Parameter, len(options.Parameters))
-	for _, parameter := range options.Parameters {
-		parameters[parameter.Key] = parameter
-	}
+	parameters := lo.KeyBy(options.Parameters, func(p Parameter) string {
+		return p.Key
+	})
 	// 日志缓冲和传输由具体实现负责，敏感变量统一在最外层脱敏。
 	executionLogger := options.ExecutionLogger
 	if executionLogger == nil {
@@ -203,14 +203,7 @@ func (c *Context) SetArtifactRoots(roots ArtifactRoots) {
 }
 
 func cloneArtifactRoots(roots ArtifactRoots) ArtifactRoots {
-	if len(roots.Named) == 0 {
-		return roots
-	}
-	cloned := make(map[string]string, len(roots.Named))
-	for name, root := range roots.Named {
-		cloned[name] = root
-	}
-	roots.Named = cloned
+	roots.Named = maps.Clone(roots.Named)
 	return roots
 }
 
@@ -221,6 +214,7 @@ func (c *Context) Log(format string, args ...any) {
 
 // AddSecretMasks 注册执行期间产生的敏感值，后续用户日志会自动替换这些值。
 func (c *Context) AddSecretMasks(values ...string) {
+	// 动态注册敏感词掩码
 	if logger, ok := c.executionLogger.(interface{ AddMasks(...string) }); ok {
 		logger.AddMasks(values...)
 	}
@@ -248,25 +242,23 @@ func (c *Context) Close() {
 
 func secretMasks(params map[string]string, executionVariables []Variable,
 	parameters []Parameter) []string {
-	masks := make([]string, 0)
-	for _, variable := range executionVariables {
-		if variable.Secret && variable.Value != "" {
-			masks = append(masks, variable.Value)
-		}
-	}
-	for _, parameter := range parameters {
-		if parameter.Role != ParameterRoleVariables {
-			continue
-		}
-		var variables []Variable
-		if json.Unmarshal([]byte(params[parameter.Key]), &variables) != nil {
-			continue
-		}
+	var masks []string
+	appendSecrets := func(variables []Variable) {
 		for _, variable := range variables {
 			if variable.Secret && variable.Value != "" {
 				masks = append(masks, variable.Value)
 			}
 		}
 	}
-	return masks
+	appendSecrets(executionVariables)
+	for _, parameter := range parameters {
+		if parameter.Role != ParameterRoleVariables {
+			continue
+		}
+		var variables []Variable
+		if json.Unmarshal([]byte(params[parameter.Key]), &variables) == nil {
+			appendSecrets(variables)
+		}
+	}
+	return lo.Uniq(masks)
 }

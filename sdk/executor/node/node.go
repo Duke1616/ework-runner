@@ -28,9 +28,11 @@ func New(config Config, reg registry.Registry, handlers ...executor.TaskHandler)
 	if err != nil {
 		return nil, err
 	}
+	// 注册任务处理器
 	if err = node.RegisterHandlers(handlers...); err != nil {
 		return nil, err
 	}
+	// 初始化网络连接与服务组件
 	if err = node.InitComponents(); err != nil {
 		return nil, err
 	}

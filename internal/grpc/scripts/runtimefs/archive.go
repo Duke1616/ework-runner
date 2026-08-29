@@ -107,12 +107,10 @@ func copyFile(source, destinationDir string) error {
 	if err != nil {
 		return fmt.Errorf("创建归档脚本失败: %w", err)
 	}
+	defer output.Close()
+
 	if _, err = io.Copy(output, input); err != nil {
-		_ = output.Close()
 		return fmt.Errorf("复制归档脚本失败: %w", err)
-	}
-	if err = output.Close(); err != nil {
-		return fmt.Errorf("关闭归档脚本失败: %w", err)
 	}
 	return nil
 }

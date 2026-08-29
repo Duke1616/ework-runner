@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sort"
 	"time"
+
+	"github.com/samber/lo"
 )
 
 type directoryInfo struct {
@@ -31,10 +33,7 @@ func PruneDirectory(root string, maxAge time.Duration, maxSize int64) error {
 		return err
 	}
 	// listDirectories 已按保存时间删除过期目录，此处统计剩余容量。
-	var total int64
-	for _, directory := range directories {
-		total += directory.size
-	}
+	total := lo.SumBy(directories, func(d directoryInfo) int64 { return d.size })
 	if maxSize <= 0 || total <= maxSize {
 		return nil
 	}
@@ -68,12 +67,14 @@ func ValidateDirectory(path string) error {
 		return err
 	}
 	probePath := probe.Name()
-	defer os.Remove(probePath)
-	if _, err = io.WriteString(probe, "ok"); err != nil {
+	defer func() {
 		_ = probe.Close()
+		_ = os.Remove(probePath)
+	}()
+	if _, err = io.WriteString(probe, "ok"); err != nil {
 		return err
 	}
-	return probe.Close()
+	return nil
 }
 
 func validateRoot(root string) error {

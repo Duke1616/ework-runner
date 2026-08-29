@@ -7,10 +7,43 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/Duke1616/etask/internal/grpc/scripts/engine"
 	"github.com/Duke1616/etask/sdk/executor"
+	"github.com/samber/lo"
 )
+
+// WorkspaceConfig 描述任务工作区目录和生命周期策略。
+type WorkspaceConfig struct {
+	Dir    string
+	MaxAge time.Duration
+}
+
+// NormalizeWorkspaceConfig 补全并校验工作区配置。
+func NormalizeWorkspaceConfig(config WorkspaceConfig) (WorkspaceConfig, error) {
+	dir, err := ResolveDirectory(config.Dir, filepath.Join(os.TempDir(), "etask", "runs"))
+	if err != nil {
+		return WorkspaceConfig{}, fmt.Errorf("解析脚本工作区目录失败: %w", err)
+	}
+	config.Dir = dir
+	if config.MaxAge <= 0 {
+		config.MaxAge = 24 * time.Hour
+	}
+	return config, nil
+}
+
+// ResolveDirectory 按配置或默认值解析绝对目录。
+func ResolveDirectory(value, fallback string) (string, error) {
+	if strings.TrimSpace(value) == "" {
+		value = fallback
+	}
+	absolute, err := filepath.Abs(value)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Clean(absolute), nil
+}
 
 type WorkspaceFactory struct {
 	config WorkspaceConfig
@@ -189,10 +222,7 @@ func (w *workspace) mountNamedArtifacts(layers map[string]string) (string, error
 	if err := w.mkdirTask(pythonRoot, 0o750); err != nil {
 		return "", fmt.Errorf("创建制品依赖目录失败: %w", err)
 	}
-	names := make([]string, 0, len(layers))
-	for name := range layers {
-		names = append(names, name)
-	}
+	names := lo.Keys(layers)
 	sort.Strings(names)
 	for _, name := range names {
 		if err := validateDependencyName(name); err != nil {

@@ -39,8 +39,9 @@ func NewStore() *Store {
 func (s *Store) Begin(state *executorv1.ExecutionState, cancel context.CancelCauseFunc) (*executorv1.ExecutionState, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	// 新执行进入时顺便回收过期终态，避免额外常驻清理协程。
+	// 就地清理过期终态记录
 	s.cleanupLocked(time.Now())
+	// 运行中或终态任务拒绝重复执行（可重试态除外）
 	if current, exists := s.entries[state.GetId()]; exists {
 		status := current.state.GetStatus()
 		if current.completedAt.IsZero() ||

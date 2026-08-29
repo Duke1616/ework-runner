@@ -50,6 +50,7 @@ func (e *Executor) prepareArtifacts() error {
 	if e.artifacts == nil {
 		return nil
 	}
+	// 清理过期制品缓存
 	if err := e.artifacts.Prune(); err != nil {
 		return fmt.Errorf("清理制品缓存失败: %w", err)
 	}
@@ -57,6 +58,7 @@ func (e *Executor) prepareArtifacts() error {
 }
 
 func (e *Executor) connectScheduler() error {
+	// 连接调度中心
 	connection, err := grpcpkg.NewClientConn(
 		e.registry,
 		grpcpkg.WithServiceName(e.config.Client.Name),
@@ -66,6 +68,7 @@ func (e *Executor) connectScheduler() error {
 	if err != nil {
 		return fmt.Errorf("连接调度中心失败: %w", err)
 	}
+	// 初始化微服务客户端
 	e.reporterClient = reporterv1.NewReporterServiceClient(connection)
 	e.agentClient = executorv1.NewAgentServiceClient(connection)
 	e.executionClient = executorv1.NewTaskExecutionServiceClient(connection)
@@ -75,6 +78,7 @@ func (e *Executor) connectScheduler() error {
 }
 
 func (e *Executor) initEngine() {
+	// 装配执行引擎与辅助组件
 	e.engine = enginepkg.New(e.hr, e.artifacts,
 		enginepkg.WithArtifactDownloader(artifactgrpc.NewDownloader(e.artifactClient)),
 		enginepkg.WithProgressReporter(executionProgressReporter{
@@ -85,6 +89,7 @@ func (e *Executor) initEngine() {
 }
 
 func (e *Executor) initServer() {
+	// 初始化 gRPC 服务并注册执行服务
 	e.server = grpcpkg.NewServer(
 		e.config.Server,
 		e.registry,
@@ -97,8 +102,8 @@ func (e *Executor) initServer() {
 func (e *Executor) pullTasks(ctx context.Context) {
 	e.logger.Info("Executor 已进入 PULL 模式")
 	for ctx.Err() == nil {
-		// 长轮询只上报当前节点实际注册的 Handler，调度中心据此匹配任务。
 		requestCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		// 长轮询拉取任务
 		response, err := e.agentClient.PullTask(requestCtx, &executorv1.PullTaskRequest{
 			ServiceName: e.config.Server.ServiceName,
 			NodeId:      e.config.Server.ServiceId,
@@ -110,7 +115,7 @@ func (e *Executor) pullTasks(ctx context.Context) {
 				return
 			}
 			e.logger.Warn("拉取任务失败", elog.FieldErr(err))
-			// 短暂退避，避免调度中心不可用时形成高频空转。
+			// 短暂退避，避免空转
 			select {
 			case <-ctx.Done():
 				return
@@ -120,6 +125,7 @@ func (e *Executor) pullTasks(ctx context.Context) {
 		}
 		if response != nil && response.HasTask && response.TaskReq != nil {
 			e.logger.Info("拉取到待执行任务", elog.Int64("eid", response.TaskReq.GetEid()))
+			// 启动本地执行
 			if _, executeErr := e.Execute(context.Background(), response.TaskReq); executeErr != nil {
 				e.logger.Error("启动拉取任务失败",
 					elog.Int64("eid", response.TaskReq.GetEid()), elog.FieldErr(executeErr))

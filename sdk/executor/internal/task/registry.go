@@ -5,8 +5,11 @@ package task
 import (
 	"fmt"
 	"maps"
+	"slices"
 	"sort"
 	"sync"
+
+	"github.com/samber/lo"
 )
 
 // HandlerRegistry 处理器注册中心，由于 Executor 和 Agent Service 共用
@@ -65,18 +68,17 @@ func (r *HandlerRegistry) Get(name string) (TaskHandler, bool) {
 // ListMetas 返回所有处理器的元数据清单 (用于上报、展示)
 func (r *HandlerRegistry) ListMetas() []HandlerMeta {
 	handlers := r.Snapshot()
-	metas := make([]HandlerMeta, 0, len(handlers))
-	for _, h := range handlers {
+	metas := lo.Map(lo.Values(handlers), func(h TaskHandler, _ int) HandlerMeta {
 		meta := HandlerMeta{
 			Name:     h.Name(),
 			Desc:     h.Desc(),
 			Metadata: h.Metadata(),
 		}
 		if programHandler, ok := h.(ProgramHandler); ok {
-			meta.ProgramKinds = append([]ProgramKind(nil), programHandler.ProgramKinds()...)
+			meta.ProgramKinds = slices.Clone(programHandler.ProgramKinds())
 		}
-		metas = append(metas, meta)
-	}
+		return meta
+	})
 	sort.Slice(metas, func(i, j int) bool { return metas[i].Name < metas[j].Name })
 	return metas
 }
@@ -85,10 +87,7 @@ func (r *HandlerRegistry) ListMetas() []HandlerMeta {
 func (r *HandlerRegistry) Names() []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	names := make([]string, 0, len(r.handlers))
-	for name := range r.handlers {
-		names = append(names, name)
-	}
+	names := lo.Keys(r.handlers)
 	sort.Strings(names)
 	return names
 }

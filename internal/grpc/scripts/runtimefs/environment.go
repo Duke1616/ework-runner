@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/Duke1616/etask/internal/grpc/scripts/engine"
+	"github.com/samber/lo"
 )
 
 type mountedArtifactRoots struct {
@@ -56,12 +57,9 @@ func pythonPaths(roots mountedArtifactRoots, workspace string) []string {
 }
 
 func prependPathList(current string, paths ...string) string {
-	result := make([]string, 0, len(paths)+1)
-	for _, path := range paths {
-		if path != "" {
-			result = append(result, path)
-		}
-	}
+	result := lo.Filter(paths, func(path string, _ int) bool {
+		return path != ""
+	})
 	if current != "" {
 		result = append(result, filepath.SplitList(current)...)
 	}

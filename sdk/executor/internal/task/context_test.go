@@ -146,6 +146,17 @@ func TestSecretMasksDoesNotInferVariableRoleFromKey(t *testing.T) {
 	require.Equal(t, []string{"ansible-secret"}, masks)
 }
 
+func TestSecretMasksDeduplication(t *testing.T) {
+	masks := secretMasks(map[string]string{
+		"vars": `[{"key":"API_KEY","value":"shared-secret","secret":true}]`,
+	}, []Variable{
+		{Key: "GLOBAL_TOKEN", Value: "shared-secret", Secret: true},
+	}, []Parameter{
+		{Key: "vars", Role: ParameterRoleVariables},
+	})
+	require.Equal(t, []string{"shared-secret"}, masks)
+}
+
 func TestContextAddSecretMasks(t *testing.T) {
 	logger := &recordingExecutionLogger{}
 	ctx := NewContext(ContextOptions{ExecutionLogger: logger})

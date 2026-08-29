@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/Duke1616/etask/sdk/executor"
 	"github.com/gotomicro/ego/core/elog"
+	"github.com/samber/lo"
 )
 
 type commandRunner struct {
@@ -60,6 +62,9 @@ func (r commandRunner) Run(task *executor.Context, workspace Workspace, prepared
 	err = command.Wait()
 	wait.Wait()
 	if err != nil {
+		if task.Context().Err() != nil {
+			return fmt.Errorf("脚本执行被取消或超时: %w", task.Context().Err())
+		}
 		return fmt.Errorf("脚本执行失败（退出码非 0）: %w", err)
 	}
 	return nil
@@ -129,4 +134,18 @@ func streamResult(task *executor.Context, reader io.Reader, maximum int64, wait 
 			task.SystemLogger().Error("脚本结果超过大小限制", elog.Int64("maxResultSize", maximum))
 		}
 	}
+}
+
+// MergeEnvironment 使用 overrides 覆盖 base 中的同名环境变量。
+func MergeEnvironment(base, overrides []string) []string {
+	overrideKeys := lo.SliceToMap(overrides, func(item string) (string, struct{}) {
+		key, _, _ := strings.Cut(item, "=")
+		return key, struct{}{}
+	})
+	result := lo.Filter(base, func(item string, _ int) bool {
+		key, _, _ := strings.Cut(item, "=")
+		_, exists := overrideKeys[key]
+		return !exists
+	})
+	return append(result, overrides...)
 }
