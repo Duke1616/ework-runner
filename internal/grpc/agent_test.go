@@ -7,8 +7,10 @@ import (
 	"time"
 
 	executorv1 "github.com/Duke1616/etask/api/proto/gen/etask/executor/v1"
+	reporterv1 "github.com/Duke1616/etask/api/proto/gen/etask/reporter/v1"
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/errs"
+	grpcmocks "github.com/Duke1616/etask/internal/grpc/mocks"
 	repositorymocks "github.com/Duke1616/etask/internal/repository/mocks"
 	poolSvc "github.com/Duke1616/etask/internal/service/pool"
 	taskmocks "github.com/Duke1616/etask/internal/service/task/mocks"
@@ -351,6 +353,74 @@ func TestNormalizeHandlerNames(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			require.Equal(t, tc.want, normalizeHandlerNames(tc.values))
+		})
+	}
+}
+
+func TestReporterServer_Report(t *testing.T) {
+	testCases := []struct {
+		name    string
+		request *reporterv1.ReportRequest
+		mock    func(ctrl *gomock.Controller) *grpcmocks.MockExecutionReportHandler
+		wantErr bool
+	}{
+		{
+			name: "仅日志上报不更新状态",
+			request: &reporterv1.ReportRequest{
+				ExecutionState: &executorv1.ExecutionState{Id: 10, TaskId: 20},
+				LogChunks:      []string{"日志分块"},
+				LogOnly:        true,
+			},
+			mock: func(ctrl *gomock.Controller) *grpcmocks.MockExecutionReportHandler {
+				handler := grpcmocks.NewMockExecutionReportHandler(ctrl)
+				handler.EXPECT().AppendExecutionLogs(gomock.Any(), int64(10), int64(20), []string{"日志分块"}).Return(nil)
+				return handler
+			},
+		},
+		{
+			name: "终态上报正常流转状态机",
+			request: &reporterv1.ReportRequest{
+				ExecutionState: &executorv1.ExecutionState{
+					Id: 10, TaskId: 20, Status: executorv1.ExecutionStatus_SUCCESS,
+				},
+			},
+			mock: func(ctrl *gomock.Controller) *grpcmocks.MockExecutionReportHandler {
+				handler := grpcmocks.NewMockExecutionReportHandler(ctrl)
+				state := domain.ExecutionState{ID: 10, TaskID: 20, Status: domain.TaskExecutionStatusSuccess}
+				handler.EXPECT().AppendExecutionLogs(gomock.Any(), int64(10), int64(20), []string(nil)).Return(nil)
+				handler.EXPECT().UpdateState(gomock.Any(), state).Return(nil)
+				return handler
+			},
+		},
+		{
+			name: "日志持久化失败不进入状态机并报错",
+			request: &reporterv1.ReportRequest{
+				ExecutionState: &executorv1.ExecutionState{Id: 10, Status: executorv1.ExecutionStatus_SUCCESS},
+				LogChunks:      []string{"日志"},
+			},
+			mock: func(ctrl *gomock.Controller) *grpcmocks.MockExecutionReportHandler {
+				handler := grpcmocks.NewMockExecutionReportHandler(ctrl)
+				handler.EXPECT().AppendExecutionLogs(gomock.Any(), int64(10), int64(0), []string{"日志"}).
+					Return(errors.New("数据库写入异常"))
+				return handler
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			handler := tc.mock(ctrl)
+			server := NewReporterServer(handler)
+
+			_, err := server.Report(t.Context(), tc.request)
+			if tc.wantErr {
+				require.Error(t, err)
+				require.Equal(t, codes.Internal, status.Code(err))
+				return
+			}
+			require.NoError(t, err)
 		})
 	}
 }

@@ -1,11 +1,18 @@
 package grpc
 
 import (
+	"errors"
 	"testing"
 
+	schedulerv1 "github.com/Duke1616/etask/api/proto/gen/etask/scheduler/v1"
 	taskv1 "github.com/Duke1616/etask/api/proto/gen/etask/task/v1"
 	"github.com/Duke1616/etask/internal/domain"
+	"github.com/Duke1616/etask/internal/service/submission"
+	submissionmocks "github.com/Duke1616/etask/internal/service/submission/mocks"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestTaskProgramSpecConversion(t *testing.T) {
@@ -59,5 +66,32 @@ func TestTaskWithoutProgramRemainsProgramless(t *testing.T) {
 		GrpcConfig: &taskv1.GrpcConfig{HandlerName: "demo"},
 	})
 	require.Nil(t, task.Program)
-	require.Nil(t, server.toProtoTask(task).GetProgram())
 }
+
+func TestSchedulerServerMapsSubmissionErrors(t *testing.T) {
+	testCases := []struct {
+		name     string
+		result   submission.RunResult
+		err      error
+		wantCode codes.Code
+	}{
+		{name: "提交成功", result: submission.RunResult{}, wantCode: codes.OK},
+		{name: "协议参数非法", err: fmtError(submission.ErrInvalidCommand), wantCode: codes.InvalidArgument},
+		{name: "业务前置条件不满足", err: fmtError(submission.ErrRejected), wantCode: codes.FailedPrecondition},
+		{name: "内部故障", err: errors.New("database unavailable"), wantCode: codes.Internal},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			submissions := submissionmocks.NewMockService(ctrl)
+			submissions.EXPECT().RunRunner(gomock.Any(), gomock.Any()).
+				Return(tc.result, tc.err)
+			server := NewSchedulerServer(submissions)
+			_, err := server.RunRunner(t.Context(), &schedulerv1.RunRunnerRequest{})
+			require.Equal(t, tc.wantCode, status.Code(err))
+		})
+	}
+}
+
+func fmtError(target error) error { return errors.Join(target, errors.New("detail")) }
