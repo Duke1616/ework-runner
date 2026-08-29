@@ -10,6 +10,7 @@ import (
 	taskv1 "github.com/Duke1616/etask/api/proto/gen/etask/task/v1"
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/errs"
+	internalvariable "github.com/Duke1616/etask/internal/pkg/variable"
 	"github.com/Duke1616/etask/internal/service/task"
 	"github.com/Duke1616/etask/pkg/grpc/interceptors/bizid"
 	"github.com/gotomicro/ego/core/elog"
@@ -91,6 +92,7 @@ func (s *TaskServer) toDomainTask(bizID int64, req *taskv1.CreateTaskRequest) do
 			ServiceName: req.GrpcConfig.GetServiceName(),
 			HandlerName: req.GrpcConfig.GetHandlerName(),
 			Params:      req.GrpcConfig.GetParams(),
+			Variables:   fromProtoVariables(req.GrpcConfig.GetVariables()),
 		}
 	}
 	if req.HttpConfig != nil {
@@ -284,7 +286,33 @@ func (s *TaskServer) toProtoGrpcConfig(cfg *domain.GrpcConfig) *taskv1.GrpcConfi
 		ServiceName: cfg.ServiceName,
 		HandlerName: cfg.HandlerName,
 		Params:      cfg.Params,
+		Variables:   toProtoVariableSet(cfg.Variables),
 	}
+}
+
+func fromProtoVariables(set *executorv1.VariableSet) []internalvariable.Item {
+	if set == nil {
+		return nil
+	}
+	items := make([]internalvariable.Item, 0, len(set.Items))
+	for _, item := range set.Items {
+		if item == nil {
+			continue
+		}
+		items = append(items, internalvariable.Item{Key: item.Key, Value: item.Value, Secret: item.Secret})
+	}
+	return items
+}
+
+func toProtoVariableSet(items []internalvariable.Item) *executorv1.VariableSet {
+	if len(items) == 0 {
+		return nil
+	}
+	result := make([]*executorv1.Variable, 0, len(items))
+	for _, item := range items {
+		result = append(result, &executorv1.Variable{Key: item.Key, Value: item.Value, Secret: item.Secret})
+	}
+	return &executorv1.VariableSet{Items: result}
 }
 
 func (s *TaskServer) toDomainProgramSpec(spec *taskv1.ProgramSpec) *domain.ProgramSpec {

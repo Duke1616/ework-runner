@@ -33,6 +33,6 @@ func TestRunnerServerListsRunnersByCodebookID(t *testing.T) {
 	require.Equal(t, int64(3), response.GetRunners()[0].GetId())
 	require.Equal(t, "INLINE", response.GetRunners()[0].GetProgramKind())
 	require.Equal(t, "cn", response.GetRunners()[0].GetVariables()[0].GetValue())
-	require.Empty(t, response.GetRunners()[0].GetVariables()[1].GetValue())
+	require.Equal(t, "[已脱敏]", response.GetRunners()[0].GetVariables()[1].GetValue())
 	require.True(t, response.GetRunners()[0].GetVariables()[1].GetSecret())
 }

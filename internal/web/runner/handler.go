@@ -6,7 +6,9 @@ import (
 	"github.com/Duke1616/eiam/pkg/web/capability"
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/errs"
+	"github.com/Duke1616/etask/internal/pkg/security"
 	runnerSvc "github.com/Duke1616/etask/internal/service/runner"
+	"github.com/Duke1616/etask/pkg/cryptox"
 	"github.com/ecodeclub/ekit/slice"
 	"github.com/ecodeclub/ginx"
 	"github.com/gin-gonic/gin"
@@ -213,7 +215,7 @@ func (h *Handler) toUpdateVariablesDomain(oldVars map[string]domain.RunnerVariab
 		value := src.Value
 		if src.Secret {
 			val, ok := oldVars[src.Key]
-			if ok && src.Value == "" {
+			if ok && (src.Value == "" || src.Value == cryptox.DefaultMask) {
 				value = val.Value
 			}
 		}
@@ -264,10 +266,8 @@ func (h *Handler) toVO(req domain.Runner) RunnerVO {
 }
 
 func (h *Handler) toVariablesVO(variables []domain.RunnerVariable) []Variable {
-	return slice.Map(variables, func(_ int, src domain.RunnerVariable) Variable {
-		if src.Secret {
-			return Variable{Key: src.Key, Secret: src.Secret}
-		}
+	masked := security.NewVariableMasker().MaskVariables(variables)
+	return slice.Map(masked, func(_ int, src domain.RunnerVariable) Variable {
 		return Variable{Key: src.Key, Secret: src.Secret, Value: src.Value}
 	})
 }

@@ -14,11 +14,10 @@ const defaultCatalogLimit int64 = 10
 
 // CatalogListRequest 描述当前租户可见资源池分页查询条件。
 type CatalogListRequest struct {
-	TenantID int64
-	Kind     domain.ExecutionPoolKind
-	Offset   int64
-	Limit    int64
-	Keyword  string
+	Kind    domain.ExecutionPoolKind
+	Offset  int64
+	Limit   int64
+	Keyword string
 }
 
 // PoolListRequest 描述管理端资源池分页查询条件。
@@ -83,8 +82,6 @@ func NewCatalogService(
 }
 
 func (s *catalogService) ListAuthorizedPools(ctx context.Context, req CatalogListRequest) (CatalogPage, error) {
-	ctx = withTenant(ctx, req.TenantID)
-
 	limit := normalizeCatalogLimit(req.Limit)
 	keyword := strings.TrimSpace(req.Keyword)
 	return s.listAuthorizedPoolsByOffset(ctx, req, limit, keyword)

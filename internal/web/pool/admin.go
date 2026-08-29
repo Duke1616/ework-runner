@@ -1,10 +1,13 @@
 package pool
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
+	"github.com/Duke1616/eiam/pkg/ctxutil"
 	"github.com/Duke1616/eiam/pkg/web/capability"
+	"github.com/Duke1616/eiam/pkg/web/middleware"
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/errs"
 	"github.com/Duke1616/etask/internal/repository"
@@ -45,19 +48,19 @@ func (h *AdminHandler) PrivateRoutes(server *gin.Engine) {
 	)
 	g.POST("/bindings/list", h.Capability("资源池绑定管理列表", "admin_bindings_view").
 		Needs("iam:tenant:view_by_ids").
-		Handle(ginx.B[ListBindingsReq](h.ListBindings)),
+		Handle(middleware.BTO[ListBindingsReq](h.ListBindings)),
 	)
 	g.POST("/bindings/bind", h.Capability("管理绑定资源池", "admin_bind").
-		Handle(ginx.B[BindReq](h.Bind)),
+		Handle(middleware.BTO[BindReq](h.Bind)),
 	)
 	g.DELETE("/bindings/unbind", h.Capability("管理解绑资源池", "admin_unbind").
-		Handle(ginx.B[BindingKeyReq](h.Unbind)),
+		Handle(middleware.BTO[BindingKeyReq](h.Unbind)),
 	)
 	g.POST("/bindings/enable", h.Capability("管理启用资源池绑定", "admin_enable").
-		Handle(ginx.B[BindingKeyReq](h.Enable)),
+		Handle(middleware.BTO[BindingKeyReq](h.Enable)),
 	)
 	g.POST("/bindings/disable", h.Capability("管理禁用资源池绑定", "admin_disable").
-		Handle(ginx.B[BindingKeyReq](h.Disable)),
+		Handle(middleware.BTO[BindingKeyReq](h.Disable)),
 	)
 }
 
@@ -87,9 +90,9 @@ func (h *AdminHandler) ListPools(ctx *ginx.Context, req ListPoolsReq) (ginx.Resu
 
 func (h *AdminHandler) ListBindings(ctx *ginx.Context, req ListBindingsReq) (ginx.Result, error) {
 	bindings, err := h.bindingSvc.AdminList(ctx, poolSvc.ListBindingsRequest{
-		TenantID: req.TenantID,
-		PoolName: req.PoolName,
-		Status:   domain.ExecutionPoolBindingStatus(req.Status),
+		PoolName:   req.PoolName,
+		Status:     domain.ExecutionPoolBindingStatus(req.Status),
+		AllTenants: req.AllTenants,
 	})
 	if err != nil {
 		return h.translateError(err), err
@@ -106,11 +109,10 @@ func (h *AdminHandler) ListBindings(ctx *ginx.Context, req ListBindingsReq) (gin
 }
 
 func (h *AdminHandler) Bind(ctx *ginx.Context, req BindReq) (ginx.Result, error) {
-	if err := h.requireTargetTenant(req.TenantID); err != nil {
+	if err := requireTenantContext(ctx); err != nil {
 		return h.translateError(err), err
 	}
 	err := h.bindingSvc.BindMany(ctx, poolSvc.BindingManyRequest{
-		TenantID:     req.TenantID,
 		PoolName:     req.PoolName,
 		HandlerNames: h.bindHandlerNames(req),
 		Desc:         req.Desc,
@@ -122,7 +124,7 @@ func (h *AdminHandler) Bind(ctx *ginx.Context, req BindReq) (ginx.Result, error)
 }
 
 func (h *AdminHandler) Unbind(ctx *ginx.Context, req BindingKeyReq) (ginx.Result, error) {
-	if err := h.requireTargetTenant(req.TenantID); err != nil {
+	if err := requireTenantContext(ctx); err != nil {
 		return h.translateError(err), err
 	}
 	err := h.bindingSvc.Unbind(ctx, h.toBindingKey(req))
@@ -133,7 +135,7 @@ func (h *AdminHandler) Unbind(ctx *ginx.Context, req BindingKeyReq) (ginx.Result
 }
 
 func (h *AdminHandler) Enable(ctx *ginx.Context, req BindingKeyReq) (ginx.Result, error) {
-	if err := h.requireTargetTenant(req.TenantID); err != nil {
+	if err := requireTenantContext(ctx); err != nil {
 		return h.translateError(err), err
 	}
 	err := h.bindingSvc.Enable(ctx, h.toBindingKey(req))
@@ -144,7 +146,7 @@ func (h *AdminHandler) Enable(ctx *ginx.Context, req BindingKeyReq) (ginx.Result
 }
 
 func (h *AdminHandler) Disable(ctx *ginx.Context, req BindingKeyReq) (ginx.Result, error) {
-	if err := h.requireTargetTenant(req.TenantID); err != nil {
+	if err := requireTenantContext(ctx); err != nil {
 		return h.translateError(err), err
 	}
 	err := h.bindingSvc.Disable(ctx, h.toBindingKey(req))
@@ -154,8 +156,8 @@ func (h *AdminHandler) Disable(ctx *ginx.Context, req BindingKeyReq) (ginx.Resul
 	return successResult(), nil
 }
 
-func (h *AdminHandler) requireTargetTenant(tenantID int64) error {
-	if tenantID <= 0 {
+func requireTenantContext(ctx context.Context) error {
+	if ctxutil.GetTenantID(ctx).Int64() <= 0 {
 		return fmt.Errorf("%w: 目标租户不能为空", errs.ErrInvalidParameter)
 	}
 	return nil
@@ -170,7 +172,6 @@ func (h *AdminHandler) bindHandlerNames(req BindReq) []string {
 
 func (h *AdminHandler) toBindingKey(req BindingKeyReq) poolSvc.BindingKey {
 	return poolSvc.BindingKey{
-		TenantID:    req.TenantID,
 		PoolName:    req.PoolName,
 		HandlerName: req.HandlerName,
 	}

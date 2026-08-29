@@ -23,11 +23,11 @@ func (s *service) validateParamOverrideRules(ctx context.Context, task domain.Ta
 	if len(task.ParamOverrideRules) > maxOverrideRules {
 		return fmt.Errorf("%w: 启动参数覆盖规则不能超过 %d 条", errs.ErrInvalidParameter, maxOverrideRules)
 	}
-	if task.GrpcConfig == nil || s.bindingSvc == nil {
+	if task.GrpcConfig == nil || s.metadataProvider == nil {
 		return fmt.Errorf("%w: 当前任务没有可覆盖的 Handler 参数", errs.ErrInvalidParameter)
 	}
-	validKeys, err := s.bindingSvc.RuntimeOverridableParameterKeys(ctx, poolSvc.CheckBindingRequest{
-		TenantID: task.TenantID, PoolName: task.GrpcConfig.ServiceName, HandlerName: task.GrpcConfig.HandlerName,
+	validKeys, err := s.metadataProvider.RuntimeOverridableParameterKeys(ctx, poolSvc.CheckBindingRequest{
+		PoolName: task.GrpcConfig.ServiceName, HandlerName: task.GrpcConfig.HandlerName,
 	})
 	if err != nil {
 		return fmt.Errorf("查询 Handler 可覆盖参数失败: %w", err)

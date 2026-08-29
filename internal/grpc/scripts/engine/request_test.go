@@ -46,7 +46,7 @@ func TestResolveRequestPrefersIndependentVariableSnapshot(t *testing.T) {
 	require.JSONEq(t, `[{"key":"source","value":"runner","secret":false}]`, request.input.Variables)
 }
 
-func TestResolveRequestUsesHandlerVariableParameterWithoutSnapshot(t *testing.T) {
+func TestResolveRequestDoesNotReadVariablesFromParams(t *testing.T) {
 	task := executor.NewContext(executor.ContextOptions{
 		Params: map[string]string{"vars": `[{"key":"source","value":"legacy"}]`},
 	})
@@ -57,7 +57,7 @@ func TestResolveRequestUsesHandlerVariableParameterWithoutSnapshot(t *testing.T)
 	}, Config{MaxArgsSize: 1024, MaxVariablesSize: 1024})
 
 	require.NoError(t, err)
-	require.JSONEq(t, `[{"key":"source","value":"legacy"}]`, request.input.Variables)
+	require.Equal(t, "[]", request.input.Variables)
 }
 
 func TestResolveRequestPreservesExplicitEmptyVariableSet(t *testing.T) {

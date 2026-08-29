@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Duke1616/eiam/pkg/ctxutil"
 	executorv1 "github.com/Duke1616/etask/api/proto/gen/etask/executor/v1"
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/errs"
@@ -25,7 +26,7 @@ type AgentServer struct {
 	execRepo   repository.TaskExecutionRepository
 	execSvc    task.ExecutionService
 	logSvc     task.LogService
-	bindingSvc poolSvc.BindingService
+	authorizer poolSvc.ExecutionPoolAuthorizer
 	logger     *elog.Component
 }
 
@@ -33,30 +34,22 @@ func NewAgentServer(
 	execRepo repository.TaskExecutionRepository,
 	execSvc task.ExecutionService,
 	logSvc task.LogService,
-	bindingSvc poolSvc.BindingService,
+	authorizer poolSvc.ExecutionPoolAuthorizer,
 ) *AgentServer {
 	return &AgentServer{
 		execRepo:   execRepo,
 		execSvc:    execSvc,
 		logSvc:     logSvc,
-		bindingSvc: bindingSvc,
+		authorizer: authorizer,
 		logger:     elog.DefaultLogger.With(elog.FieldComponentName("grpc.AgentServer")),
 	}
 }
 
 // PullTask 响应执行节点的拉取请求
 func (s *AgentServer) PullTask(ctx context.Context, req *executorv1.PullTaskRequest) (*executorv1.PullTaskResponse, error) {
-	serviceName := req.GetServiceName()
-	nodeId := req.GetNodeId()
-	if serviceName == "" {
-		return nil, fmt.Errorf("执行服务名称不能为空")
-	}
-	if nodeId == "" {
-		return nil, fmt.Errorf("执行节点 ID 不能为空")
-	}
-	handlerNames := normalizeHandlerNames(req.GetHandlers())
-	if len(handlerNames) == 0 {
-		return nil, fmt.Errorf("执行节点至少需要声明一个处理器")
+	serviceName, nodeID, handlerNames, err := validatePullTaskRequest(req)
+	if err != nil {
+		return nil, err
 	}
 
 	// 1. 设置最大长轮询时间
@@ -68,55 +61,17 @@ func (s *AgentServer) PullTask(ctx context.Context, req *executorv1.PullTaskRequ
 
 	for {
 		// 在数据库中寻找并乐观抢占一条状态为 WAITING_PULL 且 Service(Group) 匹配的执行记录
-		// 这里将 nodeId 真实落库记录为 executor_node_id
-		exec, err := s.execRepo.ClaimPullTask(timeoutCtx, serviceName, nodeId, handlerNames)
+		// 这里将 nodeID 真实落库记录为 executor_node_id。
+		exec, err := s.execRepo.ClaimPullTask(timeoutCtx, serviceName, nodeID, handlerNames)
 		if err == nil {
-			artifacts, artifactErr := domain.ArtifactRefsToProto(exec.Artifacts)
-			if artifactErr != nil {
-				s.finishClaimedExecution(timeoutCtx, exec, nodeId,
-					domain.TaskExecutionStatusFailed, "执行制品引用非法: "+artifactErr.Error())
-				return nil, artifactErr
+			response, deliver, prepareErr := s.preparePulledTask(timeoutCtx, exec, nodeID)
+			if prepareErr != nil {
+				return nil, prepareErr
 			}
-			program, programErr := programmapper.ToProto(exec.Program)
-			if programErr != nil {
-				s.finishClaimedExecution(timeoutCtx, exec, nodeId,
-					domain.TaskExecutionStatusFailed, "执行程序来源非法: "+programErr.Error())
-				return nil, programErr
+			if deliver {
+				return response, nil
 			}
-			allowed, authErr := s.isExecutionAllowed(timeoutCtx, exec)
-			if authErr != nil {
-				s.finishClaimedExecution(timeoutCtx, exec, nodeId,
-					domain.TaskExecutionStatusFailedRescheduled, "校验执行资源池授权失败: "+authErr.Error())
-				return nil, authErr
-			}
-			if !allowed {
-				s.finishClaimedExecution(timeoutCtx, exec, nodeId,
-					domain.TaskExecutionStatusFailed, "执行资源池授权已被撤销")
-				continue
-			}
-
-			handlerName := ""
-			if exec.Task.GrpcConfig != nil {
-				handlerName = exec.Task.GrpcConfig.HandlerName
-			}
-			// 2. 抢占成功，直接将执行指令下发
-			return &executorv1.PullTaskResponse{
-				HasTask: true,
-				TaskReq: &executorv1.ExecuteRequest{
-					Eid:             exec.ID,
-					TaskId:          exec.Task.ID,
-					TaskName:        exec.Task.Name,
-					TaskHandlerName: handlerName,
-					Params:          exec.GRPCParams(),
-					// 在 PULL (拉取) 模式下，因为 Agent 边缘节点的长轮询请求是系统级无租户背景发起的，
-					// gRPC 链路请求头中无法携带租户 Metadata。因此必须将任务所属的 TenantID
-					// 显式塞入 proto Payload 消息体中下发，供 Agent 侧反向提取并重建租户 context 树。
-					TenantId:    exec.TenantID,
-					Artifacts:   artifacts,
-					Program:     program,
-					VariableSet: exec.Variables.ToProto(),
-				},
-			}, nil
+			continue
 		}
 		if !errors.Is(err, errs.ErrExecutionNotFound) && !errors.Is(err, errs.ErrExecutionClaimConflict) {
 			return nil, fmt.Errorf("拉取待执行任务失败: %w", err)
@@ -133,29 +88,84 @@ func (s *AgentServer) PullTask(ctx context.Context, req *executorv1.PullTaskRequ
 	}
 }
 
-func normalizeHandlerNames(values []string) []string {
-	seen := make(map[string]struct{}, len(values))
-	result := make([]string, 0, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value == "" {
-			continue
-		}
-		if _, exists := seen[value]; exists {
-			continue
-		}
-		seen[value] = struct{}{}
-		result = append(result, value)
+func validatePullTaskRequest(req *executorv1.PullTaskRequest) (string, string, []string, error) {
+	serviceName := strings.TrimSpace(req.GetServiceName())
+	if serviceName == "" {
+		return "", "", nil, fmt.Errorf("执行服务名称不能为空")
 	}
-	return result
+	nodeID := strings.TrimSpace(req.GetNodeId())
+	if nodeID == "" {
+		return "", "", nil, fmt.Errorf("执行节点 ID 不能为空")
+	}
+	handlerNames := normalizeHandlerNames(req.GetHandlers())
+	if len(handlerNames) == 0 {
+		return "", "", nil, fmt.Errorf("执行节点至少需要声明一个处理器")
+	}
+	return serviceName, nodeID, handlerNames, nil
+}
+
+// preparePulledTask 将已抢占的执行记录转换为 Agent 指令。
+// 返回 deliver=false 表示该任务已被标记为无效或未授权，调用方应继续轮询。
+func (s *AgentServer) preparePulledTask(
+	ctx context.Context,
+	exec domain.TaskExecution,
+	nodeID string,
+) (*executorv1.PullTaskResponse, bool, error) {
+	artifacts, err := domain.ArtifactRefsToProto(exec.Artifacts)
+	if err != nil {
+		s.finishClaimedExecution(ctx, exec, nodeID, domain.TaskExecutionStatusFailed, "执行制品引用非法: "+err.Error())
+		return nil, false, err
+	}
+	program, err := programmapper.ToProto(exec.Program)
+	if err != nil {
+		s.finishClaimedExecution(ctx, exec, nodeID, domain.TaskExecutionStatusFailed, "执行程序来源非法: "+err.Error())
+		return nil, false, err
+	}
+	allowed, err := s.isExecutionAllowed(ctx, exec)
+	if err != nil {
+		s.finishClaimedExecution(ctx, exec, nodeID, domain.TaskExecutionStatusFailedRescheduled, "校验执行资源池授权失败: "+err.Error())
+		return nil, false, err
+	}
+	if !allowed {
+		s.finishClaimedExecution(ctx, exec, nodeID, domain.TaskExecutionStatusFailed, "执行资源池授权已被撤销")
+		return nil, false, nil
+	}
+
+	handlerName := ""
+	if exec.Task.GrpcConfig != nil {
+		handlerName = exec.Task.GrpcConfig.HandlerName
+	}
+	return &executorv1.PullTaskResponse{
+		HasTask: true,
+		TaskReq: &executorv1.ExecuteRequest{
+			Eid:             exec.ID,
+			TaskId:          exec.Task.ID,
+			TaskName:        exec.Task.Name,
+			TaskHandlerName: handlerName,
+			Params:          exec.GRPCParams(),
+			// PULL 请求是 Agent 在后台发起的，gRPC Metadata 不携带任务租户，
+			// 因此必须把租户 ID 放入指令消息，供 Agent 重建执行上下文。
+			TenantId:    exec.TenantID,
+			Artifacts:   artifacts,
+			Program:     program,
+			VariableSet: exec.Variables.ToProto(),
+		},
+	}, true, nil
+}
+
+func normalizeHandlerNames(values []string) []string {
+	return lo.Uniq(lo.FilterMap(values, func(value string, _ int) (string, bool) {
+		value = strings.TrimSpace(value)
+		return value, value != ""
+	}))
 }
 
 func (s *AgentServer) isExecutionAllowed(ctx context.Context, exec domain.TaskExecution) (bool, error) {
-	if exec.Task.GrpcConfig == nil || s.bindingSvc == nil {
+	if exec.Task.GrpcConfig == nil {
 		return true, nil
 	}
-	return s.bindingSvc.IsAllowed(ctx, poolSvc.CheckBindingRequest{
-		TenantID:    exec.TenantID,
+	ctx = ctxutil.WithTenantID(ctx, exec.TenantID)
+	return s.authorizer.IsAllowed(ctx, poolSvc.CheckBindingRequest{
 		PoolName:    exec.Task.GrpcConfig.ServiceName,
 		HandlerName: exec.Task.GrpcConfig.HandlerName,
 	})
@@ -256,16 +266,15 @@ func (s *AgentServer) BatchListTaskExecutions(ctx context.Context, req *executor
 		return nil, err
 	}
 
-	results := make(map[int64]*executorv1.TaskExecutionList)
-	for _, e := range executions {
-		pbExec := toProtoTaskExecution(e)
-
-		if list, ok := results[e.Task.ID]; ok {
-			list.Executions = append(list.Executions, pbExec)
-		} else {
-			results[e.Task.ID] = &executorv1.TaskExecutionList{
-				Executions: []*executorv1.TaskExecution{pbExec},
-			}
+	grouped := lo.GroupBy(executions, func(e domain.TaskExecution) int64 {
+		return e.Task.ID
+	})
+	results := make(map[int64]*executorv1.TaskExecutionList, len(grouped))
+	for taskID, taskExecutions := range grouped {
+		results[taskID] = &executorv1.TaskExecutionList{
+			Executions: lo.Map(taskExecutions, func(e domain.TaskExecution, _ int) *executorv1.TaskExecution {
+				return toProtoTaskExecution(e)
+			}),
 		}
 	}
 

@@ -52,3 +52,19 @@ func TestToExecutionParametersVOHandlesEmptySnapshot(t *testing.T) {
 	require.Zero(t, got.ManualOverrideCount)
 	require.Zero(t, got.ScheduleOverrideCount)
 }
+
+func TestToExecutionParametersVOMasksSecretVariables(t *testing.T) {
+	got := toExecutionParametersVO(domain.TaskExecution{
+		ID: 8,
+		Variables: &domain.ExecutionVariableSet{Items: []domain.RunnerVariable{
+			{Key: "public", Value: "visible"},
+			{Key: "token", Value: "top-secret", Secret: true},
+		}},
+	})
+	byKey := make(map[string]ExecutionParameterVO, len(got.Parameters))
+	for _, parameter := range got.Parameters {
+		byKey[parameter.Key] = parameter
+	}
+	require.Equal(t, `[{"key":"public","value":"visible","secret":false},{"key":"token","value":"[已脱敏]","secret":true}]`, byKey["variables"].Value)
+	require.NotContains(t, byKey["variables"].Value, "top-secret")
+}

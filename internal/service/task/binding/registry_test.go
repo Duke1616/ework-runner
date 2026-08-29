@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Duke1616/etask/internal/domain"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,8 +19,8 @@ func TestRegistryResolve(t *testing.T) {
 		{
 			name: "按参数名稳定解析",
 			before: func(registry *Registry) {
-				registry.Register("resource", ResolverFunc(func(_ context.Context, req ResolveRequest) (string, error) {
-					return "resolved-" + req.Value, nil
+				registry.Register("resource", ResolverFunc(func(_ context.Context, req ResolveRequest) (ResolveResult, error) {
+					return ResolveResult{Parameters: map[string]string{req.ParamKey: "resolved-" + req.Value}}, nil
 				}))
 			},
 			params: map[string]string{"z": "2", "a": "1"}, metadata: map[string]string{"z": "resource", "a": "resource"},
@@ -36,7 +37,30 @@ func TestRegistryResolve(t *testing.T) {
 			}
 			result, err := registry.Resolve(t.Context(), "shell", tc.params, tc.metadata)
 			require.NoError(t, err)
-			require.Equal(t, tc.wantValues, result)
+			require.Equal(t, tc.wantValues, result.Parameters)
 		})
 	}
+}
+
+func TestRegistryResolveTypedSeparatesVariables(t *testing.T) {
+	registry := NewRegistry().Register("runner", typedTestResolver{})
+	result, err := registry.Resolve(t.Context(), "shell",
+		map[string]string{"variables": "runner-1"}, map[string]string{"variables": "runner"})
+	require.NoError(t, err)
+	require.Empty(t, result.Parameters)
+	require.Equal(t, []domain.RunnerVariable{{Key: "TOKEN", Value: "secret", Secret: true}}, result.Variables)
+}
+
+func TestRegistryTrimsBindingNames(t *testing.T) {
+	registry := NewRegistry().Register(" runner ", typedTestResolver{})
+	result, err := registry.Resolve(t.Context(), "shell",
+		map[string]string{"variables": "1"}, map[string]string{"variables": " runner "})
+	require.NoError(t, err)
+	require.Len(t, result.Variables, 1)
+}
+
+type typedTestResolver struct{}
+
+func (typedTestResolver) Resolve(context.Context, ResolveRequest) (ResolveResult, error) {
+	return ResolveResult{Variables: []domain.RunnerVariable{{Key: "TOKEN", Value: "secret", Secret: true}}}, nil
 }

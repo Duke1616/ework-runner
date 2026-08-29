@@ -2,7 +2,6 @@ package binding
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 	"testing"
 
@@ -24,7 +23,7 @@ func TestScriptBindingResolversResolve(t *testing.T) {
 
 	resolvers := NewScriptBindingResolvers(runnerSvc)
 
-	params, err := resolvers.Resolve(context.Background(), "shell", map[string]string{
+	result, err := resolvers.Resolve(context.Background(), "shell", map[string]string{
 		"args":      `{"name":"demo"}`,
 		"variables": "34",
 	}, map[string]string{
@@ -34,14 +33,11 @@ func TestScriptBindingResolversResolve(t *testing.T) {
 		t.Fatalf("Resolve() error = %v", err)
 	}
 
-	if _, ok := params["args"]; ok {
+	if _, ok := result.Parameters["args"]; ok {
 		t.Fatalf("args should not be materialized")
 	}
 
-	var variables []domain.RunnerVariable
-	if err = json.Unmarshal([]byte(params["variables"]), &variables); err != nil {
-		t.Fatalf("variables should be json: %v", err)
-	}
+	variables := result.Variables
 	if len(variables) != 2 || variables[0].Key != "HOST" || variables[1].Secret != true {
 		t.Fatalf("variables = %+v", variables)
 	}

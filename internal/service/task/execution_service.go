@@ -16,8 +16,7 @@ import (
 	"github.com/Duke1616/etask/internal/service/acquirer"
 	artifactSvc "github.com/Duke1616/etask/internal/service/artifact"
 	programSvc "github.com/Duke1616/etask/internal/service/program"
-	runnerSvc "github.com/Duke1616/etask/internal/service/runner"
-	taskbinding "github.com/Duke1616/etask/internal/service/task/binding"
+	taskinput "github.com/Duke1616/etask/internal/service/task/input"
 	"github.com/Duke1616/etask/internal/sse"
 	"github.com/Duke1616/etask/pkg/grpc/registry"
 	"github.com/Duke1616/etask/pkg/retry"
@@ -87,19 +86,18 @@ func (s *executionService) RequeuePull(ctx context.Context, executionID int64) e
 }
 
 type executionService struct {
-	nodeID       string
-	repo         repository.TaskExecutionRepository
-	taskSvc      Service
-	logSvc       LogService             // 日志服务
-	taskAcquirer acquirer.TaskAcquirer  // 任务抢占器
-	producer     event.CompleteProducer // 任务完成事件生产者
-	registry     registry.Registry
-	resolvers    *taskbinding.Registry
-	artifactSvc  artifactSvc.Service
-	programSvc   programSvc.Service
-	runnerSvc    runnerSvc.Service
-	events       *sse.Hubs
-	logger       *elog.Component
+	nodeID         string
+	repo           repository.TaskExecutionRepository
+	taskSvc        Service
+	logSvc         LogService             // 日志服务
+	taskAcquirer   acquirer.TaskAcquirer  // 任务抢占器
+	producer       event.CompleteProducer // 任务完成事件生产者
+	registry       registry.Registry
+	artifactSvc    artifactSvc.Service
+	programSvc     programSvc.Service
+	inputAssembler taskinput.ExecutionInputAssembler
+	events         *sse.Hubs
+	logger         *elog.Component
 }
 
 // NewExecutionService 创建任务执行服务实例
@@ -110,25 +108,23 @@ func NewExecutionService(
 	logSvc LogService,
 	producer event.CompleteProducer,
 	registry registry.Registry,
-	resolvers *taskbinding.Registry,
 	artifactSvc artifactSvc.Service,
 	programSvc programSvc.Service,
-	runnerService runnerSvc.Service,
+	inputAssembler taskinput.ExecutionInputAssembler,
 	events *sse.Hubs,
 ) ExecutionService {
 	return &executionService{
-		nodeID:      nodeID,
-		repo:        repo,
-		taskSvc:     taskSvc,
-		logSvc:      logSvc,
-		producer:    producer,
-		registry:    registry,
-		resolvers:   resolvers,
-		artifactSvc: artifactSvc,
-		programSvc:  programSvc,
-		runnerSvc:   runnerService,
-		events:      events,
-		logger:      elog.DefaultLogger.With(elog.FieldComponentName("service.execution")),
+		nodeID:         nodeID,
+		repo:           repo,
+		taskSvc:        taskSvc,
+		logSvc:         logSvc,
+		producer:       producer,
+		registry:       registry,
+		artifactSvc:    artifactSvc,
+		programSvc:     programSvc,
+		inputAssembler: inputAssembler,
+		events:         events,
+		logger:         elog.DefaultLogger.With(elog.FieldComponentName("service.execution")),
 	}
 }
 
@@ -258,10 +254,6 @@ func (s *executionService) buildTaskSnapshot(ctx context.Context,
 	}
 
 	snapshot.UpdateScheduleParams(task.ScheduleParams)
-	variables, err := s.applyRunnerDefaults(ctx, &snapshot)
-	if err != nil {
-		return domain.Task{}, programSvc.Resolution{}, nil, err
-	}
 	if err = s.taskSvc.AuthorizeExecutionPool(ctx, snapshot); err != nil {
 		return domain.Task{}, programSvc.Resolution{}, nil, err
 	}
@@ -269,80 +261,11 @@ func (s *executionService) buildTaskSnapshot(ctx context.Context,
 	if err != nil {
 		return domain.Task{}, programSvc.Resolution{}, nil, err
 	}
-
-	// Runner 任务的默认参数和变量已经由执行单元快照解析完成，不再运行旧参数绑定。
-	if snapshot.GrpcConfig == nil || snapshot.RunnerID != 0 {
-		applyPendingParamOverrides(&snapshot)
-		return snapshot, selection, variables, nil
-	}
-
-	// Codebook 等绑定在执行创建阶段解析，并写入私有参数副本。
-	resolved, err := s.resolvers.Resolve(ctx, snapshot.GrpcConfig.HandlerName,
-		snapshot.GrpcConfig.Params, snapshot.Metadata)
+	assembled, err := s.inputAssembler.Assemble(ctx, snapshot)
 	if err != nil {
 		return domain.Task{}, programSvc.Resolution{}, nil, err
 	}
-	if len(resolved) == 0 {
-		applyPendingParamOverrides(&snapshot)
-		return snapshot, selection, variables, nil
-	}
-
-	resolvedParams := make(map[string]string, len(snapshot.GrpcConfig.Params)+len(resolved))
-	for k, v := range snapshot.GrpcConfig.Params {
-		resolvedParams[k] = v
-	}
-	for k, v := range resolved {
-		resolvedParams[k] = v
-	}
-	snapshot.GrpcConfig.Params = resolvedParams
-	applyPendingParamOverrides(&snapshot)
-	return snapshot, selection, variables, nil
-}
-
-func applyPendingParamOverrides(task *domain.Task) {
-	if task.GrpcConfig == nil || len(task.PendingParamOverrides) == 0 {
-		return
-	}
-	config := *task.GrpcConfig
-	params := make(map[string]string, len(config.Params)+len(task.PendingParamOverrides))
-	for key, value := range config.Params {
-		params[key] = value
-	}
-	for key, value := range task.PendingParamOverrides {
-		params[key] = value
-	}
-	config.Params = params
-	task.GrpcConfig = &config
-}
-
-// applyRunnerDefaults 在创建执行快照时读取最新默认参数，任务参数覆盖同名默认值。
-func (s *executionService) applyRunnerDefaults(ctx context.Context,
-	task *domain.Task) (*domain.ExecutionVariableSet, error) {
-	if task.RunnerID == 0 {
-		return nil, nil
-	}
-	if s.runnerSvc == nil {
-		return nil, fmt.Errorf("执行单元服务不可用")
-	}
-	if task.GrpcConfig == nil {
-		return nil, fmt.Errorf("引用执行单元的任务缺少 gRPC 配置")
-	}
-	spec, err := s.runnerSvc.FindForExecution(ctx, task.RunnerID)
-	if err != nil {
-		return nil, fmt.Errorf("查询执行单元失败: %w", err)
-	}
-	runner := spec.Runner
-	if runner.Action != domain.RunnerActionRegistered {
-		return nil, fmt.Errorf("执行单元未启用")
-	}
-	params, err := runnerSvc.MergeParameterDefaults(runner.ParameterDefaults, task.GrpcConfig.Params)
-	if err != nil {
-		return nil, err
-	}
-	config := *task.GrpcConfig
-	config.Params = params
-	task.GrpcConfig = &config
-	return &domain.ExecutionVariableSet{Items: spec.Variables}, nil
+	return assembled.Task, selection, assembled.Variables, nil
 }
 
 func (s *executionService) FindByID(ctx context.Context, id int64) (domain.TaskExecution, error) {

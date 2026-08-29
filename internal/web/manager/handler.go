@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"encoding/json"
 	"fmt"
 	"maps"
 	"slices"
@@ -10,6 +11,7 @@ import (
 	"github.com/Duke1616/eiam/pkg/ctxutil"
 	"github.com/Duke1616/eiam/pkg/web/capability"
 	"github.com/Duke1616/etask/internal/domain"
+	"github.com/Duke1616/etask/internal/pkg/security"
 	"github.com/Duke1616/etask/internal/service/task"
 	terminationSvc "github.com/Duke1616/etask/internal/service/termination"
 	"github.com/Duke1616/etask/internal/sse"
@@ -361,14 +363,20 @@ func toExecutionParametersVO(execution domain.TaskExecution) ExecutionParameters
 			params[key] = value
 		}
 	}
-	// ParamOverrides is the authoritative record of manual-start overrides.
-	// Apply it explicitly so the endpoint remains correct even when an older
-	// execution snapshot did not fold the override into its protocol config.
+	// ParamOverrides 是手动启动覆盖值的权威记录。
+	// 显式应用它，兼容旧执行快照未将覆盖值合并进协议配置的情况。
 	for key, value := range execution.ParamOverrides {
 		params[key] = value
 	}
 	for key, value := range execution.Task.ScheduleParams {
 		params[key] = value
+	}
+	// Variables 独立存储并在落库时加密，但仍属于用户可查看的执行快照。
+	// 在接口边界始终序列化为脱敏表示。
+	if execution.Variables != nil {
+		if encoded, err := json.Marshal(security.NewVariableMasker().MaskVariables(execution.Variables.Items)); err == nil {
+			params["variables"] = string(encoded)
+		}
 	}
 
 	parameters := make([]ExecutionParameterVO, 0, len(params))
@@ -455,10 +463,12 @@ func toVO(src domain.Task) TaskVO {
 	}
 
 	if src.GrpcConfig != nil {
+		variables := security.NewVariableMasker().MaskVariables(src.GrpcConfig.Variables)
 		vo.GrpcConfig = &GrpcConfig{
 			ServiceName: src.GrpcConfig.ServiceName,
 			HandlerName: src.GrpcConfig.HandlerName,
 			Params:      src.GrpcConfig.Params,
+			Variables:   variables,
 		}
 	}
 
@@ -502,6 +512,7 @@ func toDomain(req CreateTaskReq) domain.Task {
 			ServiceName: req.GrpcConfig.ServiceName,
 			HandlerName: req.GrpcConfig.HandlerName,
 			Params:      req.GrpcConfig.Params,
+			Variables:   req.GrpcConfig.Variables,
 		}
 	}
 
@@ -545,6 +556,7 @@ func toUpdateDomain(req UpdateTaskReq) domain.Task {
 			ServiceName: req.GrpcConfig.ServiceName,
 			HandlerName: req.GrpcConfig.HandlerName,
 			Params:      req.GrpcConfig.Params,
+			Variables:   req.GrpcConfig.Variables,
 		}
 	}
 

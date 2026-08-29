@@ -3,11 +3,12 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/Duke1616/etask/internal/domain"
+	"github.com/Duke1616/etask/internal/pkg/security"
 	"github.com/Duke1616/etask/internal/repository/dao"
 	"github.com/Duke1616/etask/pkg/sqlx"
-	"github.com/ecodeclub/ekit/slice"
 )
 
 type TaskRepository interface {
@@ -55,15 +56,17 @@ type taskRepository struct {
 	taskDAO             dao.TaskDAO
 	paramOverrideDAO    dao.TaskParamOverrideDAO
 	notificationRuleDAO dao.TaskNotificationRuleDAO
+	protector           security.VariableCipher
 }
 
 // NewTaskRepository 创建负责重建 Task 聚合的仓储。
 func NewTaskRepository(taskDAO dao.TaskDAO, paramOverrideDAO dao.TaskParamOverrideDAO,
-	notificationRuleDAO dao.TaskNotificationRuleDAO) TaskRepository {
+	notificationRuleDAO dao.TaskNotificationRuleDAO, protector security.VariableCipher) TaskRepository {
 	return &taskRepository{
 		taskDAO:             taskDAO,
 		paramOverrideDAO:    paramOverrideDAO,
 		notificationRuleDAO: notificationRuleDAO,
+		protector:           protector,
 	}
 }
 
@@ -72,17 +75,19 @@ func (r *taskRepository) FindByPlanID(ctx context.Context, planID int64) ([]doma
 	if err != nil {
 		return nil, err
 	}
-	return slice.Map(daoTasks, func(_ int, src *dao.Task) domain.Task {
-		return r.toDomain(src)
-	}), nil
+	return r.toDomains(daoTasks)
 }
 
 func (r *taskRepository) Create(ctx context.Context, task domain.Task) (domain.Task, error) {
-	created, err := r.taskDAO.Create(ctx, r.toEntity(task))
+	entity, err := r.toEntity(task)
 	if err != nil {
 		return domain.Task{}, err
 	}
-	return r.toDomain(created), nil
+	created, err := r.taskDAO.Create(ctx, entity)
+	if err != nil {
+		return domain.Task{}, err
+	}
+	return r.toDomain(created)
 }
 
 func (r *taskRepository) GetByID(ctx context.Context, id int64) (domain.Task, error) {
@@ -93,7 +98,7 @@ func (r *taskRepository) GetByID(ctx context.Context, id int64) (domain.Task, er
 	if err = r.loadTaskAssociations(ctx, daoTask); err != nil {
 		return domain.Task{}, err
 	}
-	return r.toDomain(daoTask), nil
+	return r.toDomain(daoTask)
 }
 
 func (r *taskRepository) GetByName(ctx context.Context, name string) (domain.Task, error) {
@@ -104,7 +109,7 @@ func (r *taskRepository) GetByName(ctx context.Context, name string) (domain.Tas
 	if err = r.loadTaskAssociations(ctx, daoTask); err != nil {
 		return domain.Task{}, err
 	}
-	return r.toDomain(daoTask), nil
+	return r.toDomain(daoTask)
 }
 
 // loadTaskAssociations 加载并装配单个 Task 聚合的关联配置。
@@ -135,9 +140,7 @@ func (r *taskRepository) SchedulableTasks(ctx context.Context, preemptedTimeoutM
 	if err != nil {
 		return nil, err
 	}
-	return slice.Map(tasks, func(_ int, src *dao.Task) domain.Task {
-		return r.toDomain(src)
-	}), nil
+	return r.toDomains(tasks)
 }
 
 func (r *taskRepository) Acquire(ctx context.Context, id, version int64, scheduleNodeID string) (domain.Task, error) {
@@ -145,7 +148,7 @@ func (r *taskRepository) Acquire(ctx context.Context, id, version int64, schedul
 	if err != nil {
 		return domain.Task{}, err
 	}
-	return r.toDomain(task), nil
+	return r.toDomain(task)
 }
 
 func (r *taskRepository) Release(ctx context.Context, id int64, scheduleNodeID string) (domain.Task, error) {
@@ -153,7 +156,7 @@ func (r *taskRepository) Release(ctx context.Context, id int64, scheduleNodeID s
 	if err != nil {
 		return domain.Task{}, err
 	}
-	return r.toDomain(task), nil
+	return r.toDomain(task)
 }
 
 func (r *taskRepository) Renew(ctx context.Context, scheduleNodeID string) error {
@@ -165,7 +168,7 @@ func (r *taskRepository) UpdateNextTime(ctx context.Context, id, version, nextTi
 	if err != nil {
 		return domain.Task{}, err
 	}
-	return r.toDomain(task), nil
+	return r.toDomain(task)
 }
 
 func (r *taskRepository) UpdateScheduleParams(ctx context.Context, id, version int64, scheduleParams map[string]string) (domain.Task, error) {
@@ -173,7 +176,7 @@ func (r *taskRepository) UpdateScheduleParams(ctx context.Context, id, version i
 	if err != nil {
 		return domain.Task{}, err
 	}
-	return r.toDomain(task), nil
+	return r.toDomain(task)
 }
 
 // UpdateStatus 更新任务状态
@@ -182,7 +185,7 @@ func (r *taskRepository) UpdateStatus(ctx context.Context, id int64, status doma
 	if err != nil {
 		return domain.Task{}, err
 	}
-	return r.toDomain(task), nil
+	return r.toDomain(task)
 }
 
 func (r *taskRepository) Start(ctx context.Context, id int64,
@@ -193,7 +196,11 @@ func (r *taskRepository) Start(ctx context.Context, id int64,
 // ResetSchedule 重置一次性任务的调度信息，并保存该次执行的参数覆盖。
 func (r *taskRepository) ResetSchedule(ctx context.Context, task domain.Task,
 	paramOverrides map[string]string) error {
-	return r.taskDAO.ResetSchedule(ctx, r.toEntity(task), paramOverrides)
+	entity, err := r.toEntity(task)
+	if err != nil {
+		return err
+	}
+	return r.taskDAO.ResetSchedule(ctx, entity, paramOverrides)
 }
 
 // UpdateExecMode 更新任务的执行模式快照
@@ -206,7 +213,7 @@ func (r *taskRepository) Retry(ctx context.Context, id, version, nextTime int64)
 	if err != nil {
 		return domain.Task{}, err
 	}
-	return r.toDomain(task), nil
+	return r.toDomain(task)
 }
 
 func (r *taskRepository) List(ctx context.Context, bizID int64, offset, limit int) ([]domain.Task, error) {
@@ -217,9 +224,7 @@ func (r *taskRepository) List(ctx context.Context, bizID int64, offset, limit in
 	if err = r.loadNotificationRules(ctx, tasks); err != nil {
 		return nil, err
 	}
-	return slice.Map(tasks, func(_ int, src *dao.Task) domain.Task {
-		return r.toDomain(src)
-	}), nil
+	return r.toDomains(tasks)
 }
 
 // loadNotificationRules 批量加载并装配任务列表中的执行通知规则。
@@ -250,7 +255,11 @@ func (r *taskRepository) Count(ctx context.Context, bizID int64) (int64, error) 
 }
 
 func (r *taskRepository) Update(ctx context.Context, task domain.Task) error {
-	return r.taskDAO.Update(ctx, r.toEntity(task))
+	entity, err := r.toEntity(task)
+	if err != nil {
+		return err
+	}
+	return r.taskDAO.Update(ctx, entity)
 }
 
 func (r *taskRepository) Delete(ctx context.Context, id int64) error {
@@ -258,7 +267,7 @@ func (r *taskRepository) Delete(ctx context.Context, id int64) error {
 }
 
 // toEntity 将领域模型转换为DAO模型
-func (r *taskRepository) toEntity(task domain.Task) dao.Task {
+func (r *taskRepository) toEntity(task domain.Task) (dao.Task, error) {
 	var scheduleNodeID sql.NullString
 	if task.ScheduleNodeID != "" {
 		scheduleNodeID = sql.NullString{String: task.ScheduleNodeID, Valid: true}
@@ -271,7 +280,20 @@ func (r *taskRepository) toEntity(task domain.Task) dao.Task {
 
 	var grpcConfig sqlx.JSONColumn[domain.GrpcConfig]
 	if task.GrpcConfig != nil {
-		grpcConfig = sqlx.JSONColumn[domain.GrpcConfig]{Val: *task.GrpcConfig, Valid: true}
+		config := *task.GrpcConfig
+		protected := config.Variables
+		if len(config.Variables) > 0 {
+			if r.protector == nil {
+				return dao.Task{}, fmt.Errorf("保护任务变量失败: 未配置变量保护器")
+			}
+			var err error
+			protected, err = r.protector.EncryptVariables(config.Variables)
+			if err != nil {
+				return dao.Task{}, fmt.Errorf("保护任务变量失败: %w", err)
+			}
+		}
+		config.Variables = protected
+		grpcConfig = sqlx.JSONColumn[domain.GrpcConfig]{Val: config, Valid: true}
 	}
 
 	var httpConfig sqlx.JSONColumn[domain.HTTPConfig]
@@ -324,11 +346,11 @@ func (r *taskRepository) toEntity(task domain.Task) dao.Task {
 		Metadata:            metadata,
 		NotificationRules:   toDAOExecutionNotificationRules(task.NotificationRules),
 		ParamOverrideRules:  toDAOOverrideRules(task.ParamOverrideRules),
-	}
+	}, nil
 }
 
 // toDomain 将DAO模型转换为领域模型
-func (r *taskRepository) toDomain(daoTask *dao.Task) domain.Task {
+func (r *taskRepository) toDomain(daoTask *dao.Task) (domain.Task, error) {
 	var scheduleNodeID string
 	if daoTask.ScheduleNodeID.Valid {
 		scheduleNodeID = daoTask.ScheduleNodeID.String
@@ -340,7 +362,20 @@ func (r *taskRepository) toDomain(daoTask *dao.Task) domain.Task {
 
 	var grpcConfig *domain.GrpcConfig
 	if daoTask.GrpcConfig.Valid {
-		grpcConfig = &daoTask.GrpcConfig.Val
+		config := daoTask.GrpcConfig.Val
+		revealed := config.Variables
+		if len(config.Variables) > 0 {
+			if r.protector == nil {
+				return domain.Task{}, fmt.Errorf("恢复任务变量失败: 未配置变量保护器")
+			}
+			var err error
+			revealed, err = r.protector.DecryptVariables(config.Variables)
+			if err != nil {
+				return domain.Task{}, fmt.Errorf("恢复任务变量失败: %w", err)
+			}
+		}
+		config.Variables = revealed
+		grpcConfig = &config
 	}
 
 	var httpConfig *domain.HTTPConfig
@@ -394,7 +429,20 @@ func (r *taskRepository) toDomain(daoTask *dao.Task) domain.Task {
 		NotificationRules:     toDomainExecutionNotificationRules(daoTask.NotificationRules),
 		PendingParamOverrides: daoTask.PendingParamOverrides.Val,
 		ParamOverrideRules:    toDomainOverrideRules(daoTask.ParamOverrideRules),
+	}, nil
+}
+
+// toDomains 批量转换任务，并保留每一条敏感变量的解密错误。
+func (r *taskRepository) toDomains(source []*dao.Task) ([]domain.Task, error) {
+	result := make([]domain.Task, 0, len(source))
+	for _, item := range source {
+		task, err := r.toDomain(item)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, task)
 	}
+	return result, nil
 }
 
 func toDAOExecutionNotificationRules(

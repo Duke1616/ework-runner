@@ -3,11 +3,10 @@ package repository
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/Duke1616/etask/internal/domain"
+	"github.com/Duke1616/etask/internal/pkg/security"
 	"github.com/Duke1616/etask/internal/repository/dao"
-	"github.com/Duke1616/etask/pkg/cryptox"
 	"github.com/Duke1616/etask/pkg/sqlx"
 	"github.com/ecodeclub/ekit/slice"
 	"gorm.io/gorm"
@@ -51,12 +50,15 @@ type RunnerRepository interface {
 type runnerRepository struct {
 	runnerDAO   dao.RunnerDAO
 	variableDAO dao.VariableDAO
-	crypto      cryptox.Crypto
+	protector   security.VariableCipher
 }
 
 // NewRunnerRepository 创建基于 RunnerDAO 的执行单元仓储。
-func NewRunnerRepository(runnerDAO dao.RunnerDAO, variableDAO dao.VariableDAO, crypto cryptox.Crypto) RunnerRepository {
-	return &runnerRepository{runnerDAO: runnerDAO, variableDAO: variableDAO, crypto: crypto}
+func NewRunnerRepository(runnerDAO dao.RunnerDAO, variableDAO dao.VariableDAO, protector security.VariableCipher) RunnerRepository {
+	return &runnerRepository{
+		runnerDAO: runnerDAO, variableDAO: variableDAO,
+		protector: protector,
+	}
 }
 
 // Create 保存执行单元。
@@ -263,14 +265,11 @@ func (repo *runnerRepository) toVariables(targetID int64, variables []domain.Run
 	res := make([]dao.Variable, 0, len(keys))
 	for _, key := range keys {
 		src := merged[key]
-		value := src.Value
-		if src.Secret && value != "" {
-			encVal, err := repo.crypto.Encrypt(value)
-			if err != nil {
-				return nil, fmt.Errorf("encrypt runner variable %q failed: %w", src.Key, err)
-			}
-			value = encVal
+		items, err := repo.protector.EncryptVariables([]domain.RunnerVariable{{Key: src.Key, Value: src.Value, Secret: src.Secret}})
+		if err != nil {
+			return nil, err
 		}
+		value := items[0].Value
 		res = append(res, dao.Variable{
 			Scope:    domain.VariableScopeRunner.String(),
 			TargetID: targetID,
@@ -293,14 +292,11 @@ func (repo *runnerRepository) listRunnerVariables(ctx context.Context, runnerID 
 func (repo *runnerRepository) toRunnerVariables(variables []dao.Variable) ([]domain.RunnerVariable, error) {
 	res := make([]domain.RunnerVariable, 0, len(variables))
 	for _, src := range variables {
-		value := src.Value
-		if src.Secret && value != "" {
-			decVal, err := repo.crypto.Decrypt(value)
-			if err != nil {
-				return nil, fmt.Errorf("decrypt runner variable %q failed: %w", src.Key, err)
-			}
-			value = decVal
+		items, err := repo.protector.DecryptVariables([]domain.RunnerVariable{{Key: src.Key, Value: src.Value, Secret: src.Secret}})
+		if err != nil {
+			return nil, err
 		}
+		value := items[0].Value
 		res = append(res, domain.RunnerVariable{
 			Key:    src.Key,
 			Value:  value,

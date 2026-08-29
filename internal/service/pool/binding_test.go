@@ -171,6 +171,28 @@ func TestBindingServiceBindManyRejectsUnsupportedHandler(t *testing.T) {
 	}
 }
 
+func TestBindingServiceBindManyReturnsHandlerMetadataError(t *testing.T) {
+	svc := newTestBindingService(
+		map[string]domain.ExecutionPool{
+			"default": {
+				Name:   "default",
+				Status: domain.ExecutionPoolStatusEnabled,
+				Metadata: map[string]string{
+					"supported_handlers": "{invalid-json",
+				},
+			},
+		},
+		nil,
+	)
+
+	err := svc.BindMany(context.Background(), BindingManyRequest{
+		PoolName: "default", HandlerNames: []string{"run"},
+	})
+	if err == nil {
+		t.Fatal("BindMany() error = nil, want invalid metadata error")
+	}
+}
+
 func TestBindingServiceBindManyRejectsDedicatedPoolOccupiedByAnotherTenant(t *testing.T) {
 	bindingRepo := newFakeBindingRepo()
 	bindingRepo.occupiedPoolNames = map[string]bool{"dedicated": true}
@@ -183,7 +205,6 @@ func TestBindingServiceBindManyRejectsDedicatedPoolOccupiedByAnotherTenant(t *te
 	}}, bindingRepo)
 
 	err := svc.BindMany(context.Background(), BindingManyRequest{
-		TenantID:     2,
 		PoolName:     "dedicated",
 		HandlerNames: []string{"*"},
 	})
@@ -370,12 +391,23 @@ func TestCatalogServiceListAuthorizedPoolsFiltersByPoolState(t *testing.T) {
 func newTestBindingService(
 	pools map[string]domain.ExecutionPool,
 	bindings map[bindingKey]domain.ExecutionPoolBinding,
-) BindingService {
+) *testBindingServices {
 	bindingRepo := newFakeBindingRepo()
 	if bindings != nil {
 		bindingRepo.bindings = bindings
 	}
-	return NewBindingService(&fakePoolRepo{pools: pools}, bindingRepo)
+	poolRepo := &fakePoolRepo{pools: pools}
+	return &testBindingServices{
+		BindingService:          NewBindingService(poolRepo, bindingRepo),
+		ExecutionPoolAuthorizer: NewExecutionPoolAuthorizer(poolRepo, bindingRepo),
+		HandlerMetadataProvider: NewHandlerMetadataProvider(poolRepo),
+	}
+}
+
+type testBindingServices struct {
+	BindingService
+	ExecutionPoolAuthorizer
+	HandlerMetadataProvider
 }
 
 func enabledPool(name string) domain.ExecutionPool {

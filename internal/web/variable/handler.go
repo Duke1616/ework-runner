@@ -6,7 +6,10 @@ import (
 	"github.com/Duke1616/eiam/pkg/web/capability"
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/errs"
+	"github.com/Duke1616/etask/internal/pkg/security"
+	variablepkg "github.com/Duke1616/etask/internal/pkg/variable"
 	variableSvc "github.com/Duke1616/etask/internal/service/variable"
+	"github.com/Duke1616/etask/pkg/cryptox"
 	"github.com/ecodeclub/ginx"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
@@ -133,7 +136,7 @@ func (h *Handler) toUpdateDomain(ctx *ginx.Context, req UpdateReq) (domain.Varia
 		Value:  req.Value,
 		Secret: req.Secret,
 	}
-	if variable.Secret && variable.Value == "" {
+	if variable.Secret && (variable.Value == "" || variable.Value == cryptox.DefaultMask) {
 		old, err := h.svc.FindByID(ctx, req.ID)
 		if err != nil {
 			return domain.Variable{}, err
@@ -144,11 +147,13 @@ func (h *Handler) toUpdateDomain(ctx *ginx.Context, req UpdateReq) (domain.Varia
 }
 
 func (h *Handler) toVO(req domain.Variable) VariableVO {
-	req.HideSecret()
+	masked := security.NewVariableMasker().MaskVariables([]variablepkg.Item{{
+		Key: req.Key, Value: req.Value, Secret: req.Secret,
+	}})[0]
 	return VariableVO{
 		ID:     req.ID,
 		Key:    req.Key,
-		Value:  req.Value,
+		Value:  masked.Value,
 		Secret: req.Secret,
 		CTime:  req.CTime,
 		UTime:  req.UTime,

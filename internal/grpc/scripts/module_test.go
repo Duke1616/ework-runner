@@ -100,9 +100,9 @@ grep -q '"environment":"staging"' "$extra_vars"
 	require.NotNil(t, handler)
 	task := executor.NewContext(executor.ContextOptions{
 		Context: t.Context(), Task: executor.TaskInfo{ExecutionID: 2, Handler: "ansible"},
-		Params: map[string]string{
-			"vars": `[{"key":"environment","value":"staging"},{"key":"ansible_user","value":"deploy"}]`,
-		},
+		Variables: &executor.VariableSet{Items: []executor.Variable{
+			{Key: "environment", Value: "staging"}, {Key: "ansible_user", Value: "deploy"},
+		}},
 		ExecutionLogger: runtimeExecutionLogger{},
 	})
 	task.SetProgram(&executor.Program{

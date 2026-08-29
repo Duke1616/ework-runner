@@ -1,6 +1,9 @@
 package manager
 
-import "github.com/Duke1616/etask/internal/domain"
+import (
+	"github.com/Duke1616/etask/internal/domain"
+	"github.com/Duke1616/etask/internal/pkg/variable"
+)
 
 type CreateTaskReq struct {
 	Name                   string                         `json:"name"`
@@ -34,9 +37,10 @@ type ProjectProgramSpec struct {
 }
 
 type GrpcConfig struct {
-	ServiceName string            `json:"service_name"` // 服务名称
-	HandlerName string            `json:"handler_name"` // 执行节点支持的方法名称， 如 shell、python、demo
-	Params      map[string]string `json:"params"`       // 传递参数
+	ServiceName string            `json:"service_name"`        // 服务名称
+	HandlerName string            `json:"handler_name"`        // 执行节点支持的方法名称， 如 shell、python、demo
+	Params      map[string]string `json:"params"`              // 传递参数
+	Variables   []variable.Item   `json:"variables,omitempty"` // 结构化变量，敏感值不会以明文返回
 }
 
 type HTTPConfig struct {

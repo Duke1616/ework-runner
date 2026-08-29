@@ -2,10 +2,10 @@ package binding
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 
+	"github.com/Duke1616/etask/internal/pkg/variable"
 	runnerSvc "github.com/Duke1616/etask/internal/service/runner"
 )
 
@@ -21,22 +21,20 @@ type RunnerResolver struct {
 	svc runnerSvc.Service
 }
 
-func (r RunnerResolver) Resolve(ctx context.Context, req ResolveRequest) (string, error) {
+// Resolve 将执行器变量作为结构化结果返回，由执行服务统一合并并持久化。
+func (r RunnerResolver) Resolve(ctx context.Context, req ResolveRequest) (ResolveResult, error) {
 	id, err := parseID(req.Value, req.ParamKey)
 	if err != nil {
-		return "", err
+		return ResolveResult{}, err
 	}
 
 	vars, err := r.svc.ListMergedVariables(ctx, id)
 	if err != nil {
-		return "", fmt.Errorf("获取执行器变量失败: %w", err)
+		return ResolveResult{}, fmt.Errorf("获取执行器变量失败: %w", err)
 	}
-
-	bytes, err := json.Marshal(vars)
-	if err != nil {
-		return "", fmt.Errorf("序列化执行器变量失败: %w", err)
-	}
-	return string(bytes), nil
+	items := make([]variable.Item, len(vars))
+	copy(items, vars)
+	return ResolveResult{Variables: items}, nil
 }
 
 func parseID(rawID string, param string) (int64, error) {

@@ -61,13 +61,6 @@ func (v *Variable) KeepSecretValueFrom(old Variable) {
 	}
 }
 
-// HideSecret 隐藏敏感变量值。
-func (v *Variable) HideSecret() {
-	if v.Secret {
-		v.Value = ""
-	}
-}
-
 // ValidateID 校验变量主键 ID。
 func (v *Variable) ValidateID() error {
 	return ValidateVariableID(v.ID)

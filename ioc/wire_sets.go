@@ -3,6 +3,7 @@ package ioc
 import (
 	agentSvc "github.com/Duke1616/etask/internal/agent"
 	"github.com/Duke1616/etask/internal/grpc"
+	internalSecurity "github.com/Duke1616/etask/internal/pkg/security"
 	"github.com/Duke1616/etask/internal/repository"
 	"github.com/Duke1616/etask/internal/repository/dao"
 	artifactSvc "github.com/Duke1616/etask/internal/service/artifact"
@@ -16,6 +17,7 @@ import (
 	submissionSvc "github.com/Duke1616/etask/internal/service/submission"
 	taskSvc "github.com/Duke1616/etask/internal/service/task"
 	taskBinding "github.com/Duke1616/etask/internal/service/task/binding"
+	taskInput "github.com/Duke1616/etask/internal/service/task/input"
 	terminationSvc "github.com/Duke1616/etask/internal/service/termination"
 	variableSvc "github.com/Duke1616/etask/internal/service/variable"
 	internalSSE "github.com/Duke1616/etask/internal/sse"
@@ -28,6 +30,7 @@ import (
 	resourceWeb "github.com/Duke1616/etask/internal/web/resource"
 	runnerWeb "github.com/Duke1616/etask/internal/web/runner"
 	variableWeb "github.com/Duke1616/etask/internal/web/variable"
+	"github.com/Duke1616/etask/pkg/cryptox"
 	"github.com/google/wire"
 )
 
@@ -58,6 +61,8 @@ var (
 
 	TaskSet = wire.NewSet(
 		InitDB,
+		InitCrypto,
+		InitVariableProtector,
 		dao.NewGORMTaskDAO,
 		dao.NewGORMTaskParamOverrideDAO,
 		dao.NewGORMTaskNotificationRuleDAO,
@@ -110,12 +115,15 @@ var (
 		dao.NewGORMRunnerDAO,
 		dao.NewGORMVariableDAO,
 		InitCrypto,
+		InitVariableProtector,
 		repository.NewRunnerRepository,
 		runnerSvc.NewService,
 		runnerWeb.NewHandler,
 	)
 
 	VariableSet = wire.NewSet(
+		InitCrypto,
+		InitVariableProtector,
 		repository.NewVariableRepository,
 		variableSvc.NewService,
 		variableWeb.NewHandler,
@@ -128,6 +136,7 @@ var (
 
 	BindingResolverSet = wire.NewSet(
 		taskBinding.NewScriptBindingResolvers,
+		taskInput.NewExecutionInputAssembler,
 	)
 
 	ExecutionPoolCoreSet = wire.NewSet(
@@ -140,6 +149,8 @@ var (
 	ExecutionPoolBindingSet = wire.NewSet(
 		ExecutionPoolCoreSet,
 		poolSvc.NewBindingService,
+		poolSvc.NewExecutionPoolAuthorizer,
+		poolSvc.NewHandlerMetadataProvider,
 		poolSvc.NewCatalogService,
 		poolWeb.NewAdminHandler,
 	)
@@ -155,6 +166,8 @@ var (
 
 	TaskExecutionSet = wire.NewSet(
 		dao.NewGORMTaskExecutionDAO,
+		InitCrypto,
+		InitVariableProtector,
 		dao.NewGORMTaskExecutionLogDAO,
 		dao.NewGORMExecutionCancellationDAO,
 		repository.NewTaskExecutionRepository,
@@ -214,3 +227,8 @@ var (
 		InitSchedulerNodeGRPCServer,
 	)
 )
+
+// InitVariableProtector 构造仓储层使用的变量加解密能力。
+func InitVariableProtector(cipher cryptox.Crypto) internalSecurity.VariableCipher {
+	return internalSecurity.NewVariableProtector(cryptox.NewValueProtector(cipher))
+}

@@ -1,6 +1,9 @@
 package domain
 
-import executorv1 "github.com/Duke1616/etask/api/proto/gen/etask/executor/v1"
+import (
+	executorv1 "github.com/Duke1616/etask/api/proto/gen/etask/executor/v1"
+	"github.com/Duke1616/etask/internal/pkg/variable"
+)
 
 // TaskExecutionSource 表示执行记录的业务来源。
 type TaskExecutionSource string
@@ -144,7 +147,7 @@ func NonTerminalTaskExecutionStatuses() []TaskExecutionStatus {
 
 // ExecutionVariableSet 保存本次执行固定使用的变量集合。
 type ExecutionVariableSet struct {
-	Items []RunnerVariable `json:"items"`
+	Items []variable.Item `json:"items"`
 }
 
 // ToProto 转换为执行器协议使用的变量快照。

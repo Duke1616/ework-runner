@@ -111,6 +111,8 @@ redis:
 encryption:
   version: "V1"
   key: "1234567890"
+  # 无 ENC:版本: 前缀的历史密文按此列表顺序尝试解密；留空时使用 version。
+  legacy_versions: ["V1"]
 
 kafka:
   network: tcp

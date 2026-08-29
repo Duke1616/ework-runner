@@ -10,6 +10,7 @@ import (
 	"github.com/Duke1616/etask/internal/domain"
 	programSvc "github.com/Duke1616/etask/internal/service/program"
 	runnerSvc "github.com/Duke1616/etask/internal/service/runner"
+	taskinput "github.com/Duke1616/etask/internal/service/task/input"
 )
 
 type prepareResult struct {
@@ -31,7 +32,10 @@ func (s *service) prepare(ctx context.Context, command RunCommand) (prepareResul
 		return prepareResult{}, err
 	}
 	runner := spec.Runner
-	params, err := runnerSvc.MergeParameterDefaults(runner.ParameterDefaults, command.Params)
+	params, err := (taskinput.ParameterMerger{}).Merge(taskinput.ParameterMergeInput{
+		RunnerDefaults: runner.ParameterDefaults,
+		TaskParams:     command.Params,
+	})
 	if err != nil {
 		return prepareResult{}, err
 	}
@@ -44,7 +48,10 @@ func (s *service) prepare(ctx context.Context, command RunCommand) (prepareResul
 	if err != nil {
 		return prepareResult{}, err
 	}
-	variables, err := runnerSvc.MergeVariables(spec.Variables, command.Variables)
+	variables, err := (taskinput.VariableMerger{}).Merge(
+		taskinput.VariableLayer{Source: taskinput.VariableSourceRunner, Items: spec.Variables},
+		taskinput.VariableLayer{Source: taskinput.VariableSourceTask, Items: command.Variables},
+	)
 	if err != nil {
 		return prepareResult{}, err
 	}

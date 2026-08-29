@@ -72,7 +72,7 @@ func TestTaskRepositoryGetByNameBuildsAggregate(t *testing.T) {
 			TriggerStatus: "FAILED", TemplateSetID: 42, Enabled: true,
 		}},
 	}
-	repo := NewTaskRepository(taskDAO, paramDAO, notificationDAO)
+	repo := NewTaskRepository(taskDAO, paramDAO, notificationDAO, nil)
 
 	task, err := repo.GetByName(t.Context(), "task")
 

@@ -32,6 +32,23 @@ func TestCryptoManagerSupportsVersionedAndLegacyCiphertext(t *testing.T) {
 	require.Equal(t, "plain-text", plainText)
 }
 
+func TestCryptoManagerStrictDecryptDistinguishesLegacyCiphertextAndPlaintext(t *testing.T) {
+	const key = "compatibility-key-longer-than-sixteen-bytes"
+	manager := NewCryptoManager("V2").
+		Register("V1", MustNewAESCrypto(key)).
+		Register("V2", MustNewAESCryptoV2(key)).
+		WithLegacyAlgo("V1")
+
+	legacy, err := MustNewAESCrypto(key).Encrypt("legacy-secret")
+	require.NoError(t, err)
+	value, err := manager.DecryptCiphertext(legacy)
+	require.NoError(t, err)
+	require.Equal(t, "legacy-secret", value)
+
+	_, err = manager.DecryptCiphertext("plain-text")
+	require.Error(t, err)
+}
+
 func TestCryptoManagerRejectsUnknownVersion(t *testing.T) {
 	manager := NewCryptoManager("V2").Register("V2", MustNewAESCryptoV2("key"))
 	_, err := manager.Decrypt("ENC:V3:payload")

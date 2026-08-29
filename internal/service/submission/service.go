@@ -16,6 +16,7 @@ import (
 	programSvc "github.com/Duke1616/etask/internal/service/program"
 	runnerSvc "github.com/Duke1616/etask/internal/service/runner"
 	taskSvc "github.com/Duke1616/etask/internal/service/task"
+	taskinput "github.com/Duke1616/etask/internal/service/task/input"
 	terminationSvc "github.com/Duke1616/etask/internal/service/termination"
 	"github.com/gotomicro/ego/core/elog"
 )
@@ -198,7 +199,10 @@ func (s *service) resolveProgram(ctx context.Context, runner domain.Runner) (pro
 }
 
 func (s *service) buildParams(runner domain.Runner, command RunRunnerCommand) (map[string]string, error) {
-	params, err := runnerSvc.MergeParameterDefaults(runner.ParameterDefaults, command.Params)
+	params, err := (taskinput.ParameterMerger{}).Merge(taskinput.ParameterMergeInput{
+		RunnerDefaults: runner.ParameterDefaults,
+		TaskParams:     command.Params,
+	})
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,10 @@
 package runner
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/Duke1616/etask/internal/pkg/variable"
+)
 
 type RegisterRunnerReq struct {
 	Name              string                     `json:"name"`
@@ -35,11 +39,7 @@ type ListRunnerByIDsReq struct {
 	IDs []int64 `json:"ids"`
 }
 
-type Variable struct {
-	Key    string `json:"key"`
-	Value  string `json:"value"`
-	Secret bool   `json:"secret"`
-}
+type Variable = variable.Item
 
 type Page struct {
 	Offset int64 `json:"offset,omitempty"`

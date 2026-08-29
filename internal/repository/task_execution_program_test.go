@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/Duke1616/etask/internal/domain"
+	"github.com/Duke1616/etask/internal/pkg/security"
+	"github.com/Duke1616/etask/pkg/cryptox"
 	"github.com/stretchr/testify/require"
 )
 
@@ -42,7 +44,7 @@ func TestTaskExecutionProjectProgramRoundTrip(t *testing.T) {
 }
 
 func TestTaskExecutionVariablesRoundTrip(t *testing.T) {
-	repository := &taskExecutionRepository{crypto: executionCryptoStub{}}
+	repository := &taskExecutionRepository{protector: security.NewVariableProtector(cryptox.NewValueProtector(executionCryptoStub{}))}
 	execution := domain.TaskExecution{
 		Task: domain.Task{RunnerID: 9},
 		Variables: &domain.ExecutionVariableSet{Items: []domain.RunnerVariable{

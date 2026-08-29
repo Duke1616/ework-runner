@@ -11,7 +11,6 @@ type ListPoolsReq struct {
 }
 
 type BindReq struct {
-	TenantID     int64    `json:"tenant_id"`
 	PoolName     string   `json:"pool_name"`
 	HandlerName  string   `json:"handler_name"`
 	HandlerNames []string `json:"handler_names"`
@@ -19,15 +18,14 @@ type BindReq struct {
 }
 
 type BindingKeyReq struct {
-	TenantID    int64  `json:"tenant_id"`
 	PoolName    string `json:"pool_name"`
 	HandlerName string `json:"handler_name"`
 }
 
 type ListBindingsReq struct {
-	TenantID int64  `json:"tenant_id"`
-	PoolName string `json:"pool_name"`
-	Status   string `json:"status"`
+	PoolName   string `json:"pool_name"`
+	Status     string `json:"status"`
+	AllTenants bool   `json:"all_tenants"`
 }
 
 type BindingVO struct {

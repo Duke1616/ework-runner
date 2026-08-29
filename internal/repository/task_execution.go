@@ -5,11 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/Duke1616/etask/internal/domain"
+	"github.com/Duke1616/etask/internal/pkg/security"
 	"github.com/Duke1616/etask/internal/repository/dao"
-	"github.com/Duke1616/etask/pkg/cryptox"
 	"github.com/Duke1616/etask/pkg/sqlx"
 	"gorm.io/gorm"
 )
@@ -65,14 +64,14 @@ type TaskExecutionRepository interface {
 }
 
 type taskExecutionRepository struct {
-	dao    dao.TaskExecutionDAO
-	crypto cryptox.Crypto
+	dao       dao.TaskExecutionDAO
+	protector security.VariableCipher
 }
 
 func NewTaskExecutionRepository(executionDAO dao.TaskExecutionDAO,
-	crypto cryptox.Crypto) TaskExecutionRepository {
+	protector security.VariableCipher) TaskExecutionRepository {
 	return &taskExecutionRepository{
-		dao: executionDAO, crypto: crypto,
+		dao: executionDAO, protector: protector,
 	}
 }
 
@@ -270,7 +269,20 @@ func (r *taskExecutionRepository) toEntity(execution domain.TaskExecution) (dao.
 	}
 	var grpcConfig sqlx.JSONColumn[domain.GrpcConfig]
 	if execution.Task.GrpcConfig != nil {
-		grpcConfig = sqlx.JSONColumn[domain.GrpcConfig]{Val: *execution.Task.GrpcConfig, Valid: true}
+		config := *execution.Task.GrpcConfig
+		protected := config.Variables
+		if len(config.Variables) > 0 {
+			if r.protector == nil {
+				return dao.TaskExecution{}, fmt.Errorf("保护执行变量失败: 未配置变量保护器")
+			}
+			var err error
+			protected, err = r.protector.EncryptVariables(config.Variables)
+			if err != nil {
+				return dao.TaskExecution{}, fmt.Errorf("保护执行变量失败: %w", err)
+			}
+		}
+		config.Variables = protected
+		grpcConfig = sqlx.JSONColumn[domain.GrpcConfig]{Val: config, Valid: true}
 	}
 
 	var httpConfig sqlx.JSONColumn[domain.HTTPConfig]
@@ -363,7 +375,20 @@ func (r *taskExecutionRepository) toEntity(execution domain.TaskExecution) (dao.
 func (r *taskExecutionRepository) toDomain(daoExecution dao.TaskExecution) (domain.TaskExecution, error) {
 	var taskGrpcConfig *domain.GrpcConfig
 	if daoExecution.TaskGrpcConfig.Valid {
-		taskGrpcConfig = &daoExecution.TaskGrpcConfig.Val
+		config := daoExecution.TaskGrpcConfig.Val
+		revealed := config.Variables
+		if len(config.Variables) > 0 {
+			if r.protector == nil {
+				return domain.TaskExecution{}, fmt.Errorf("恢复执行变量失败: 未配置变量保护器")
+			}
+			var err error
+			revealed, err = r.protector.DecryptVariables(config.Variables)
+			if err != nil {
+				return domain.TaskExecution{}, fmt.Errorf("恢复执行变量失败: %w", err)
+			}
+		}
+		config.Variables = revealed
+		taskGrpcConfig = &config
 	}
 
 	var taskHTTPConfig *domain.HTTPConfig
@@ -468,40 +493,29 @@ func (r *taskExecutionRepository) toDomains(source []dao.TaskExecution) ([]domai
 }
 
 func (r *taskExecutionRepository) encryptVariables(source domain.ExecutionVariableSet) (domain.ExecutionVariableSet, error) {
-	result := domain.ExecutionVariableSet{Items: append([]domain.RunnerVariable(nil), source.Items...)}
-	if r.crypto == nil {
-		return result, nil
+	if len(source.Items) == 0 {
+		return source, nil
 	}
-	for index := range result.Items {
-		variable := &result.Items[index]
-		if !variable.Secret || variable.Value == "" {
-			continue
-		}
-		value, err := r.crypto.Encrypt(variable.Value)
-		if err != nil {
-			return domain.ExecutionVariableSet{}, fmt.Errorf("加密执行变量 %q 失败: %w", variable.Key, err)
-		}
-		variable.Value = value
+	if r.protector == nil {
+		return domain.ExecutionVariableSet{}, fmt.Errorf("保护执行变量失败: 未配置变量保护器")
 	}
-	return result, nil
+	items, err := r.protector.EncryptVariables(source.Items)
+	if err != nil {
+		return domain.ExecutionVariableSet{}, fmt.Errorf("保护执行变量失败: %w", err)
+	}
+	return domain.ExecutionVariableSet{Items: items}, nil
 }
 
 func (r *taskExecutionRepository) decryptVariables(source domain.ExecutionVariableSet) (domain.ExecutionVariableSet, error) {
-	result := domain.ExecutionVariableSet{Items: append([]domain.RunnerVariable(nil), source.Items...)}
-	if r.crypto == nil {
-		return result, nil
+	if len(source.Items) == 0 {
+		return source, nil
 	}
-	for index := range result.Items {
-		variable := &result.Items[index]
-		if !variable.Secret || variable.Value == "" ||
-			!strings.HasPrefix(variable.Value, cryptox.EncryptedPrefix) {
-			continue
-		}
-		value, err := r.crypto.Decrypt(variable.Value)
-		if err != nil {
-			return domain.ExecutionVariableSet{}, fmt.Errorf("解密执行变量 %q 失败: %w", variable.Key, err)
-		}
-		variable.Value = value
+	if r.protector == nil {
+		return domain.ExecutionVariableSet{}, fmt.Errorf("恢复执行变量失败: 未配置变量保护器")
 	}
-	return result, nil
+	items, err := r.protector.DecryptVariables(source.Items)
+	if err != nil {
+		return domain.ExecutionVariableSet{}, fmt.Errorf("恢复执行变量失败: %w", err)
+	}
+	return domain.ExecutionVariableSet{Items: items}, nil
 }

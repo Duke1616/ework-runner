@@ -84,6 +84,9 @@ func resolveParameterValue(task *executor.Context, parameter executor.Parameter,
 		}
 		return string(encoded), nil
 	}
+	if role == executor.ParameterRoleVariables {
+		return "[]", nil
+	}
 	value, err := task.GetResolvedParam(parameter.Key)
 	if err != nil {
 		return "", fmt.Errorf("解析参数 %s 失败: %w", parameter.Key, err)

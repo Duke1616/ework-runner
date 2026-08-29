@@ -2,11 +2,10 @@ package repository
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/Duke1616/etask/internal/domain"
+	"github.com/Duke1616/etask/internal/pkg/security"
 	"github.com/Duke1616/etask/internal/repository/dao"
-	"github.com/Duke1616/etask/pkg/cryptox"
 )
 
 type VariableRepository interface {
@@ -25,12 +24,12 @@ type VariableRepository interface {
 }
 
 type variableRepository struct {
-	dao    dao.VariableDAO
-	crypto cryptox.Crypto
+	dao       dao.VariableDAO
+	protector security.VariableCipher
 }
 
-func NewVariableRepository(variableDAO dao.VariableDAO, crypto cryptox.Crypto) VariableRepository {
-	return &variableRepository{dao: variableDAO, crypto: crypto}
+func NewVariableRepository(variableDAO dao.VariableDAO, protector security.VariableCipher) VariableRepository {
+	return &variableRepository{dao: variableDAO, protector: protector}
 }
 
 // CreateGlobalVariable 创建全局变量。
@@ -152,23 +151,17 @@ func (repo *variableRepository) toDomains(variables []dao.Variable) ([]domain.Va
 }
 
 func (repo *variableRepository) encryptSecretValue(key, value string, secret bool) (string, error) {
-	if !secret || value == "" {
-		return value, nil
-	}
-	encVal, err := repo.crypto.Encrypt(value)
+	items, err := repo.protector.EncryptVariables([]domain.RunnerVariable{{Key: key, Value: value, Secret: secret}})
 	if err != nil {
-		return "", fmt.Errorf("encrypt variable %q failed: %w", key, err)
+		return "", err
 	}
-	return encVal, nil
+	return items[0].Value, nil
 }
 
 func (repo *variableRepository) decryptSecretValue(key, value string, secret bool) (string, error) {
-	if !secret || value == "" {
-		return value, nil
-	}
-	decVal, err := repo.crypto.Decrypt(value)
+	items, err := repo.protector.DecryptVariables([]domain.RunnerVariable{{Key: key, Value: value, Secret: secret}})
 	if err != nil {
-		return "", fmt.Errorf("decrypt variable %q failed: %w", key, err)
+		return "", err
 	}
-	return decVal, nil
+	return items[0].Value, nil
 }

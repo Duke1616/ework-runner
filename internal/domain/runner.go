@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/Duke1616/etask/internal/errs"
+	"github.com/Duke1616/etask/internal/pkg/variable"
 )
 
 // RunnerKind 描述脚本执行单元的派发通道类型。
@@ -51,12 +52,8 @@ func (a RunnerAction) Uint8() uint8 {
 	return uint8(a)
 }
 
-// RunnerVariable 表示执行脚本时透传的默认变量。
-type RunnerVariable struct {
-	Key    string `json:"key"`
-	Value  string `json:"value"`
-	Secret bool   `json:"secret"`
-}
+// RunnerVariable 保留旧名称，兼容现有领域接口。
+type RunnerVariable = variable.Item
 
 // RunnerExecutionSpec 是执行阶段使用的 Runner 投影。
 // Runner.Variables 始终表示 Runner 私有变量，Variables 则是全局变量与私有变量合并后的有效值。

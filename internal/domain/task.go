@@ -4,6 +4,7 @@ import (
 	"time"
 
 	taskv1 "github.com/Duke1616/etask/api/proto/gen/etask/task/v1"
+	"github.com/Duke1616/etask/internal/pkg/variable"
 	"github.com/Duke1616/etask/pkg/retry"
 	"github.com/robfig/cron/v3"
 )
@@ -164,9 +165,10 @@ func (r *RetryConfig) ToRetryComponentConfig() retry.Config {
 
 // GrpcConfig gRPC配置
 type GrpcConfig struct {
-	ServiceName string            `json:"serviceName"` // 服务名称
-	HandlerName string            `json:"handlerName"` // 执行节点支持的方法名称， 如 shell、python、demo
-	Params      map[string]string `json:"params"`      // 传递参数
+	ServiceName string            `json:"serviceName"`         // 服务名称
+	HandlerName string            `json:"handlerName"`         // 执行节点支持的方法名称， 如 shell、python、demo
+	Params      map[string]string `json:"params"`              // 传递参数
+	Variables   []variable.Item   `json:"variables,omitempty"` // 保存结构化变量输入。敏感值只允许在仓储边界解密，不能混入普通参数。
 }
 
 // HTTPConfig HTTP配置

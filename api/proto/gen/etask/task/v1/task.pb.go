@@ -450,6 +450,7 @@ type GrpcConfig struct {
 	AuthToken     string                 `protobuf:"bytes,2,opt,name=auth_token,json=authToken,proto3" json:"auth_token,omitempty"`                                                    // 认证 token
 	HandlerName   string                 `protobuf:"bytes,3,opt,name=handler_name,json=handlerName,proto3" json:"handler_name,omitempty"`                                              // 执行节点支持的方法名称,如 shell、python、demo
 	Params        map[string]string      `protobuf:"bytes,4,rep,name=params,proto3" json:"params,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // 传递参数
+	Variables     *v1.VariableSet        `protobuf:"bytes,5,opt,name=variables,proto3" json:"variables,omitempty"`                                                                     // 独立的结构化变量
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -508,6 +509,13 @@ func (x *GrpcConfig) GetHandlerName() string {
 func (x *GrpcConfig) GetParams() map[string]string {
 	if x != nil {
 		return x.Params
+	}
+	return nil
+}
+
+func (x *GrpcConfig) GetVariables() *v1.VariableSet {
+	if x != nil {
+		return x.Variables
 	}
 	return nil
 }
@@ -1370,14 +1378,15 @@ const file_etask_task_v1_task_proto_rawDesc = "" +
 	"codebookIdB\b\n" +
 	"\x06source\"@\n" +
 	"\x12ProjectProgramSpec\x12*\n" +
-	"\x11entry_codebook_id\x18\x01 \x01(\x03R\x0fentryCodebookId\"\xeb\x01\n" +
+	"\x11entry_codebook_id\x18\x01 \x01(\x03R\x0fentryCodebookId\"\xa9\x02\n" +
 	"\n" +
 	"GrpcConfig\x12!\n" +
 	"\fservice_name\x18\x01 \x01(\tR\vserviceName\x12\x1d\n" +
 	"\n" +
 	"auth_token\x18\x02 \x01(\tR\tauthToken\x12!\n" +
 	"\fhandler_name\x18\x03 \x01(\tR\vhandlerName\x12=\n" +
-	"\x06params\x18\x04 \x03(\v2%.etask.task.v1.GrpcConfig.ParamsEntryR\x06params\x1a9\n" +
+	"\x06params\x18\x04 \x03(\v2%.etask.task.v1.GrpcConfig.ParamsEntryR\x06params\x12<\n" +
+	"\tvariables\x18\x05 \x01(\v2\x1e.etask.executor.v1.VariableSetR\tvariables\x1a9\n" +
 	"\vParamsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa0\x02\n" +
@@ -1545,54 +1554,56 @@ var file_etask_task_v1_task_proto_goTypes = []any{
 	nil,                               // 23: etask.task.v1.Task.MetadataEntry
 	nil,                               // 24: etask.task.v1.CreateTaskRequest.ScheduleParamsEntry
 	nil,                               // 25: etask.task.v1.CreateTaskRequest.MetadataEntry
-	(v1.ExecutionStatus)(0),           // 26: etask.executor.v1.ExecutionStatus
-	(*v11.RecipientSelector)(nil),     // 27: ealert.notification.v1.RecipientSelector
-	(v11.Channel)(0),                  // 28: ealert.notification.v1.Channel
+	(*v1.VariableSet)(nil),            // 26: etask.executor.v1.VariableSet
+	(v1.ExecutionStatus)(0),           // 27: etask.executor.v1.ExecutionStatus
+	(*v11.RecipientSelector)(nil),     // 28: ealert.notification.v1.RecipientSelector
+	(v11.Channel)(0),                  // 29: ealert.notification.v1.Channel
 }
 var file_etask_task_v1_task_proto_depIdxs = []int32{
 	5,  // 0: etask.task.v1.ProgramSpec.inline:type_name -> etask.task.v1.InlineProgramSpec
 	6,  // 1: etask.task.v1.ProgramSpec.project:type_name -> etask.task.v1.ProjectProgramSpec
 	19, // 2: etask.task.v1.GrpcConfig.params:type_name -> etask.task.v1.GrpcConfig.ParamsEntry
-	20, // 3: etask.task.v1.HTTPConfig.headers:type_name -> etask.task.v1.HTTPConfig.HeadersEntry
-	21, // 4: etask.task.v1.HTTPConfig.params:type_name -> etask.task.v1.HTTPConfig.ParamsEntry
-	26, // 5: etask.task.v1.ExecutionNotificationRule.trigger_status:type_name -> etask.executor.v1.ExecutionStatus
-	27, // 6: etask.task.v1.ExecutionNotificationRule.recipients:type_name -> ealert.notification.v1.RecipientSelector
-	28, // 7: etask.task.v1.ExecutionNotificationRule.channels:type_name -> ealert.notification.v1.Channel
-	0,  // 8: etask.task.v1.Task.type:type_name -> etask.task.v1.TaskType
-	7,  // 9: etask.task.v1.Task.grpc_config:type_name -> etask.task.v1.GrpcConfig
-	8,  // 10: etask.task.v1.Task.http_config:type_name -> etask.task.v1.HTTPConfig
-	9,  // 11: etask.task.v1.Task.retry_config:type_name -> etask.task.v1.RetryConfig
-	22, // 12: etask.task.v1.Task.schedule_params:type_name -> etask.task.v1.Task.ScheduleParamsEntry
-	1,  // 13: etask.task.v1.Task.status:type_name -> etask.task.v1.TaskStatus
-	3,  // 14: etask.task.v1.Task.exec_mode:type_name -> etask.task.v1.ExecMode
-	23, // 15: etask.task.v1.Task.metadata:type_name -> etask.task.v1.Task.MetadataEntry
-	4,  // 16: etask.task.v1.Task.program:type_name -> etask.task.v1.ProgramSpec
-	10, // 17: etask.task.v1.Task.execution_notifications:type_name -> etask.task.v1.ExecutionNotificationRule
-	0,  // 18: etask.task.v1.CreateTaskRequest.type:type_name -> etask.task.v1.TaskType
-	7,  // 19: etask.task.v1.CreateTaskRequest.grpc_config:type_name -> etask.task.v1.GrpcConfig
-	8,  // 20: etask.task.v1.CreateTaskRequest.http_config:type_name -> etask.task.v1.HTTPConfig
-	9,  // 21: etask.task.v1.CreateTaskRequest.retry_config:type_name -> etask.task.v1.RetryConfig
-	24, // 22: etask.task.v1.CreateTaskRequest.schedule_params:type_name -> etask.task.v1.CreateTaskRequest.ScheduleParamsEntry
-	3,  // 23: etask.task.v1.CreateTaskRequest.exec_mode:type_name -> etask.task.v1.ExecMode
-	25, // 24: etask.task.v1.CreateTaskRequest.metadata:type_name -> etask.task.v1.CreateTaskRequest.MetadataEntry
-	4,  // 25: etask.task.v1.CreateTaskRequest.program:type_name -> etask.task.v1.ProgramSpec
-	10, // 26: etask.task.v1.CreateTaskRequest.execution_notifications:type_name -> etask.task.v1.ExecutionNotificationRule
-	2,  // 27: etask.task.v1.CreateTaskResponse.code:type_name -> etask.task.v1.TaskErrorCode
-	11, // 28: etask.task.v1.GetTaskResponse.task:type_name -> etask.task.v1.Task
-	2,  // 29: etask.task.v1.RetryTaskResponse.code:type_name -> etask.task.v1.TaskErrorCode
-	12, // 30: etask.task.v1.TaskService.CreateTask:input_type -> etask.task.v1.CreateTaskRequest
-	14, // 31: etask.task.v1.TaskService.GetTask:input_type -> etask.task.v1.GetTaskRequest
-	16, // 32: etask.task.v1.TaskService.RetryTaskByID:input_type -> etask.task.v1.RetryTaskByIDRequest
-	17, // 33: etask.task.v1.TaskService.RetryTaskByName:input_type -> etask.task.v1.RetryTaskByNameRequest
-	13, // 34: etask.task.v1.TaskService.CreateTask:output_type -> etask.task.v1.CreateTaskResponse
-	15, // 35: etask.task.v1.TaskService.GetTask:output_type -> etask.task.v1.GetTaskResponse
-	18, // 36: etask.task.v1.TaskService.RetryTaskByID:output_type -> etask.task.v1.RetryTaskResponse
-	18, // 37: etask.task.v1.TaskService.RetryTaskByName:output_type -> etask.task.v1.RetryTaskResponse
-	34, // [34:38] is the sub-list for method output_type
-	30, // [30:34] is the sub-list for method input_type
-	30, // [30:30] is the sub-list for extension type_name
-	30, // [30:30] is the sub-list for extension extendee
-	0,  // [0:30] is the sub-list for field type_name
+	26, // 3: etask.task.v1.GrpcConfig.variables:type_name -> etask.executor.v1.VariableSet
+	20, // 4: etask.task.v1.HTTPConfig.headers:type_name -> etask.task.v1.HTTPConfig.HeadersEntry
+	21, // 5: etask.task.v1.HTTPConfig.params:type_name -> etask.task.v1.HTTPConfig.ParamsEntry
+	27, // 6: etask.task.v1.ExecutionNotificationRule.trigger_status:type_name -> etask.executor.v1.ExecutionStatus
+	28, // 7: etask.task.v1.ExecutionNotificationRule.recipients:type_name -> ealert.notification.v1.RecipientSelector
+	29, // 8: etask.task.v1.ExecutionNotificationRule.channels:type_name -> ealert.notification.v1.Channel
+	0,  // 9: etask.task.v1.Task.type:type_name -> etask.task.v1.TaskType
+	7,  // 10: etask.task.v1.Task.grpc_config:type_name -> etask.task.v1.GrpcConfig
+	8,  // 11: etask.task.v1.Task.http_config:type_name -> etask.task.v1.HTTPConfig
+	9,  // 12: etask.task.v1.Task.retry_config:type_name -> etask.task.v1.RetryConfig
+	22, // 13: etask.task.v1.Task.schedule_params:type_name -> etask.task.v1.Task.ScheduleParamsEntry
+	1,  // 14: etask.task.v1.Task.status:type_name -> etask.task.v1.TaskStatus
+	3,  // 15: etask.task.v1.Task.exec_mode:type_name -> etask.task.v1.ExecMode
+	23, // 16: etask.task.v1.Task.metadata:type_name -> etask.task.v1.Task.MetadataEntry
+	4,  // 17: etask.task.v1.Task.program:type_name -> etask.task.v1.ProgramSpec
+	10, // 18: etask.task.v1.Task.execution_notifications:type_name -> etask.task.v1.ExecutionNotificationRule
+	0,  // 19: etask.task.v1.CreateTaskRequest.type:type_name -> etask.task.v1.TaskType
+	7,  // 20: etask.task.v1.CreateTaskRequest.grpc_config:type_name -> etask.task.v1.GrpcConfig
+	8,  // 21: etask.task.v1.CreateTaskRequest.http_config:type_name -> etask.task.v1.HTTPConfig
+	9,  // 22: etask.task.v1.CreateTaskRequest.retry_config:type_name -> etask.task.v1.RetryConfig
+	24, // 23: etask.task.v1.CreateTaskRequest.schedule_params:type_name -> etask.task.v1.CreateTaskRequest.ScheduleParamsEntry
+	3,  // 24: etask.task.v1.CreateTaskRequest.exec_mode:type_name -> etask.task.v1.ExecMode
+	25, // 25: etask.task.v1.CreateTaskRequest.metadata:type_name -> etask.task.v1.CreateTaskRequest.MetadataEntry
+	4,  // 26: etask.task.v1.CreateTaskRequest.program:type_name -> etask.task.v1.ProgramSpec
+	10, // 27: etask.task.v1.CreateTaskRequest.execution_notifications:type_name -> etask.task.v1.ExecutionNotificationRule
+	2,  // 28: etask.task.v1.CreateTaskResponse.code:type_name -> etask.task.v1.TaskErrorCode
+	11, // 29: etask.task.v1.GetTaskResponse.task:type_name -> etask.task.v1.Task
+	2,  // 30: etask.task.v1.RetryTaskResponse.code:type_name -> etask.task.v1.TaskErrorCode
+	12, // 31: etask.task.v1.TaskService.CreateTask:input_type -> etask.task.v1.CreateTaskRequest
+	14, // 32: etask.task.v1.TaskService.GetTask:input_type -> etask.task.v1.GetTaskRequest
+	16, // 33: etask.task.v1.TaskService.RetryTaskByID:input_type -> etask.task.v1.RetryTaskByIDRequest
+	17, // 34: etask.task.v1.TaskService.RetryTaskByName:input_type -> etask.task.v1.RetryTaskByNameRequest
+	13, // 35: etask.task.v1.TaskService.CreateTask:output_type -> etask.task.v1.CreateTaskResponse
+	15, // 36: etask.task.v1.TaskService.GetTask:output_type -> etask.task.v1.GetTaskResponse
+	18, // 37: etask.task.v1.TaskService.RetryTaskByID:output_type -> etask.task.v1.RetryTaskResponse
+	18, // 38: etask.task.v1.TaskService.RetryTaskByName:output_type -> etask.task.v1.RetryTaskResponse
+	35, // [35:39] is the sub-list for method output_type
+	31, // [31:35] is the sub-list for method input_type
+	31, // [31:31] is the sub-list for extension type_name
+	31, // [31:31] is the sub-list for extension extendee
+	0,  // [0:31] is the sub-list for field type_name
 }
 
 func init() { file_etask_task_v1_task_proto_init() }

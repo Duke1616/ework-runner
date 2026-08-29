@@ -5,6 +5,7 @@ import (
 
 	runnerv1 "github.com/Duke1616/etask/api/proto/gen/etask/runner/v1"
 	"github.com/Duke1616/etask/internal/domain"
+	"github.com/Duke1616/etask/internal/pkg/security"
 	runnerSvc "github.com/Duke1616/etask/internal/service/runner"
 	"github.com/ecodeclub/ekit/slice"
 	"github.com/gotomicro/ego/core/elog"
@@ -76,14 +77,11 @@ func (s *RunnerServer) toProto(r domain.Runner) *runnerv1.Runner {
 }
 
 func toProtoVariables(variables []domain.RunnerVariable) []*runnerv1.Variable {
-	return slice.Map(variables, func(_ int, src domain.RunnerVariable) *runnerv1.Variable {
-		value := src.Value
-		if src.Secret {
-			value = ""
-		}
+	masked := security.NewVariableMasker().MaskVariables(variables)
+	return slice.Map(masked, func(_ int, src domain.RunnerVariable) *runnerv1.Variable {
 		return &runnerv1.Variable{
 			Key:    src.Key,
-			Value:  value,
+			Value:  src.Value,
 			Secret: src.Secret,
 		}
 	})

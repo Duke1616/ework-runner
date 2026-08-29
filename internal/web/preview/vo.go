@@ -1,10 +1,8 @@
 package preview
 
-type Variable struct {
-	Key    string `json:"key"`
-	Value  string `json:"value"`
-	Secret bool   `json:"secret"`
-}
+import "github.com/Duke1616/etask/internal/pkg/variable"
+
+type Variable = variable.Item
 
 type RunReq struct {
 	RunnerID            int64             `json:"runner_id"`

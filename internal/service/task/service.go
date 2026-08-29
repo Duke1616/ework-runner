@@ -11,6 +11,7 @@ import (
 	poolSvc "github.com/Duke1616/etask/internal/service/pool"
 	programSvc "github.com/Duke1616/etask/internal/service/program"
 	runnerSvc "github.com/Duke1616/etask/internal/service/runner"
+	"github.com/Duke1616/etask/pkg/cryptox"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -47,18 +48,20 @@ type Service interface {
 }
 
 type service struct {
-	repo       repository.TaskRepository
-	bindingSvc poolSvc.BindingService
-	runnerSvc  runnerSvc.Service
+	repo             repository.TaskRepository
+	poolAuthorizer   poolSvc.ExecutionPoolAuthorizer
+	metadataProvider poolSvc.HandlerMetadataProvider
+	runnerSvc        runnerSvc.Service
 }
 
 // NewService 创建任务服务实例
-func NewService(repo repository.TaskRepository, bindingSvc poolSvc.BindingService,
-	runnerService runnerSvc.Service) Service {
+func NewService(repo repository.TaskRepository, authorizer poolSvc.ExecutionPoolAuthorizer,
+	metadataProvider poolSvc.HandlerMetadataProvider, runnerService runnerSvc.Service) Service {
 	return &service{
-		repo:       repo,
-		bindingSvc: bindingSvc,
-		runnerSvc:  runnerService,
+		repo:             repo,
+		poolAuthorizer:   authorizer,
+		metadataProvider: metadataProvider,
+		runnerSvc:        runnerService,
 	}
 }
 
@@ -181,6 +184,7 @@ func (s *service) Update(ctx context.Context, task domain.Task) error {
 	if task.TenantID == 0 {
 		task.TenantID = oldTask.TenantID
 	}
+	preserveMaskedVariables(oldTask, &task)
 	if err = s.prepareTaskConfiguration(ctx, &task); err != nil {
 		return err
 	}
@@ -197,9 +201,32 @@ func (s *service) Update(ctx context.Context, task domain.Task) error {
 	return s.repo.Update(ctx, task)
 }
 
+// preserveMaskedVariables 将接口回显的脱敏占位符还原为旧值，避免未修改敏感变量时覆盖真实密文。
+func preserveMaskedVariables(oldTask domain.Task, task *domain.Task) {
+	if task == nil || task.GrpcConfig == nil || oldTask.GrpcConfig == nil {
+		return
+	}
+	oldByKey := make(map[string]domain.RunnerVariable, len(oldTask.GrpcConfig.Variables))
+	for _, item := range oldTask.GrpcConfig.Variables {
+		oldByKey[item.Key] = item
+	}
+	for index, item := range task.GrpcConfig.Variables {
+		if !item.Secret || item.Value != cryptox.DefaultMask {
+			continue
+		}
+		old, ok := oldByKey[item.Key]
+		if ok && old.Secret {
+			task.GrpcConfig.Variables[index].Value = old.Value
+		}
+	}
+}
+
 // prepareTaskConfiguration 补全并校验创建、更新任务时使用的配置。
 func (s *service) prepareTaskConfiguration(ctx context.Context, task *domain.Task) error {
 	if err := s.bindRunner(ctx, task); err != nil {
+		return err
+	}
+	if err := s.validateStructuredVariables(ctx, *task); err != nil {
 		return err
 	}
 	if err := task.Validate(); err != nil {
@@ -209,6 +236,33 @@ func (s *service) prepareTaskConfiguration(ctx context.Context, task *domain.Tas
 		return err
 	}
 	return s.validateParamOverrideRules(ctx, *task)
+}
+
+// validateStructuredVariables 保证变量只能通过独立字段传递，禁止再次写入普通参数。
+func (s *service) validateStructuredVariables(ctx context.Context, task domain.Task) error {
+	if task.GrpcConfig == nil {
+		return nil
+	}
+	if err := domain.ValidateVariableItems(task.GrpcConfig.Variables); err != nil {
+		return err
+	}
+	if s.metadataProvider == nil || task.RunnerID != 0 {
+		return nil
+	}
+	keys, err := s.metadataProvider.VariableParameterKeys(ctx, poolSvc.CheckBindingRequest{
+		PoolName: task.GrpcConfig.ServiceName, HandlerName: task.GrpcConfig.HandlerName,
+	})
+	if err != nil {
+		return fmt.Errorf("查询 Handler 变量参数失败: %w", err)
+	}
+	for key := range keys {
+		if mode := task.Metadata[key]; mode != "runner" {
+			if _, exists := task.GrpcConfig.Params[key]; exists {
+				return fmt.Errorf("%w: 结构化变量参数 %s 必须通过 grpc_config.variables 传递", errs.ErrInvalidParameter, key)
+			}
+		}
+	}
+	return nil
 }
 
 // bindRunner 将执行单元提供的程序和执行路由固化到任务配置，任务参数只作为覆盖值保留。
@@ -221,9 +275,6 @@ func (s *service) bindRunner(ctx context.Context, task *domain.Task) error {
 	}
 	if task.HTTPConfig != nil {
 		return fmt.Errorf("%w: 指定执行单元时不能同时配置 HTTP 执行目标", errs.ErrInvalidParameter)
-	}
-	if s.runnerSvc == nil {
-		return fmt.Errorf("执行单元服务不可用")
 	}
 	runner, err := s.runnerSvc.FindByID(ctx, task.RunnerID)
 	if err != nil {
@@ -325,12 +376,11 @@ func (s *service) Run(ctx context.Context, id int64, cronExpr string,
 }
 
 func (s *service) AuthorizeExecutionPool(ctx context.Context, task domain.Task) error {
-	if task.GrpcConfig == nil || s.bindingSvc == nil {
+	if task.GrpcConfig == nil || s.poolAuthorizer == nil {
 		return nil
 	}
 
-	allowed, err := s.bindingSvc.IsAllowed(ctx, poolSvc.CheckBindingRequest{
-		TenantID:    task.TenantID,
+	allowed, err := s.poolAuthorizer.IsAllowed(ctx, poolSvc.CheckBindingRequest{
 		PoolName:    task.GrpcConfig.ServiceName,
 		HandlerName: task.GrpcConfig.HandlerName,
 	})
