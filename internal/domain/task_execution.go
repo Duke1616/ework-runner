@@ -101,6 +101,26 @@ func TaskExecutionStatusFromProto(status executorv1.ExecutionStatus) TaskExecuti
 	}
 }
 
+// ToProto 将领域任务执行状态映射为 protobuf 传输枚举。
+func (t TaskExecutionStatus) ToProto() executorv1.ExecutionStatus {
+	switch t {
+	case TaskExecutionStatusRunning:
+		return executorv1.ExecutionStatus_RUNNING
+	case TaskExecutionStatusSuccess:
+		return executorv1.ExecutionStatus_SUCCESS
+	case TaskExecutionStatusFailed:
+		return executorv1.ExecutionStatus_FAILED
+	case TaskExecutionStatusFailedRetryable:
+		return executorv1.ExecutionStatus_FAILED_RETRYABLE
+	case TaskExecutionStatusFailedRescheduled:
+		return executorv1.ExecutionStatus_FAILED_RESCHEDULABLE
+	case TaskExecutionStatusCancelled:
+		return executorv1.ExecutionStatus_CANCELLED
+	default:
+		return executorv1.ExecutionStatus_UNKNOWN
+	}
+}
+
 func (t TaskExecutionStatus) IsPrepare() bool {
 	return t == TaskExecutionStatusPrepare
 }

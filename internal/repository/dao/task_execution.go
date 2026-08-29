@@ -11,6 +11,7 @@ import (
 	"github.com/Duke1616/etask/internal/errs"
 	"github.com/Duke1616/etask/pkg/sqlx"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const (
@@ -475,6 +476,9 @@ func (g *GORMTaskExecutionDAO) FindTimeoutExecutions(ctx context.Context, limit 
 	return executions, err
 }
 
+// ClaimPullTask 原子抢占一个当前节点支持的等待拉取任务。
+// 使用两阶段行锁机制：阶段一无锁并发读候选主键，阶段二针对候选主键执行 SELECT FOR UPDATE SKIP LOCKED。
+// 既借助数据库原生行锁跳过机制消除惊群与抢占冲突，又杜绝了直接基于非唯一 JSON 条件加锁导致的 Next-Key 间隙锁和死锁隐患。
 func (g *GORMTaskExecutionDAO) ClaimPullTask(ctx context.Context, serviceName, executorNodeID string,
 	handlerNames []string) (TaskExecution, error) {
 	if len(handlerNames) == 0 {
@@ -482,51 +486,61 @@ func (g *GORMTaskExecutionDAO) ClaimPullTask(ctx context.Context, serviceName, e
 	}
 	now := time.Now().UnixMilli()
 
-	// 1. 获取一个属于该 serviceName 且尚未被领取的任务
-	var exec TaskExecution
-	// 注意：JSON_EXTRACT 在 MySQL 原生提取出来会带双引号，这里使用 ->> 语法 (与 JSON_UNQUOTE(JSON_EXTRACT(...)) 一致)
-	err := g.db.WithContext(ctx).
-		Where("status = ?", TaskExecutionStatusWaitingPull).
-		Where("task_grpc_config->>'$.serviceName' = ?", serviceName).
-		Where("task_grpc_config->>'$.handlerName' IN ?", handlerNames).
-		Order("ctime ASC").
-		First(&exec).Error
+	var claimed TaskExecution
+	err := g.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 阶段一：无锁并发只读查询最多 5 个就绪任务候选 ID，绝不阻塞任何外部 INSERT 事务
+		var candidateIDs []int64
+		err := tx.Model(&TaskExecution{}).
+			Where("status = ?", TaskExecutionStatusWaitingPull).
+			Where("task_grpc_config->>'$.serviceName' = ?", serviceName).
+			Where("task_grpc_config->>'$.handlerName' IN ?", handlerNames).
+			Order("ctime ASC").
+			Limit(5).
+			Pluck("id", &candidateIDs).Error
+		if err != nil {
+			return err
+		}
+		if len(candidateIDs) == 0 {
+			return errs.ErrExecutionNotFound
+		}
+
+		// 阶段二：针对主键执行 FOR UPDATE SKIP LOCKED。走 PRIMARY KEY 唯一索引只加单行 Record 锁，
+		// 坚决杜绝 Gap Lock 间隙锁；已被并发事务持锁的任务行会被 MySQL 自动跳过
+		err = tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
+			Where("id IN ?", candidateIDs).
+			Where("status = ?", TaskExecutionStatusWaitingPull).
+			Order("ctime ASC").
+			Take(&claimed).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errs.ErrExecutionNotFound
+			}
+			return err
+		}
+
+		// 锁定即代表抢占成功！更新执行状态为 RUNNING 并随事务快速提交（耗时 < 1ms，瞬时释放锁）
+		newDeadline := now + claimed.TaskMaxExecutionSeconds*milliseconds
+		return tx.Model(&TaskExecution{}).
+			Where("id = ?", claimed.ID).
+			Updates(map[string]any{
+				"status":           TaskExecutionStatusRunning,
+				"executor_node_id": sql.NullString{String: executorNodeID, Valid: executorNodeID != ""},
+				"stime":            now,
+				"deadline":         newDeadline,
+				"utime":            now,
+			}).Error
+	})
 
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return TaskExecution{}, errs.ErrExecutionNotFound
-		}
 		return TaskExecution{}, err
 	}
 
-	newDeadline := now + exec.TaskMaxExecutionSeconds*milliseconds
+	// 同步内存数据并返回
+	claimed.Status = TaskExecutionStatusRunning
+	claimed.Stime = now
+	claimed.Deadline = now + claimed.TaskMaxExecutionSeconds*milliseconds
+	claimed.Utime = now
+	claimed.ExecutorNodeID = sql.NullString{String: executorNodeID, Valid: executorNodeID != ""}
 
-	// 2. 尝试使用乐观锁更新 (匹配 id, status, utime)
-	result := g.db.WithContext(ctx).Model(&TaskExecution{}).
-		Where("id = ? AND status = ? AND utime = ?", exec.ID, TaskExecutionStatusWaitingPull, exec.Utime).
-		Updates(map[string]any{
-			"status":           TaskExecutionStatusRunning,
-			"executor_node_id": sql.NullString{String: executorNodeID, Valid: executorNodeID != ""},
-			"stime":            now,
-			"deadline":         newDeadline,
-			"utime":            now,
-		})
-
-	if result.Error != nil {
-		return TaskExecution{}, result.Error
-	}
-
-	// 3. 如果没更新到，说明产生了并发冲突被别的节点抢走了
-	if result.RowsAffected == 0 {
-		return TaskExecution{}, errs.ErrExecutionClaimConflict
-	}
-
-	// 更新成功，把需要返回的值补齐（因为 Updates 只修改了数据库，内存里的 struct 还需手动同步新状态）
-	exec.Status = TaskExecutionStatusRunning
-	exec.Stime = now
-	exec.Deadline = newDeadline
-	exec.Utime = now
-	exec.ExecutorNodeID = sql.NullString{String: executorNodeID, Valid: executorNodeID != ""}
-
-	return exec, nil
+	return claimed, nil
 }

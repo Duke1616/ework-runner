@@ -17,6 +17,8 @@ import (
 	"github.com/Duke1616/etask/internal/service/task"
 	"github.com/gotomicro/ego/core/elog"
 	"github.com/samber/lo"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // AgentServer 实现调度中心的 Agent 拉取服务
@@ -210,11 +212,11 @@ func (s *AgentServer) ListTaskExecutions(ctx context.Context, req *executorv1.Li
 func (s *AgentServer) GetTaskExecution(ctx context.Context,
 	req *executorv1.GetTaskExecutionRequest) (*executorv1.GetTaskExecutionResponse, error) {
 	if req.GetExecutionId() <= 0 {
-		return nil, fmt.Errorf("执行 ID 非法: %d", req.GetExecutionId())
+		return nil, status.Errorf(codes.InvalidArgument, "执行 ID 非法: %d", req.GetExecutionId())
 	}
 	execution, err := s.execSvc.FindByID(ctx, req.GetExecutionId())
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.NotFound, "未找到执行记录: %v", err)
 	}
 	return &executorv1.GetTaskExecutionResponse{Execution: toProtoTaskExecution(execution)}, nil
 }
@@ -224,7 +226,7 @@ func (s *AgentServer) GetExecutionLogs(ctx context.Context, req *executorv1.GetE
 	logs, _, err := s.logSvc.GetLogs(ctx, req.GetExecutionId(), req.GetMinId(), int(req.GetLimit()))
 	if err != nil {
 		s.logger.Error("获取日志失败", elog.Int64("executionID", req.GetExecutionId()), elog.FieldErr(err))
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "获取日志失败: %v", err)
 	}
 
 	pbLogs := lo.Map(logs, func(l domain.TaskExecutionLog, _ int) *executorv1.ExecutionLog {
@@ -263,7 +265,7 @@ func (s *AgentServer) BatchListTaskExecutions(ctx context.Context, req *executor
 	executions, err := s.execRepo.FindByTaskIDs(ctx, validTaskIDs)
 	if err != nil {
 		s.logger.Error("批量获取执行记录失败", elog.Any("taskIDs", taskIDs), elog.FieldErr(err))
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "批量获取执行记录失败: %v", err)
 	}
 
 	grouped := lo.GroupBy(executions, func(e domain.TaskExecution) int64 {
@@ -290,7 +292,7 @@ func toProtoTaskExecution(e domain.TaskExecution) *executorv1.TaskExecution {
 		TaskName:        e.Task.Name,
 		StartTime:       e.StartTime,
 		EndTime:         e.EndTime,
-		Status:          executorv1.ExecutionStatus(executorv1.ExecutionStatus_value[e.Status.String()]),
+		Status:          e.Status.ToProto(),
 		RunningProgress: e.RunningProgress,
 		ExecutorNodeId:  e.ExecutorNodeID,
 		TaskResult:      e.TaskResult,

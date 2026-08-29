@@ -3,6 +3,7 @@ package domain
 import (
 	"testing"
 
+	executorv1 "github.com/Duke1616/etask/api/proto/gen/etask/executor/v1"
 	"github.com/stretchr/testify/require"
 )
 
@@ -76,6 +77,35 @@ func TestTask_WithScheduleParams(t *testing.T) {
 			}
 
 			require.Equal(t, tc.want, snapshot.ScheduleParams)
+		})
+	}
+}
+
+func TestTaskExecutionStatus_ProtoConversion(t *testing.T) {
+	testCases := []struct {
+		name        string
+		domain      TaskExecutionStatus
+		proto       executorv1.ExecutionStatus
+		wantRoundOk bool
+	}{
+		{name: "RUNNING 正常互转", domain: TaskExecutionStatusRunning, proto: executorv1.ExecutionStatus_RUNNING, wantRoundOk: true},
+		{name: "SUCCESS 正常互转", domain: TaskExecutionStatusSuccess, proto: executorv1.ExecutionStatus_SUCCESS, wantRoundOk: true},
+		{name: "FAILED 正常互转", domain: TaskExecutionStatusFailed, proto: executorv1.ExecutionStatus_FAILED, wantRoundOk: true},
+		{name: "FAILED_RETRYABLE 正常互转", domain: TaskExecutionStatusFailedRetryable, proto: executorv1.ExecutionStatus_FAILED_RETRYABLE, wantRoundOk: true},
+		{name: "FAILED_RESCHEDULED 准确映射到 FAILED_RESCHEDULABLE", domain: TaskExecutionStatusFailedRescheduled, proto: executorv1.ExecutionStatus_FAILED_RESCHEDULABLE, wantRoundOk: true},
+		{name: "CANCELLED 正常互转", domain: TaskExecutionStatusCancelled, proto: executorv1.ExecutionStatus_CANCELLED, wantRoundOk: true},
+		{name: "WAITING_PULL 兜底为 UNKNOWN", domain: TaskExecutionStatusWaitingPull, proto: executorv1.ExecutionStatus_UNKNOWN, wantRoundOk: false},
+		{name: "PREPARE 兜底为 UNKNOWN", domain: TaskExecutionStatusPrepare, proto: executorv1.ExecutionStatus_UNKNOWN, wantRoundOk: false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			gotProto := tc.domain.ToProto()
+			require.Equal(t, tc.proto, gotProto)
+			if tc.wantRoundOk {
+				gotDomain := TaskExecutionStatusFromProto(gotProto)
+				require.Equal(t, tc.domain, gotDomain)
+			}
 		})
 	}
 }

@@ -266,16 +266,7 @@ func toProtoNotificationChannel(channel domain.NotificationChannel, _ int) notif
 }
 
 func toProtoExecutionStatus(status domain.TaskExecutionStatus) executorv1.ExecutionStatus {
-	switch status {
-	case domain.TaskExecutionStatusSuccess:
-		return executorv1.ExecutionStatus_SUCCESS
-	case domain.TaskExecutionStatusFailed:
-		return executorv1.ExecutionStatus_FAILED
-	case domain.TaskExecutionStatusCancelled:
-		return executorv1.ExecutionStatus_CANCELLED
-	default:
-		return executorv1.ExecutionStatus_UNKNOWN
-	}
+	return status.ToProto()
 }
 
 func (s *TaskServer) toProtoGrpcConfig(cfg *domain.GrpcConfig) *taskv1.GrpcConfig {
