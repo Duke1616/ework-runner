@@ -8,6 +8,12 @@ import (
 	"github.com/Duke1616/etask/internal/repository"
 )
 
+// ExecutionPoolAuthorizer 负责判断租户是否可以使用执行资源池。
+type ExecutionPoolAuthorizer interface {
+	// IsAllowed 判断租户是否允许使用指定资源池和 Handler。
+	IsAllowed(ctx context.Context, req CheckBindingRequest) (bool, error)
+}
+
 // poolAuthorizer 只负责执行资源池使用权判断。
 type poolAuthorizer struct {
 	poolRepo    repository.ExecutionPoolRepository

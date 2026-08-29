@@ -3,10 +3,12 @@ package input
 import (
 	"context"
 	"fmt"
+	"maps"
 
 	"github.com/Duke1616/etask/internal/domain"
 	runnerSvc "github.com/Duke1616/etask/internal/service/runner"
 	taskbinding "github.com/Duke1616/etask/internal/service/task/binding"
+	"github.com/samber/lo"
 )
 
 // AssembleResult 保存组装后的任务快照和结构化变量快照。
@@ -64,12 +66,21 @@ func (a *executionInputAssembler) assembleRunner(ctx context.Context, task domai
 		return AssembleResult{}, err
 	}
 	config := *task.GrpcConfig
-	config.Params = params
+	config.Params = maps.Clone(params)
 	task.GrpcConfig = &config
-	variables, err := (VariableMerger{}).Merge(VariableLayer{
-		Source: VariableSourceRunner,
-		Items:  spec.Variables,
+	task.Metadata = maps.Clone(task.Metadata)
+	task.PendingParamOverrides = maps.Clone(task.PendingParamOverrides)
+
+	layers := lo.Filter([]VariableLayer{
+		{Source: VariableSourceRunner, Items: spec.Variables},
+		{Source: VariableSourceTask, Items: config.Variables},
+	}, func(layer VariableLayer, _ int) bool {
+		return len(layer.Items) > 0
 	})
+	if len(layers) == 0 {
+		return AssembleResult{Task: task}, nil
+	}
+	variables, err := (VariableMerger{}).Merge(layers...)
 	if err != nil {
 		return AssembleResult{}, fmt.Errorf("合并执行单元变量失败: %w", err)
 	}
@@ -94,15 +105,17 @@ func (a *executionInputAssembler) assembleTask(ctx context.Context, task domain.
 		return AssembleResult{}, err
 	}
 	config := *task.GrpcConfig
-	config.Params = params
+	config.Params = maps.Clone(params)
 	task.GrpcConfig = &config
-	layers := make([]VariableLayer, 0, 2)
-	if len(config.Variables) > 0 {
-		layers = append(layers, VariableLayer{Source: VariableSourceTask, Items: config.Variables})
-	}
-	if len(resolved.Variables) > 0 {
-		layers = append(layers, VariableLayer{Source: VariableSourceBinding, Items: resolved.Variables})
-	}
+	task.Metadata = maps.Clone(task.Metadata)
+	task.PendingParamOverrides = maps.Clone(task.PendingParamOverrides)
+
+	layers := lo.Filter([]VariableLayer{
+		{Source: VariableSourceTask, Items: config.Variables},
+		{Source: VariableSourceBinding, Items: resolved.Variables},
+	}, func(layer VariableLayer, _ int) bool {
+		return len(layer.Items) > 0
+	})
 	if len(layers) == 0 {
 		return AssembleResult{Task: task}, nil
 	}

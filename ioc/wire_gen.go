@@ -16,13 +16,14 @@ import (
 	"github.com/Duke1616/etask/internal/service/codebook"
 	"github.com/Duke1616/etask/internal/service/notification"
 	"github.com/Duke1616/etask/internal/service/pool"
+	"github.com/Duke1616/etask/internal/service/pool/syncer"
 	"github.com/Duke1616/etask/internal/service/preview"
 	"github.com/Duke1616/etask/internal/service/program"
 	"github.com/Duke1616/etask/internal/service/runner"
 	"github.com/Duke1616/etask/internal/service/submission"
 	"github.com/Duke1616/etask/internal/service/task"
 	"github.com/Duke1616/etask/internal/service/task/binding"
-	taskinput "github.com/Duke1616/etask/internal/service/task/input"
+	"github.com/Duke1616/etask/internal/service/task/input"
 	"github.com/Duke1616/etask/internal/service/termination"
 	"github.com/Duke1616/etask/internal/service/variable"
 	"github.com/Duke1616/etask/internal/sse"
@@ -66,25 +67,24 @@ func InitExecutionRuntime() *ExecutionRuntime {
 func InitSchedulerApplication(base *Base) *SchedulerApplication {
 	v := InitGinMiddlewares()
 	sdk := InitPolicySDK()
-	syncer := InitPermSyncer()
+	capabilitySyncer := InitPermSyncer()
 	v2 := InitProviders()
 	db := InitDB()
 	taskDAO := dao.NewGORMTaskDAO(db)
 	taskParamOverrideDAO := dao.NewGORMTaskParamOverrideDAO(db)
 	taskNotificationRuleDAO := dao.NewGORMTaskNotificationRuleDAO(db)
 	crypto := InitCrypto()
-	variableProtector := InitVariableProtector(crypto)
-	taskRepository := repository.NewTaskRepository(taskDAO, taskParamOverrideDAO, taskNotificationRuleDAO, variableProtector)
+	variableCipher := InitVariableProtector(crypto)
+	taskRepository := repository.NewTaskRepository(taskDAO, taskParamOverrideDAO, taskNotificationRuleDAO, variableCipher)
 	executionPoolDAO := dao.NewGORMExecutionPoolDAO(db)
 	executionPoolRepository := repository.NewExecutionPoolRepository(executionPoolDAO)
 	executionPoolBindingDAO := dao.NewGORMExecutionPoolBindingDAO(db)
 	executionPoolBindingRepository := repository.NewExecutionPoolBindingRepository(executionPoolBindingDAO)
-	bindingService := pool.NewBindingService(executionPoolRepository, executionPoolBindingRepository)
 	executionPoolAuthorizer := pool.NewExecutionPoolAuthorizer(executionPoolRepository, executionPoolBindingRepository)
 	handlerMetadataProvider := pool.NewHandlerMetadataProvider(executionPoolRepository)
 	runnerDAO := dao.NewGORMRunnerDAO(db)
 	variableDAO := dao.NewGORMVariableDAO(db)
-	runnerRepository := repository.NewRunnerRepository(runnerDAO, variableDAO, variableProtector)
+	runnerRepository := repository.NewRunnerRepository(runnerDAO, variableDAO, variableCipher)
 	service := runner.NewService(runnerRepository, executionPoolRepository)
 	taskService := task.NewService(taskRepository, executionPoolAuthorizer, handlerMetadataProvider, service)
 	taskExecutionLogDAO := dao.NewGORMTaskExecutionLogDAO(db)
@@ -92,12 +92,10 @@ func InitSchedulerApplication(base *Base) *SchedulerApplication {
 	logService := task.NewLogService(taskExecutionLogRepository)
 	string2 := InitNodeID()
 	taskExecutionDAO := dao.NewGORMTaskExecutionDAO(db)
-	taskExecutionRepository := repository.NewTaskExecutionRepository(taskExecutionDAO, variableProtector)
+	taskExecutionRepository := repository.NewTaskExecutionRepository(taskExecutionDAO, variableCipher)
 	mq := InitMQ()
 	completeProducer := InitCompleteProducer(mq)
 	registry := base.Registry
-	bindingRegistry := binding.NewScriptBindingResolvers(service)
-	inputAssembler := taskinput.NewExecutionInputAssembler(service, bindingRegistry)
 	artifactDAO := dao.NewGORMArtifactDAO(db)
 	codebookDAO := dao.NewGORMCodebookDAO(db)
 	codebookProjectDAO := dao.NewGORMCodebookProjectDAO(db)
@@ -111,9 +109,11 @@ func InitSchedulerApplication(base *Base) *SchedulerApplication {
 	projectSourceDAO := dao.NewGORMProjectSourceDAO(db)
 	projectSourceRepository := repository.NewProjectSourceRepository(artifactRepository, projectSourceDAO)
 	programService := program.NewService(codebookService, projectSourceRepository, store, codec)
+	bindingRegistry := binding.NewScriptBindingResolvers(service)
+	executionInputAssembler := input.NewExecutionInputAssembler(service, bindingRegistry)
 	universalClient := InitRedis()
 	hubs := sse.NewHubs(universalClient, string2)
-	executionService := task.NewExecutionService(string2, taskExecutionRepository, taskService, logService, completeProducer, registry, artifactService, programService, inputAssembler, hubs)
+	executionService := task.NewExecutionService(string2, taskExecutionRepository, taskService, logService, completeProducer, registry, artifactService, programService, executionInputAssembler, hubs)
 	executionCancellationDAO := dao.NewGORMExecutionCancellationDAO(db)
 	executionCancellationRepository := repository.NewExecutionCancellationRepository(executionCancellationDAO, taskExecutionRepository)
 	clients := InitExecutorServiceGRPCClients(registry)
@@ -137,15 +137,16 @@ func InitSchedulerApplication(base *Base) *SchedulerApplication {
 	previewService := preview.NewService(programService, service, executionService, logService, invoker, routePlanner)
 	previewHandler := preview2.NewHandler(previewService)
 	runnerHandler := runner2.NewHandler(service)
-	variableRepository := repository.NewVariableRepository(variableDAO, variableProtector)
+	variableRepository := repository.NewVariableRepository(variableDAO, variableCipher)
 	variableService := variable.NewService(variableRepository)
 	variableHandler := variable2.NewHandler(variableService)
+	bindingService := pool.NewBindingService(executionPoolRepository, executionPoolBindingRepository)
 	client := base.Etcd
 	catalogService := pool.NewCatalogService(executionPoolRepository, executionPoolBindingRepository, client)
 	adminHandler := pool2.NewAdminHandler(bindingService, catalogService)
 	resourceHandler := resource.NewHandler(catalogService)
 	listener := InitListener()
-	component := InitGinWebServer(v, sdk, syncer, v2, handler, codebookHandler, artifactHandler, codeassistHandler, previewHandler, runnerHandler, variableHandler, adminHandler, resourceHandler, listener)
+	component := InitGinWebServer(v, sdk, capabilitySyncer, v2, handler, codebookHandler, artifactHandler, codeassistHandler, previewHandler, runnerHandler, variableHandler, adminHandler, resourceHandler, listener)
 	reporterServer := grpc.NewReporterServer(executionService)
 	taskServer := grpc.NewTaskServer(taskService)
 	agentServer := grpc.NewAgentServer(taskExecutionRepository, executionService, logService, executionPoolAuthorizer)
@@ -168,10 +169,10 @@ func InitSchedulerApplication(base *Base) *SchedulerApplication {
 	templateServiceClient := InitEAlertTemplateClient(clientConn)
 	completionNotifier := notification.NewEAlertCompletionNotifier(notificationServiceClient, templateServiceClient)
 	completeConsumer := InitCompleteEventConsumer(mq, taskService, executionService, taskAcquirer, hubs, completionNotifier)
-	poolSyncer := pool.NewSyncer(executionPoolRepository, client)
+	syncerSyncer := syncer.NewSyncer(executionPoolRepository, client)
 	agentEventConsumer := InitAgentEventConsumer(mq, executionService)
 	templateBootstrapTask := notification.NewTemplateBootstrapTask(templateServiceClient)
-	v3 := InitTasks(retryCompensator, rescheduleCompensator, interruptCompensator, terminationCompensator, completeConsumer, poolSyncer, agentEventConsumer, hubs, templateBootstrapTask)
+	v3 := InitTasks(retryCompensator, rescheduleCompensator, interruptCompensator, terminationCompensator, completeConsumer, syncerSyncer, agentEventConsumer, hubs, templateBootstrapTask)
 	schedulerApplication := &SchedulerApplication{
 		Web:       component,
 		GRPC:      server,

@@ -24,6 +24,7 @@ func InitExecutionRuntime() *ExecutionRuntime {
 // InitSchedulerApplication 使用一套共享依赖构建调度器、Web、gRPC 和后台任务。
 func InitSchedulerApplication(base *Base) *SchedulerApplication {
 	wire.Build(
+		SecuritySet,
 		TaskSet,
 		CodebookSet,
 		CodeAssistSet,

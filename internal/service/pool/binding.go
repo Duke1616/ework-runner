@@ -41,16 +41,7 @@ type ListBindingsRequest struct {
 }
 
 // CheckBindingRequest 描述一次运行时资源池授权检查，租户从 Context 获取。
-type CheckBindingRequest struct {
-	PoolName    string
-	HandlerName string
-}
-
-// ExecutionPoolAuthorizer 负责判断租户是否可以使用执行资源池。
-type ExecutionPoolAuthorizer interface {
-	// IsAllowed 判断租户是否允许使用指定资源池和 Handler。
-	IsAllowed(ctx context.Context, req CheckBindingRequest) (bool, error)
-}
+type CheckBindingRequest = HandlerQuery
 
 // BindingService 维护租户和执行资源池之间的授权关系。
 type BindingService interface {

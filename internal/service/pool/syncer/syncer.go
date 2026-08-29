@@ -1,4 +1,4 @@
-package pool
+package syncer
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/repository"
-	poolsource "github.com/Duke1616/etask/internal/service/pool/source"
+	poolsource "github.com/Duke1616/etask/internal/service/pool/syncer/source"
 	"github.com/Duke1616/etask/pkg/grpc/registry"
 	"github.com/gotomicro/ego/core/elog"
 	"go.etcd.io/etcd/api/v3/mvccpb"

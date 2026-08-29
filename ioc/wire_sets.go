@@ -11,6 +11,7 @@ import (
 	codebookSvc "github.com/Duke1616/etask/internal/service/codebook"
 	notificationSvc "github.com/Duke1616/etask/internal/service/notification"
 	poolSvc "github.com/Duke1616/etask/internal/service/pool"
+	poolSyncer "github.com/Duke1616/etask/internal/service/pool/syncer"
 	previewSvc "github.com/Duke1616/etask/internal/service/preview"
 	programSvc "github.com/Duke1616/etask/internal/service/program"
 	runnerSvc "github.com/Duke1616/etask/internal/service/runner"
@@ -59,10 +60,13 @@ var (
 		InitGinWebServer,
 	)
 
-	TaskSet = wire.NewSet(
-		InitDB,
+	SecuritySet = wire.NewSet(
 		InitCrypto,
 		InitVariableProtector,
+	)
+
+	TaskSet = wire.NewSet(
+		InitDB,
 		dao.NewGORMTaskDAO,
 		dao.NewGORMTaskParamOverrideDAO,
 		dao.NewGORMTaskNotificationRuleDAO,
@@ -114,16 +118,12 @@ var (
 	RunnerSet = wire.NewSet(
 		dao.NewGORMRunnerDAO,
 		dao.NewGORMVariableDAO,
-		InitCrypto,
-		InitVariableProtector,
 		repository.NewRunnerRepository,
 		runnerSvc.NewService,
 		runnerWeb.NewHandler,
 	)
 
 	VariableSet = wire.NewSet(
-		InitCrypto,
-		InitVariableProtector,
 		repository.NewVariableRepository,
 		variableSvc.NewService,
 		variableWeb.NewHandler,
@@ -157,7 +157,7 @@ var (
 
 	ExecutionPoolSet = wire.NewSet(
 		ExecutionPoolBindingSet,
-		poolSvc.NewSyncer,
+		poolSyncer.NewSyncer,
 	)
 
 	ExecutorSet = wire.NewSet(
@@ -166,8 +166,6 @@ var (
 
 	TaskExecutionSet = wire.NewSet(
 		dao.NewGORMTaskExecutionDAO,
-		InitCrypto,
-		InitVariableProtector,
 		dao.NewGORMTaskExecutionLogDAO,
 		dao.NewGORMExecutionCancellationDAO,
 		repository.NewTaskExecutionRepository,

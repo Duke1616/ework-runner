@@ -4,15 +4,16 @@ import (
 	"context"
 	"fmt"
 	"path"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
 	agentDomain "github.com/Duke1616/etask/internal/agent/domain"
 	"github.com/Duke1616/etask/internal/domain"
-	poolSource "github.com/Duke1616/etask/internal/service/pool/source"
+	poolSource "github.com/Duke1616/etask/internal/service/pool/syncer/source"
 	"github.com/Duke1616/etask/pkg/grpc/registry"
 	registryEtcd "github.com/Duke1616/etask/pkg/grpc/registry/etcd"
+	"github.com/samber/lo"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
@@ -36,17 +37,11 @@ func (s *catalogService) ListNodesForPools(ctx context.Context, pools []domain.E
 	queryCtx, cancel := context.WithTimeout(ctx, listNodesTimeout)
 	defer cancel()
 
-	poolsByKindAndName := make(map[domain.ExecutionPoolKind]map[string]domain.ExecutionPool)
-	for _, pool := range pools {
-		byName := poolsByKindAndName[pool.Kind]
-		if byName == nil {
-			byName = make(map[string]domain.ExecutionPool)
-			poolsByKindAndName[pool.Kind] = byName
-		}
-		byName[pool.Name] = pool
-	}
+	poolsByKind := lo.GroupBy(pools, func(pool domain.ExecutionPool) domain.ExecutionPoolKind {
+		return pool.Kind
+	})
 
-	for kind, poolsByName := range poolsByKindAndName {
+	for kind, poolList := range poolsByKind {
 		prefix := nodePrefix(domain.ExecutionPool{Kind: kind})
 		if prefix == "" {
 			continue
@@ -55,6 +50,9 @@ func (s *catalogService) ListNodesForPools(ctx context.Context, pools []domain.E
 		if err != nil {
 			return nil, err
 		}
+		poolsByName := lo.KeyBy(poolList, func(p domain.ExecutionPool) string {
+			return p.Name
+		})
 		for _, kv := range resp.Kvs {
 			inst, ok := poolSource.DecodeInstance(kv)
 			if !ok {
@@ -74,11 +72,11 @@ func (s *catalogService) ListNodesForPools(ctx context.Context, pools []domain.E
 	}
 
 	for poolName := range result {
-		sort.Slice(result[poolName], func(i, j int) bool {
-			if result[poolName][i].ID == result[poolName][j].ID {
-				return result[poolName][i].Address < result[poolName][j].Address
+		slices.SortFunc(result[poolName], func(a, b Node) int {
+			if a.ID == b.ID {
+				return strings.Compare(a.Address, b.Address)
 			}
-			return result[poolName][i].ID < result[poolName][j].ID
+			return strings.Compare(a.ID, b.ID)
 		})
 	}
 	return result, nil

@@ -18,6 +18,12 @@ type HandlerMetadata struct {
 	Parameters []ParameterMetadata `json:"metadata"`
 }
 
+// HandlerQuery 描述针对资源池中特定 Handler 的查询定位。
+type HandlerQuery struct {
+	PoolName    string
+	HandlerName string
+}
+
 // ParameterMetadata 描述 Handler 的一个参数及其运行时语义。
 type ParameterMetadata struct {
 	Key                string `json:"key"`
@@ -28,11 +34,11 @@ type ParameterMetadata struct {
 // HandlerMetadataProvider 只提供 Handler 元数据查询，不负责资源池授权或绑定管理。
 type HandlerMetadataProvider interface {
 	// FindHandlerMetadata 查询资源池中指定 Handler 的元数据。
-	FindHandlerMetadata(ctx context.Context, req CheckBindingRequest) (HandlerMetadata, error)
+	FindHandlerMetadata(ctx context.Context, req HandlerQuery) (HandlerMetadata, error)
 	// RuntimeOverridableParameterKeys 返回允许启动时覆盖的参数键。
-	RuntimeOverridableParameterKeys(ctx context.Context, req CheckBindingRequest) (map[string]struct{}, error)
+	RuntimeOverridableParameterKeys(ctx context.Context, req HandlerQuery) (map[string]struct{}, error)
 	// VariableParameterKeys 返回承担结构化变量语义的参数键。
-	VariableParameterKeys(ctx context.Context, req CheckBindingRequest) (map[string]struct{}, error)
+	VariableParameterKeys(ctx context.Context, req HandlerQuery) (map[string]struct{}, error)
 }
 
 // handlerMetadataProvider 负责读取和筛选资源池 Handler 元数据。
@@ -46,7 +52,7 @@ func NewHandlerMetadataProvider(poolRepo repository.ExecutionPoolRepository) Han
 }
 
 // FindHandlerMetadata 查询指定资源池中的 Handler 元数据。
-func (p *handlerMetadataProvider) FindHandlerMetadata(ctx context.Context, req CheckBindingRequest) (HandlerMetadata, error) {
+func (p *handlerMetadataProvider) FindHandlerMetadata(ctx context.Context, req HandlerQuery) (HandlerMetadata, error) {
 	poolName, handlerName, err := normalizeBindingKey(req.PoolName, req.HandlerName)
 	if err != nil {
 		return HandlerMetadata{}, err
@@ -71,7 +77,7 @@ func (p *handlerMetadataProvider) FindHandlerMetadata(ctx context.Context, req C
 
 // RuntimeOverridableParameterKeys 返回允许启动时覆盖的参数键。
 func (p *handlerMetadataProvider) RuntimeOverridableParameterKeys(ctx context.Context,
-	req CheckBindingRequest) (map[string]struct{}, error) {
+	req HandlerQuery) (map[string]struct{}, error) {
 	handler, err := p.FindHandlerMetadata(ctx, req)
 	if err != nil {
 		return nil, err
@@ -83,7 +89,7 @@ func (p *handlerMetadataProvider) RuntimeOverridableParameterKeys(ctx context.Co
 
 // VariableParameterKeys 返回承担结构化变量语义的参数键。
 func (p *handlerMetadataProvider) VariableParameterKeys(ctx context.Context,
-	req CheckBindingRequest) (map[string]struct{}, error) {
+	req HandlerQuery) (map[string]struct{}, error) {
 	handler, err := p.FindHandlerMetadata(ctx, req)
 	if err != nil {
 		return nil, err
@@ -95,14 +101,12 @@ func (p *handlerMetadataProvider) VariableParameterKeys(ctx context.Context,
 
 // collectParameterKeys 从 Handler 参数元数据中提取满足条件的参数键。
 func collectParameterKeys(handler HandlerMetadata, match func(ParameterMetadata) bool) map[string]struct{} {
-	keys := make(map[string]struct{})
-	for _, parameter := range handler.Parameters {
-		key := strings.TrimSpace(parameter.Key)
-		if key != "" && match(parameter) {
-			keys[key] = struct{}{}
-		}
-	}
-	return keys
+	filtered := lo.Filter(handler.Parameters, func(parameter ParameterMetadata, _ int) bool {
+		return strings.TrimSpace(parameter.Key) != "" && match(parameter)
+	})
+	return lo.SliceToMap(filtered, func(parameter ParameterMetadata) (string, struct{}) {
+		return strings.TrimSpace(parameter.Key), struct{}{}
+	})
 }
 
 func parseHandlerMetadata(pool domain.ExecutionPool) ([]HandlerMetadata, bool, error) {

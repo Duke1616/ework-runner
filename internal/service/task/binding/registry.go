@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/Duke1616/etask/internal/pkg/variable"
+	"github.com/samber/lo"
 )
 
 // ResolveRequest 描述调度中心解析一个参数绑定时使用的上下文。
@@ -101,10 +102,7 @@ func (r *Registry) Resolve(ctx context.Context, handlerName string, params map[s
 			return ResolveResult{}, fmt.Errorf("解析参数 %s 的 %s 绑定失败: %w", paramKey, bindingName, err)
 		}
 		if len(resolved.Parameters) > 0 {
-			if result.Parameters == nil {
-				result.Parameters = make(map[string]string, len(resolved.Parameters))
-			}
-			maps.Copy(result.Parameters, resolved.Parameters)
+			result.Parameters = lo.Assign(result.Parameters, resolved.Parameters)
 		}
 		result.Variables = append(result.Variables, resolved.Variables...)
 	}

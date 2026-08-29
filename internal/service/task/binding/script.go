@@ -3,9 +3,9 @@ package binding
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 
-	"github.com/Duke1616/etask/internal/pkg/variable"
 	runnerSvc "github.com/Duke1616/etask/internal/service/runner"
 )
 
@@ -32,9 +32,7 @@ func (r RunnerResolver) Resolve(ctx context.Context, req ResolveRequest) (Resolv
 	if err != nil {
 		return ResolveResult{}, fmt.Errorf("获取执行器变量失败: %w", err)
 	}
-	items := make([]variable.Item, len(vars))
-	copy(items, vars)
-	return ResolveResult{Variables: items}, nil
+	return ResolveResult{Variables: slices.Clone(vars)}, nil
 }
 
 func parseID(rawID string, param string) (int64, error) {

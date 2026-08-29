@@ -1,12 +1,14 @@
-package pool
+package syncer
 
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/Duke1616/etask/internal/domain"
+	"github.com/samber/lo"
 )
 
 // aggregatePoolInstances 将同一资源池的节点注册信息收敛为一个稳定快照。
@@ -50,13 +52,7 @@ func validatePoolConfig(base, candidate domain.ExecutionPool) error {
 }
 
 func sharedMetadata(metadata map[string]string) map[string]string {
-	result := make(map[string]string, len(metadata))
-	for key, value := range metadata {
-		if key != "instance_id" && key != "address" {
-			result[key] = value
-		}
-	}
-	return result
+	return lo.OmitByKeys(metadata, []string{"instance_id", "address"})
 }
 
 type handlerSet struct {
@@ -92,15 +88,10 @@ func (s *handlerSet) Add(raw string) error {
 }
 
 func (s *handlerSet) JSON() string {
-	names := make([]string, 0, len(s.items))
-	for name := range s.items {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	items := make([]json.RawMessage, 0, len(names))
-	for _, name := range names {
-		items = append(items, s.items[name])
-	}
+	names := slices.Sorted(maps.Keys(s.items))
+	items := lo.Map(names, func(name string, _ int) json.RawMessage {
+		return s.items[name]
+	})
 	data, _ := json.Marshal(items)
 	return string(data)
 }

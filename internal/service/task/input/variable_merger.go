@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/Duke1616/etask/internal/pkg/variable"
+	"github.com/samber/lo"
 )
 
 // VariableSource 描述变量来源，用于日志、测试和排查优先级问题。
@@ -29,6 +30,7 @@ type VariableLayer struct {
 type VariableMerger struct{}
 
 // Merge 保留首次出现的变量顺序，后续来源只替换变量内容。
+// 若已有同名变量已被标记为 Secret，后续覆盖项自动保留 Secret 状态，防止敏感属性降级。
 func (VariableMerger) Merge(layers ...VariableLayer) ([]variable.Item, error) {
 	values := make(map[string]variable.Item)
 	order := make([]string, 0)
@@ -38,15 +40,18 @@ func (VariableMerger) Merge(layers ...VariableLayer) ([]variable.Item, error) {
 			if item.Key == "" {
 				return nil, fmt.Errorf("%s变量名称不能为空", layer.Source)
 			}
-			if _, exists := values[item.Key]; !exists {
+			if current, exists := values[item.Key]; !exists {
 				order = append(order, item.Key)
+				values[item.Key] = item
+			} else {
+				if current.Secret {
+					item.Secret = true
+				}
+				values[item.Key] = item
 			}
-			values[item.Key] = item
 		}
 	}
-	result := make([]variable.Item, 0, len(order))
-	for _, key := range order {
-		result = append(result, values[key])
-	}
-	return result, nil
+	return lo.Map(order, func(key string, _ int) variable.Item {
+		return values[key]
+	}), nil
 }
