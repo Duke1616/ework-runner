@@ -1,0 +1,11 @@
+.git
+.gitignore
+.agents
+.gemini
+*.md
+docs
+tmp
+bin
+dist
+app
+coverage.out
