@@ -30,7 +30,8 @@ RUN pip install --upgrade pip -i https://pypi.tuna.tsinghua.edu.cn/simple --no-c
 COPY ./third_party ./third_party
 
 # 4. 业务编译二进制产物
-COPY --from=build /app/dist/${SERVICE_NAME} .
+ARG SERVICE_NAME=etask
+COPY --from=build /app/dist/${SERVICE_NAME} ./etask
 
 EXPOSE 8765 9002 9004
 
