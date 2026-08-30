@@ -80,6 +80,45 @@ func (c *MockStoreDeleteCall) DoAndReturn(f func(context.Context, string) error)
 	return c
 }
 
+// Exists mocks base method.
+func (m *MockStore) Exists(ctx context.Context, key string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Exists", ctx, key)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Exists indicates an expected call of Exists.
+func (mr *MockStoreMockRecorder) Exists(ctx, key any) *MockStoreExistsCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Exists", reflect.TypeOf((*MockStore)(nil).Exists), ctx, key)
+	return &MockStoreExistsCall{Call: call}
+}
+
+// MockStoreExistsCall wrap *gomock.Call
+type MockStoreExistsCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockStoreExistsCall) Return(arg0 bool, arg1 error) *MockStoreExistsCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockStoreExistsCall) Do(f func(context.Context, string) (bool, error)) *MockStoreExistsCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockStoreExistsCall) DoAndReturn(f func(context.Context, string) (bool, error)) *MockStoreExistsCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // Open mocks base method.
 func (m *MockStore) Open(ctx context.Context, key string) (io.ReadCloser, error) {
 	m.ctrl.T.Helper()

@@ -104,19 +104,30 @@ func (l *Local) Open(_ context.Context, key string) (io.ReadCloser, error) {
 	return f, nil
 }
 
+func (l *Local) Exists(_ context.Context, key string) (bool, error) {
+	path, err := l.resolve(key)
+	if err != nil {
+		return false, err
+	}
+	_, err = os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	return false, fmt.Errorf("检查本地制品对象失败: %w", err)
+}
+
 func (l *Local) resolve(key string) (string, error) {
-	key = filepath.FromSlash(strings.TrimSpace(key))
-	if key == "" || filepath.IsAbs(key) {
-		return "", fmt.Errorf("非法的制品对象键: %q", key)
+	cleaned, err := cleanAndValidateKey(key)
+	if err != nil {
+		return "", err
 	}
-	clean := filepath.Clean(key)
-	if clean == "." || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("非法的制品对象键: %q", key)
-	}
-	path := filepath.Join(l.root, clean)
+	path := filepath.Join(l.root, filepath.FromSlash(cleaned))
 	rel, err := filepath.Rel(l.root, path)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("制品对象键超出存储根目录: %q", key)
+		return "", fmt.Errorf("%w: 制品对象键超出存储根目录 %q", ErrInvalidKey, key)
 	}
 	return path, nil
 }

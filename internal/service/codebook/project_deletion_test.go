@@ -1,78 +1,114 @@
-package codebook
+package codebook_test
 
 import (
 	"context"
-	"io"
-	"strings"
-	"sync"
 	"testing"
 
 	"github.com/Duke1616/eiam/pkg/ctxutil"
 	"github.com/Duke1616/etask/internal/domain"
-	"github.com/Duke1616/etask/internal/repository"
-	"github.com/Duke1616/etask/pkg/blobstore"
+	repositorymocks "github.com/Duke1616/etask/internal/repository/mocks"
+	codebooksvc "github.com/Duke1616/etask/internal/service/codebook"
+	blobstoremocks "github.com/Duke1616/etask/pkg/blobstore/mocks"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
-type projectDeletionRepositoryStub struct {
-	impact      domain.ProjectDeleteImpact
-	cleanup     domain.ProjectDeleteCleanup
-	projectID   int64
-	projectName string
+func TestProjectDeletionService_Preview(t *testing.T) {
+	testCases := []struct {
+		name      string
+		ctx       context.Context
+		projectID int64
+		mock      func(repo *repositorymocks.MockProjectDeletionRepository)
+		want      domain.ProjectDeleteImpact
+		wantErr   string
+	}{
+		{
+			name:      "失败_缺少租户上下文",
+			ctx:       context.Background(),
+			projectID: 7,
+			mock:      func(repo *repositorymocks.MockProjectDeletionRepository) {},
+			wantErr:   "项目删除参数非法",
+		},
+		{
+			name:      "成功_查询项目删除影响",
+			ctx:       ctxutil.WithTenantID(context.Background(), 10),
+			projectID: 7,
+			mock: func(repo *repositorymocks.MockProjectDeletionRepository) {
+				repo.EXPECT().Preview(gomock.Any(), int64(7)).Return(domain.ProjectDeleteImpact{
+					CodebookNodeCount: 3,
+				}, nil)
+			},
+			want: domain.ProjectDeleteImpact{CodebookNodeCount: 3},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			repo := repositorymocks.NewMockProjectDeletionRepository(ctrl)
+			store := blobstoremocks.NewMockStore(ctrl)
+			tc.mock(repo)
+
+			service := codebooksvc.NewProjectDeletionService(repo, store)
+			got, err := service.Preview(tc.ctx, tc.projectID)
+			if tc.wantErr != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
 }
 
-func (s *projectDeletionRepositoryStub) Preview(_ context.Context,
-	projectID int64) (domain.ProjectDeleteImpact, error) {
-	s.projectID = projectID
-	return s.impact, nil
+func TestProjectDeletionService_Delete(t *testing.T) {
+	testCases := []struct {
+		name        string
+		ctx         context.Context
+		projectID   int64
+		projectName string
+		mock        func(repo *repositorymocks.MockProjectDeletionRepository, store *blobstoremocks.MockStore)
+		wantErr     string
+	}{
+		{
+			name:        "失败_缺少租户上下文",
+			ctx:         context.Background(),
+			projectID:   7,
+			projectName: "剧本",
+			mock:        func(repo *repositorymocks.MockProjectDeletionRepository, store *blobstoremocks.MockStore) {},
+			wantErr:     "项目删除参数非法",
+		},
+		{
+			name:        "成功_提交删除并去重清理对象存储",
+			ctx:         ctxutil.WithTenantID(context.Background(), 99),
+			projectID:   7,
+			projectName: "剧本",
+			mock: func(repo *repositorymocks.MockProjectDeletionRepository, store *blobstoremocks.MockStore) {
+				repo.EXPECT().Delete(gomock.Any(), int64(7), "剧本").Return(domain.ProjectDeleteCleanup{
+					ObjectKeys: []string{"one", "one", "two"},
+				}, nil)
+				store.EXPECT().Delete(gomock.Any(), "one").Return(nil)
+				store.EXPECT().Delete(gomock.Any(), "two").Return(nil)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			repo := repositorymocks.NewMockProjectDeletionRepository(ctrl)
+			store := blobstoremocks.NewMockStore(ctrl)
+			tc.mock(repo, store)
+
+			service := codebooksvc.NewProjectDeletionService(repo, store)
+			err := service.Delete(tc.ctx, tc.projectID, tc.projectName)
+			if tc.wantErr != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
 }
-
-func (s *projectDeletionRepositoryStub) Delete(_ context.Context,
-	projectID int64, projectName string) (domain.ProjectDeleteCleanup, error) {
-	s.projectID, s.projectName = projectID, projectName
-	return s.cleanup, nil
-}
-
-type projectDeletionStoreStub struct {
-	mu      sync.Mutex
-	deleted []string
-}
-
-func (s *projectDeletionStoreStub) Put(context.Context, string, io.Reader, blobstore.PutOptions) error {
-	return nil
-}
-func (s *projectDeletionStoreStub) Open(context.Context, string) (io.ReadCloser, error) {
-	return io.NopCloser(strings.NewReader("")), nil
-}
-func (s *projectDeletionStoreStub) Delete(_ context.Context, key string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.deleted = append(s.deleted, key)
-	return nil
-}
-
-func TestProjectDeletionServiceValidatesTenantContext(t *testing.T) {
-	service := NewProjectDeletionService(&projectDeletionRepositoryStub{}, &projectDeletionStoreStub{})
-
-	_, err := service.Preview(t.Context(), 7)
-
-	require.Error(t, err)
-}
-
-func TestProjectDeletionServiceDeletesObjectsAfterRepositoryCommit(t *testing.T) {
-	repo := &projectDeletionRepositoryStub{cleanup: domain.ProjectDeleteCleanup{
-		ObjectKeys: []string{"one", "one", "two"},
-	}}
-	store := &projectDeletionStoreStub{}
-	service := NewProjectDeletionService(repo, store)
-	ctx := ctxutil.WithTenantID(t.Context(), 99)
-
-	err := service.Delete(ctx, 7, "剧本")
-
-	require.NoError(t, err)
-	require.Equal(t, int64(7), repo.projectID)
-	require.Equal(t, "剧本", repo.projectName)
-	require.ElementsMatch(t, []string{"one", "two"}, store.deleted)
-}
-
-var _ repository.ProjectDeletionRepository = (*projectDeletionRepositoryStub)(nil)

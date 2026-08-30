@@ -7,6 +7,8 @@ import (
 	"github.com/Duke1616/etask/internal/repository/dao"
 )
 
+//go:generate go tool mockgen -source=./project_deletion.go -package=repositorymocks -destination=./mocks/project_deletion.mock.go -typed
+
 // ProjectDeletionRepository 提供项目删除所需的领域仓储能力。
 type ProjectDeletionRepository interface {
 	// Preview 查询删除项目会影响的数据。
