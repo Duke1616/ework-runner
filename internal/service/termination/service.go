@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/Duke1616/eiam/pkg/ctxutil"
-	"github.com/Duke1616/eiam/pkg/gormx"
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/repository"
 	"github.com/Duke1616/etask/internal/service/invoker"
@@ -100,8 +99,8 @@ func (s *service) DeliverPending(ctx context.Context, limit int) error {
 	if limit <= 0 {
 		limit = 100
 	}
-	// 补偿器需要跨租户扫描；显式提权，避免行为依赖“空租户即全局”的插件约定。
-	cancellations, err := s.cancellations.ListPending(gormx.IgnoreTenantContext(ctx), limit)
+	// 补偿器需要跨租户扫描，DAO 层已显式声明 IgnoreTenant Scope
+	cancellations, err := s.cancellations.ListPending(ctx, limit)
 	if err != nil {
 		return fmt.Errorf("查询待投递终止信号失败: %w", err)
 	}

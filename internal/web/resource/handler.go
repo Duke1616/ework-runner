@@ -34,8 +34,8 @@ func (h *Handler) IdentifyRoutes(_ *gin.Engine) {
 func (h *Handler) PrivateRoutes(server *gin.Engine) {
 	g := server.Group("/api/resource")
 
-	g.GET("/list", h.Capability("执行资源列表", "view").
-		Handle(ginx.B[ListReq](h.List)),
+	g.GET("/list", h.Define("执行资源列表", "view").
+		Bind(ginx.B[ListReq](h.List)),
 	)
 }
 

@@ -1,0 +1,3244 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>ETask API Documentation</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 现代化三栏式 API 交互文档引擎 (Scalar) -->
+    <script
+      id="api-reference"
+      type="application/json"
+      data-configuration='{
+        "theme": "elysia",
+        "showSidebar": true,
+        "searchHotKey": "k",
+        "layout": "modern"
+      }'>
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "ETask API Documentation",
+    "description": "基于 AST 与反射契约混合自适应生成的 OpenAPI 3.0 规范，支持导入 Apifox / Postman 进行全量接口联调。",
+    "version": "1.0.0"
+  },
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/artifact/activate": {
+      "post": {
+        "tags": [
+          "脚本引擎/制品仓库"
+        ],
+        "summary": "切换制品",
+        "description": "权限标识: activate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivateReq"
+              },
+              "example": {
+                "id": 1,
+                "project_id": 1,
+                "scope": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/artifact/list": {
+      "post": {
+        "tags": [
+          "脚本引擎/制品仓库"
+        ],
+        "summary": "制品发布记录",
+        "description": "权限标识: view",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListReq"
+              },
+              "example": {
+                "keyword": "search_key"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/artifact/publish": {
+      "post": {
+        "tags": [
+          "脚本引擎/制品仓库"
+        ],
+        "summary": "发布制品",
+        "description": "权限标识: publish",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishReq"
+              },
+              "example": {
+                "message": "string",
+                "project_id": 1,
+                "scope": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/artifact/status": {
+      "post": {
+        "tags": [
+          "脚本引擎/制品仓库"
+        ],
+        "summary": "制品状态",
+        "description": "权限标识: status",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatusReq"
+              },
+              "example": {
+                "execution_id": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/code-assist/change-set/apply": {
+      "post": {
+        "tags": [
+          "脚本引擎/AI 助手"
+        ],
+        "summary": "应用 AI 项目变更",
+        "description": "权限标识: apply_change_set",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyChangeSetReq"
+              },
+              "example": {
+                "id": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/code-assist/conversation/create": {
+      "post": {
+        "tags": [
+          "脚本引擎/AI 助手"
+        ],
+        "summary": "创建 AI 会话",
+        "description": "权限标识: add_conversation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateConversationReq"
+              },
+              "example": {
+                "project_id": 1,
+                "title": "示例名称"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/code-assist/conversation/detail": {
+      "post": {
+        "tags": [
+          "脚本引擎/AI 助手"
+        ],
+        "summary": "AI 会话详情",
+        "description": "权限标识: get_conversation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConversationDetailReq"
+              },
+              "example": {
+                "conversation_id": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/code-assist/conversation/list": {
+      "post": {
+        "tags": [
+          "脚本引擎/AI 助手"
+        ],
+        "summary": "AI 会话列表",
+        "description": "权限标识: view",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListConversationsReq"
+              },
+              "example": {
+                "project_id": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/code-assist/message/stream": {
+      "post": {
+        "tags": [
+          "脚本引擎/AI 助手"
+        ],
+        "summary": "发送 AI 消息",
+        "description": "权限标识: chat",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatReq"
+              },
+              "example": {
+                "content": "string",
+                "context": "string",
+                "conversation_id": 1,
+                "profile_id": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/codebook/children": {
+      "post": {
+        "tags": [
+          "脚本引擎/脚本模板"
+        ],
+        "summary": "代码资源子节点",
+        "description": "权限标识: children",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChildrenReq"
+              },
+              "example": {
+                "parent_id": 1,
+                "project_id": 1,
+                "scope": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/codebook/create": {
+      "post": {
+        "tags": [
+          "脚本引擎/脚本模板"
+        ],
+        "summary": "创建模板",
+        "description": "权限标识: add",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReq"
+              },
+              "example": {
+                "key": "string",
+                "secret": true,
+                "value": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/codebook/delete/{id}": {
+      "delete": {
+        "tags": [
+          "脚本引擎/脚本模板"
+        ],
+        "summary": "删除脚本模板",
+        "description": "权限标识: delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "唯一数字标识 ID",
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/codebook/detail/{id}": {
+      "get": {
+        "tags": [
+          "脚本引擎/脚本模板"
+        ],
+        "summary": "模板详情",
+        "description": "权限标识: get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "唯一数字标识 ID",
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/codebook/file/{id}/download": {
+      "get": {
+        "tags": [
+          "脚本引擎/脚本模板"
+        ],
+        "summary": "下载项目文件",
+        "description": "权限标识: download",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "唯一数字标识 ID",
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/codebook/import": {
+      "post": {
+        "tags": [
+          "脚本引擎/脚本模板"
+        ],
+        "summary": "导入项目文件",
+        "description": "权限标识: import",
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/codebook/preview/logs": {
+      "post": {
+        "tags": [
+          "脚本引擎/试运行"
+        ],
+        "summary": "查看试运行日志",
+        "description": "权限标识: view_logs",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogsReq"
+              },
+              "example": {
+                "execution_id": 1,
+                "limit": 10,
+                "min_id": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/codebook/preview/run": {
+      "post": {
+        "tags": [
+          "脚本引擎/试运行"
+        ],
+        "summary": "执行脚本试运行",
+        "description": "权限标识: run",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunReq"
+              },
+              "example": {
+                "max_execution_seconds": 0,
+                "params": "string",
+                "runner_id": 1,
+                "variables": [
+                  "item1",
+                  "item2"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/codebook/preview/status": {
+      "post": {
+        "tags": [
+          "脚本引擎/试运行"
+        ],
+        "summary": "查看试运行",
+        "description": "权限标识: view",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatusReq"
+              },
+              "example": {
+                "execution_id": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/codebook/rename": {
+      "post": {
+        "tags": [
+          "脚本引擎/脚本模板"
+        ],
+        "summary": "重命名模板",
+        "description": "权限标识: rename",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameReq"
+              },
+              "example": {
+                "id": 1,
+                "name": "示例名称"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/codebook/sort": {
+      "post": {
+        "tags": [
+          "脚本引擎/脚本模板"
+        ],
+        "summary": "模板排序",
+        "description": "权限标识: sort",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SortReq"
+              },
+              "example": {
+                "id": 1,
+                "target_parent_id": 1,
+                "target_position": 0
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/codebook/tree/{project_id}": {
+      "get": {
+        "tags": [
+          "脚本引擎/脚本模板"
+        ],
+        "summary": "代码资源树",
+        "description": "权限标识: view_tree",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "description": "唯一数字标识 ID",
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/codebook/update": {
+      "post": {
+        "tags": [
+          "脚本引擎/脚本模板"
+        ],
+        "summary": "更新模板",
+        "description": "权限标识: edit",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateReq"
+              },
+              "example": {
+                "id": 1,
+                "key": "string",
+                "secret": true,
+                "value": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/codebook/workspace/file": {
+      "post": {
+        "tags": [
+          "脚本引擎/脚本模板"
+        ],
+        "summary": "读取制品文件",
+        "description": "权限标识: view_workspace_tree",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceFileReq"
+              },
+              "example": {
+                "artifact_path": "string",
+                "digest": "string",
+                "project_id": 1,
+                "release_id": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/execution-pool/admin/bindings/bind": {
+      "post": {
+        "tags": [
+          "资源池管理"
+        ],
+        "summary": "管理绑定资源池",
+        "description": "权限标识: admin_bind",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BindReq"
+              },
+              "example": {
+                "desc": "相关业务描述信息",
+                "handler_name": "示例名称",
+                "handler_names": [
+                  "item1",
+                  "item2"
+                ],
+                "pool_name": "示例名称"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/execution-pool/admin/bindings/disable": {
+      "post": {
+        "tags": [
+          "资源池管理"
+        ],
+        "summary": "管理禁用资源池绑定",
+        "description": "权限标识: admin_disable",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BindingKeyReq"
+              },
+              "example": {
+                "handler_name": "示例名称",
+                "pool_name": "示例名称"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/execution-pool/admin/bindings/enable": {
+      "post": {
+        "tags": [
+          "资源池管理"
+        ],
+        "summary": "管理启用资源池绑定",
+        "description": "权限标识: admin_enable",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BindingKeyReq"
+              },
+              "example": {
+                "handler_name": "示例名称",
+                "pool_name": "示例名称"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/execution-pool/admin/bindings/list": {
+      "post": {
+        "tags": [
+          "资源池管理"
+        ],
+        "summary": "资源池绑定管理列表",
+        "description": "权限标识: admin_bindings_view",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListBindingsReq"
+              },
+              "example": {
+                "all_tenants": true,
+                "pool_name": "示例名称",
+                "status": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/execution-pool/admin/bindings/unbind": {
+      "delete": {
+        "tags": [
+          "资源池管理"
+        ],
+        "summary": "管理解绑资源池",
+        "description": "权限标识: admin_unbind",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BindingKeyReq"
+              },
+              "example": {
+                "handler_name": "示例名称",
+                "pool_name": "示例名称"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/execution-pool/admin/list": {
+      "post": {
+        "tags": [
+          "资源池管理"
+        ],
+        "summary": "资源池管理列表",
+        "description": "权限标识: admin_view",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListPoolsReq"
+              },
+              "example": {
+                "dispatch_mode": "string",
+                "keyword": "search_key",
+                "kind": "string",
+                "limit": 10,
+                "offset": 0,
+                "status": "string",
+                "transport": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/manager/create": {
+      "post": {
+        "tags": [
+          "任务管理"
+        ],
+        "summary": "创建任务",
+        "description": "权限标识: add",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTaskReq"
+              },
+              "example": {
+                "cron_expr": "string",
+                "execution_notifications": [
+                  "item1",
+                  "item2"
+                ],
+                "grpc_config": "string",
+                "http_config": "string",
+                "max_execution_seconds": 0,
+                "metadata": "string",
+                "name": "示例名称",
+                "param_override_rules": [
+                  "id_001",
+                  "id_002"
+                ],
+                "program": "string",
+                "retry_config": "string",
+                "runner_id": 1,
+                "schedule_params": "string",
+                "type": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/manager/delete/{id}": {
+      "delete": {
+        "tags": [
+          "任务管理"
+        ],
+        "summary": "删除任务",
+        "description": "权限标识: delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "唯一数字标识 ID",
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/manager/detail/{id}": {
+      "get": {
+        "tags": [
+          "任务管理"
+        ],
+        "summary": "任务详情",
+        "description": "权限标识: get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "唯一数字标识 ID",
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/manager/executions": {
+      "post": {
+        "tags": [
+          "任务管理"
+        ],
+        "summary": "执行记录",
+        "description": "权限标识: executions",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListExecutionsReq"
+              },
+              "example": {
+                "limit": 10,
+                "offset": 0,
+                "task_id": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/manager/executions/{id}/parameters": {
+      "get": {
+        "tags": [
+          "任务管理"
+        ],
+        "summary": "执行参数",
+        "description": "权限标识: execution_parameters",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "唯一数字标识 ID",
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/manager/executions/{id}/terminate": {
+      "post": {
+        "tags": [
+          "任务管理"
+        ],
+        "summary": "终止执行",
+        "description": "权限标识: terminate",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "唯一数字标识 ID",
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TerminateExecutionReq"
+              },
+              "example": {
+                "reason": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/manager/list": {
+      "post": {
+        "tags": [
+          "任务管理"
+        ],
+        "summary": "任务列表",
+        "description": "权限标识: view",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PageReq"
+              },
+              "example": {
+                "limit": 10,
+                "offset": 0
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/manager/logs": {
+      "post": {
+        "tags": [
+          "任务管理"
+        ],
+        "summary": "任务日志",
+        "description": "权限标识: logs",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetLogsReq"
+              },
+              "example": {
+                "execution_id": 1,
+                "limit": 10,
+                "min_id": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/manager/run": {
+      "post": {
+        "tags": [
+          "任务管理"
+        ],
+        "summary": "运行任务",
+        "description": "权限标识: start",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunTaskReq"
+              },
+              "example": {
+                "cron_expr": "string",
+                "id": 1,
+                "param_overrides": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/manager/stop/{id}": {
+      "post": {
+        "tags": [
+          "任务管理"
+        ],
+        "summary": "停止任务",
+        "description": "权限标识: stop",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "唯一数字标识 ID",
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/manager/update": {
+      "post": {
+        "tags": [
+          "任务管理"
+        ],
+        "summary": "更新任务",
+        "description": "权限标识: edit",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTaskReq"
+              },
+              "example": {
+                "cron_expr": "string",
+                "execution_notifications": [
+                  "item1",
+                  "item2"
+                ],
+                "grpc_config": "string",
+                "http_config": "string",
+                "id": 1,
+                "max_execution_seconds": 0,
+                "metadata": "string",
+                "name": "示例名称",
+                "param_override_rules": [
+                  "id_001",
+                  "id_002"
+                ],
+                "program": "string",
+                "retry_config": "string",
+                "runner_id": 1,
+                "schedule_params": "string",
+                "type": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/resource/list": {
+      "get": {
+        "tags": [
+          "执行资源"
+        ],
+        "summary": "执行资源列表",
+        "description": "权限标识: view",
+        "parameters": [
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "example": "search_key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/runner/delete/{id}": {
+      "delete": {
+        "tags": [
+          "执行单元"
+        ],
+        "summary": "删除执行单元",
+        "description": "权限标识: delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "唯一数字标识 ID",
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/runner/detail/{id}": {
+      "get": {
+        "tags": [
+          "执行单元"
+        ],
+        "summary": "执行单元详情",
+        "description": "权限标识: get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "唯一数字标识 ID",
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/runner/list": {
+      "post": {
+        "tags": [
+          "执行单元"
+        ],
+        "summary": "执行单元列表",
+        "description": "权限标识: view",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListRunnerReq"
+              },
+              "example": {
+                "keyword": "search_key",
+                "kind": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/runner/list/by_ids": {
+      "post": {
+        "tags": [
+          "执行单元"
+        ],
+        "summary": "批量查询执行单元",
+        "description": "权限标识: ids",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListRunnerByIDsReq"
+              },
+              "example": {
+                "ids": [
+                  1,
+                  2,
+                  3
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/runner/list/exclude_codebook_id": {
+      "post": {
+        "tags": [
+          "执行单元"
+        ],
+        "summary": "复用执行单元",
+        "description": "权限标识: view_exclude_codebook_id",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListExcludeCodebookIDReq"
+              },
+              "example": {
+                "codebook_id": 1,
+                "keyword": "search_key",
+                "kind": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/runner/list/{codebook_id}": {
+      "get": {
+        "tags": [
+          "执行单元"
+        ],
+        "summary": "当前绑定执行单元",
+        "description": "权限标识: view_runners",
+        "parameters": [
+          {
+            "name": "codebook_id",
+            "in": "path",
+            "required": true,
+            "description": "唯一数字标识 ID",
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/runner/register": {
+      "post": {
+        "tags": [
+          "执行单元"
+        ],
+        "summary": "注册执行单元",
+        "description": "权限标识: add",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRunnerReq"
+              },
+              "example": {
+                "codebook_id": 1,
+                "codebook_secret": "admin",
+                "desc": "相关业务描述信息",
+                "handler": "string",
+                "kind": "string",
+                "name": "示例名称",
+                "parameter_defaults": "string",
+                "program_kind": "string",
+                "tags": [
+                  "item1",
+                  "item2"
+                ],
+                "target": "string",
+                "variables": [
+                  "item1",
+                  "item2"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/runner/update": {
+      "post": {
+        "tags": [
+          "执行单元"
+        ],
+        "summary": "更新执行单元",
+        "description": "权限标识: edit",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRunnerReq"
+              },
+              "example": {
+                "codebook_id": 1,
+                "codebook_secret": "admin",
+                "desc": "相关业务描述信息",
+                "handler": "string",
+                "id": 1,
+                "kind": "string",
+                "name": "示例名称",
+                "parameter_defaults": "string",
+                "program_kind": "string",
+                "tags": [
+                  "item1",
+                  "item2"
+                ],
+                "target": "string",
+                "variables": [
+                  "item1",
+                  "item2"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/streams/manager/executions/{id}/logs": {
+      "get": {
+        "tags": [
+          "任务管理"
+        ],
+        "summary": "查看执行日志流",
+        "description": "权限标识: execution_logs",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "唯一数字标识 ID",
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/streams/manager/task-events": {
+      "get": {
+        "tags": [
+          "任务管理"
+        ],
+        "summary": "订阅任务状态事件",
+        "description": "权限标识: task_events",
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/streams/manager/tasks/{id}/executions": {
+      "get": {
+        "tags": [
+          "任务管理"
+        ],
+        "summary": "订阅任务执行事件",
+        "description": "权限标识: execution_events",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "唯一数字标识 ID",
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/variable/create": {
+      "post": {
+        "tags": [
+          "全局变量"
+        ],
+        "summary": "创建全局变量",
+        "description": "权限标识: add",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReq"
+              },
+              "example": {
+                "key": "string",
+                "secret": true,
+                "value": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/variable/delete/{id}": {
+      "delete": {
+        "tags": [
+          "全局变量"
+        ],
+        "summary": "删除全局变量",
+        "description": "权限标识: delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "唯一数字标识 ID",
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/variable/detail/{id}": {
+      "get": {
+        "tags": [
+          "全局变量"
+        ],
+        "summary": "全局变量详情",
+        "description": "权限标识: get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "唯一数字标识 ID",
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/variable/list": {
+      "post": {
+        "tags": [
+          "全局变量"
+        ],
+        "summary": "全局变量列表",
+        "description": "权限标识: view",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListReq"
+              },
+              "example": {
+                "keyword": "search_key"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/api/variable/update": {
+      "post": {
+        "tags": [
+          "全局变量"
+        ],
+        "summary": "更新全局变量",
+        "description": "权限标识: edit",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateReq"
+              },
+              "example": {
+                "id": 1,
+                "key": "string",
+                "secret": true,
+                "value": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/project/archive/{id}": {
+      "post": {
+        "tags": [
+          "脚本引擎/脚本模板"
+        ],
+        "summary": "归档项目",
+        "description": "权限标识: delete_project",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "唯一数字标识 ID",
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/project/create": {
+      "post": {
+        "tags": [
+          "脚本引擎/脚本模板"
+        ],
+        "summary": "创建项目",
+        "description": "权限标识: add_project",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProjectReq"
+              },
+              "example": {
+                "artifact_enabled": true,
+                "artifact_namespace": "示例名称",
+                "desc": "相关业务描述信息",
+                "name": "示例名称"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/project/delete-impact/{id}": {
+      "get": {
+        "tags": [
+          "脚本引擎/脚本模板"
+        ],
+        "summary": "项目删除影响",
+        "description": "权限标识: project_delete_impact",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "唯一数字标识 ID",
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/project/delete/{id}": {
+      "delete": {
+        "tags": [
+          "脚本引擎/脚本模板"
+        ],
+        "summary": "删除项目",
+        "description": "权限标识: purge_project",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "唯一数字标识 ID",
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectDeleteReq"
+              },
+              "example": {
+                "project_name": "示例名称"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/project/detail/{id}": {
+      "get": {
+        "tags": [
+          "脚本引擎/脚本模板"
+        ],
+        "summary": "项目详情",
+        "description": "权限标识: get_project",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "唯一数字标识 ID",
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/project/list": {
+      "post": {
+        "tags": [
+          "脚本引擎/脚本模板"
+        ],
+        "summary": "项目列表",
+        "description": "权限标识: view_project",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListProjectsReq"
+              },
+              "example": {
+                "keyword": "search_key",
+                "scope": "string",
+                "status": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/project/references": {
+      "post": {
+        "tags": [
+          "脚本引擎/脚本模板"
+        ],
+        "summary": "可引用项目列表",
+        "description": "权限标识: reference_projects",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListReferenceProjectsReq"
+              },
+              "example": {
+                "exclude_project_id": 1,
+                "keyword": "search_key"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/project/restore/{id}": {
+      "post": {
+        "tags": [
+          "脚本引擎/脚本模板"
+        ],
+        "summary": "恢复项目",
+        "description": "权限标识: restore_project",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "唯一数字标识 ID",
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/project/update": {
+      "post": {
+        "tags": [
+          "脚本引擎/脚本模板"
+        ],
+        "summary": "更新项目",
+        "description": "权限标识: edit_project",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProjectReq"
+              },
+              "example": {
+                "artifact_enabled": true,
+                "artifact_namespace": "示例名称",
+                "desc": "相关业务描述信息",
+                "id": 1,
+                "name": "示例名称",
+                "sort_no": 0
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/version/create": {
+      "post": {
+        "tags": [
+          "脚本引擎/脚本模板"
+        ],
+        "summary": "创建版本",
+        "description": "权限标识: add_version",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVersionReq"
+              },
+              "example": {
+                "code": "admin",
+                "message": "string",
+                "node_id": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/version/detail/{id}": {
+      "get": {
+        "tags": [
+          "脚本引擎/脚本模板"
+        ],
+        "summary": "版本详情",
+        "description": "权限标识: get_version",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "唯一数字标识 ID",
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/version/list": {
+      "post": {
+        "tags": [
+          "脚本引擎/脚本模板"
+        ],
+        "summary": "版本列表",
+        "description": "权限标识: view_version",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListVersionsReq"
+              },
+              "example": {
+                "node_id": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/version/use": {
+      "post": {
+        "tags": [
+          "脚本引擎/脚本模板"
+        ],
+        "summary": "使用版本",
+        "description": "权限标识: use_version",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UseVersionReq"
+              },
+              "example": {
+                "node_id": 1,
+                "version_id": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "任务管理"
+    },
+    {
+      "name": "全局变量"
+    },
+    {
+      "name": "执行单元"
+    },
+    {
+      "name": "执行资源"
+    },
+    {
+      "name": "脚本引擎/AI 助手"
+    },
+    {
+      "name": "脚本引擎/制品仓库"
+    },
+    {
+      "name": "脚本引擎/脚本模板"
+    },
+    {
+      "name": "脚本引擎/试运行"
+    },
+    {
+      "name": "资源池管理"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "ActivateReq": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "project_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "scope": {
+            "type": "string",
+            "example": "string"
+          }
+        },
+        "example": {
+          "id": 1,
+          "project_id": 1,
+          "scope": "string"
+        }
+      },
+      "ApplyChangeSetReq": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          }
+        },
+        "example": {
+          "id": 1
+        }
+      },
+      "BindReq": {
+        "type": "object",
+        "properties": {
+          "desc": {
+            "type": "string",
+            "example": "相关业务描述信息"
+          },
+          "handler_name": {
+            "type": "string",
+            "example": "示例名称"
+          },
+          "handler_names": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "item1",
+              "item2"
+            ]
+          },
+          "pool_name": {
+            "type": "string",
+            "example": "示例名称"
+          }
+        },
+        "example": {
+          "desc": "相关业务描述信息",
+          "handler_name": "示例名称",
+          "handler_names": [
+            "item1",
+            "item2"
+          ],
+          "pool_name": "示例名称"
+        }
+      },
+      "BindingKeyReq": {
+        "type": "object",
+        "properties": {
+          "handler_name": {
+            "type": "string",
+            "example": "示例名称"
+          },
+          "pool_name": {
+            "type": "string",
+            "example": "示例名称"
+          }
+        },
+        "example": {
+          "handler_name": "示例名称",
+          "pool_name": "示例名称"
+        }
+      },
+      "ChatReq": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "example": "string"
+          },
+          "context": {
+            "type": "string",
+            "example": "string"
+          },
+          "conversation_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "profile_id": {
+            "type": "string",
+            "example": "string"
+          }
+        },
+        "example": {
+          "content": "string",
+          "context": "string",
+          "conversation_id": 1,
+          "profile_id": "string"
+        }
+      },
+      "ChildrenReq": {
+        "type": "object",
+        "properties": {
+          "parent_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "project_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "scope": {
+            "type": "string",
+            "example": "string"
+          }
+        },
+        "example": {
+          "parent_id": 1,
+          "project_id": 1,
+          "scope": "string"
+        }
+      },
+      "ConversationDetailReq": {
+        "type": "object",
+        "properties": {
+          "conversation_id": {
+            "type": "integer",
+            "example": 1
+          }
+        },
+        "example": {
+          "conversation_id": 1
+        }
+      },
+      "CreateConversationReq": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "title": {
+            "type": "string",
+            "example": "示例名称"
+          }
+        },
+        "example": {
+          "project_id": 1,
+          "title": "示例名称"
+        }
+      },
+      "CreateProjectReq": {
+        "type": "object",
+        "properties": {
+          "artifact_enabled": {
+            "type": "boolean",
+            "example": true
+          },
+          "artifact_namespace": {
+            "type": "string",
+            "example": "示例名称"
+          },
+          "desc": {
+            "type": "string",
+            "example": "相关业务描述信息"
+          },
+          "name": {
+            "type": "string",
+            "example": "示例名称"
+          }
+        },
+        "example": {
+          "artifact_enabled": true,
+          "artifact_namespace": "示例名称",
+          "desc": "相关业务描述信息",
+          "name": "示例名称"
+        }
+      },
+      "CreateReq": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "example": "string"
+          },
+          "secret": {
+            "type": "boolean",
+            "example": true
+          },
+          "value": {
+            "type": "string",
+            "example": "string"
+          }
+        },
+        "example": {
+          "key": "string",
+          "secret": true,
+          "value": "string"
+        }
+      },
+      "CreateTaskReq": {
+        "type": "object",
+        "properties": {
+          "cron_expr": {
+            "type": "string",
+            "description": "cron 表达式（定时任务必填，一次性任务可选用于定时触发）",
+            "example": "string"
+          },
+          "execution_notifications": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "item1",
+              "item2"
+            ]
+          },
+          "grpc_config": {
+            "type": "string",
+            "example": "string"
+          },
+          "http_config": {
+            "type": "string",
+            "example": "string"
+          },
+          "max_execution_seconds": {
+            "type": "integer",
+            "description": "最大执行秒数，默认24小时",
+            "example": 0
+          },
+          "metadata": {
+            "type": "string",
+            "description": "任务参数元数据",
+            "example": "string"
+          },
+          "name": {
+            "type": "string",
+            "example": "示例名称"
+          },
+          "param_override_rules": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "id_001",
+              "id_002"
+            ]
+          },
+          "program": {
+            "type": "string",
+            "description": "程序来源",
+            "example": "string"
+          },
+          "retry_config": {
+            "type": "string",
+            "example": "string"
+          },
+          "runner_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "schedule_params": {
+            "type": "string",
+            "description": "调度参数（如分页偏移量、处理进度等）",
+            "example": "string"
+          },
+          "type": {
+            "type": "string",
+            "description": "任务类型: RECURRING-定时任务, ONE_TIME-一次性任务",
+            "example": "string"
+          }
+        },
+        "example": {
+          "cron_expr": "string",
+          "execution_notifications": [
+            "item1",
+            "item2"
+          ],
+          "grpc_config": "string",
+          "http_config": "string",
+          "max_execution_seconds": 0,
+          "metadata": "string",
+          "name": "示例名称",
+          "param_override_rules": [
+            "id_001",
+            "id_002"
+          ],
+          "program": "string",
+          "retry_config": "string",
+          "runner_id": 1,
+          "schedule_params": "string",
+          "type": "string"
+        }
+      },
+      "CreateVersionReq": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "admin"
+          },
+          "message": {
+            "type": "string",
+            "example": "string"
+          },
+          "node_id": {
+            "type": "integer",
+            "example": 1
+          }
+        },
+        "example": {
+          "code": "admin",
+          "message": "string",
+          "node_id": 1
+        }
+      },
+      "GetLogsReq": {
+        "type": "object",
+        "properties": {
+          "execution_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "limit": {
+            "type": "integer",
+            "example": 10
+          },
+          "min_id": {
+            "type": "integer",
+            "example": 1
+          }
+        },
+        "example": {
+          "execution_id": 1,
+          "limit": 10,
+          "min_id": 1
+        }
+      },
+      "ListBindingsReq": {
+        "type": "object",
+        "properties": {
+          "all_tenants": {
+            "type": "boolean",
+            "example": true
+          },
+          "pool_name": {
+            "type": "string",
+            "example": "示例名称"
+          },
+          "status": {
+            "type": "string",
+            "example": "string"
+          }
+        },
+        "example": {
+          "all_tenants": true,
+          "pool_name": "示例名称",
+          "status": "string"
+        }
+      },
+      "ListConversationsReq": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "integer",
+            "example": 1
+          }
+        },
+        "example": {
+          "project_id": 1
+        }
+      },
+      "ListExcludeCodebookIDReq": {
+        "type": "object",
+        "properties": {
+          "codebook_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "keyword": {
+            "type": "string",
+            "example": "search_key"
+          },
+          "kind": {
+            "type": "string",
+            "example": "string"
+          }
+        },
+        "example": {
+          "codebook_id": 1,
+          "keyword": "search_key",
+          "kind": "string"
+        }
+      },
+      "ListExecutionsReq": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "example": 10
+          },
+          "offset": {
+            "type": "integer",
+            "example": 0
+          },
+          "task_id": {
+            "type": "integer",
+            "example": 1
+          }
+        },
+        "example": {
+          "limit": 10,
+          "offset": 0,
+          "task_id": 1
+        }
+      },
+      "ListPoolsReq": {
+        "type": "object",
+        "properties": {
+          "dispatch_mode": {
+            "type": "string",
+            "example": "string"
+          },
+          "keyword": {
+            "type": "string",
+            "example": "search_key"
+          },
+          "kind": {
+            "type": "string",
+            "example": "string"
+          },
+          "limit": {
+            "type": "integer",
+            "example": 10
+          },
+          "offset": {
+            "type": "integer",
+            "example": 0
+          },
+          "status": {
+            "type": "string",
+            "example": "string"
+          },
+          "transport": {
+            "type": "string",
+            "example": "string"
+          }
+        },
+        "example": {
+          "dispatch_mode": "string",
+          "keyword": "search_key",
+          "kind": "string",
+          "limit": 10,
+          "offset": 0,
+          "status": "string",
+          "transport": "string"
+        }
+      },
+      "ListProjectsReq": {
+        "type": "object",
+        "properties": {
+          "keyword": {
+            "type": "string",
+            "example": "search_key"
+          },
+          "scope": {
+            "type": "string",
+            "example": "string"
+          },
+          "status": {
+            "type": "string",
+            "example": "string"
+          }
+        },
+        "example": {
+          "keyword": "search_key",
+          "scope": "string",
+          "status": "string"
+        }
+      },
+      "ListReferenceProjectsReq": {
+        "type": "object",
+        "properties": {
+          "exclude_project_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "keyword": {
+            "type": "string",
+            "example": "search_key"
+          }
+        },
+        "example": {
+          "exclude_project_id": 1,
+          "keyword": "search_key"
+        }
+      },
+      "ListReq": {
+        "type": "object",
+        "properties": {
+          "keyword": {
+            "type": "string",
+            "example": "search_key"
+          }
+        },
+        "example": {
+          "keyword": "search_key"
+        }
+      },
+      "ListRunnerByIDsReq": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "example": [
+              1,
+              2,
+              3
+            ]
+          }
+        },
+        "example": {
+          "ids": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "ListRunnerReq": {
+        "type": "object",
+        "properties": {
+          "keyword": {
+            "type": "string",
+            "example": "search_key"
+          },
+          "kind": {
+            "type": "string",
+            "example": "string"
+          }
+        },
+        "example": {
+          "keyword": "search_key",
+          "kind": "string"
+        }
+      },
+      "ListVersionsReq": {
+        "type": "object",
+        "properties": {
+          "node_id": {
+            "type": "integer",
+            "example": 1
+          }
+        },
+        "example": {
+          "node_id": 1
+        }
+      },
+      "LogsReq": {
+        "type": "object",
+        "properties": {
+          "execution_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "limit": {
+            "type": "integer",
+            "example": 10
+          },
+          "min_id": {
+            "type": "integer",
+            "example": 1
+          }
+        },
+        "example": {
+          "execution_id": 1,
+          "limit": 10,
+          "min_id": 1
+        }
+      },
+      "PageReq": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "example": 10
+          },
+          "offset": {
+            "type": "integer",
+            "example": 0
+          }
+        },
+        "example": {
+          "limit": 10,
+          "offset": 0
+        }
+      },
+      "ProjectDeleteReq": {
+        "type": "object",
+        "properties": {
+          "project_name": {
+            "type": "string",
+            "example": "示例名称"
+          }
+        },
+        "example": {
+          "project_name": "示例名称"
+        }
+      },
+      "PublishReq": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "string"
+          },
+          "project_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "scope": {
+            "type": "string",
+            "example": "string"
+          }
+        },
+        "example": {
+          "message": "string",
+          "project_id": 1,
+          "scope": "string"
+        }
+      },
+      "RegisterRunnerReq": {
+        "type": "object",
+        "properties": {
+          "codebook_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "codebook_secret": {
+            "type": "string",
+            "example": "admin"
+          },
+          "desc": {
+            "type": "string",
+            "example": "相关业务描述信息"
+          },
+          "handler": {
+            "type": "string",
+            "example": "string"
+          },
+          "kind": {
+            "type": "string",
+            "example": "string"
+          },
+          "name": {
+            "type": "string",
+            "example": "示例名称"
+          },
+          "parameter_defaults": {
+            "type": "string",
+            "example": "string"
+          },
+          "program_kind": {
+            "type": "string",
+            "example": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "item1",
+              "item2"
+            ]
+          },
+          "target": {
+            "type": "string",
+            "example": "string"
+          },
+          "variables": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "item1",
+              "item2"
+            ]
+          }
+        },
+        "example": {
+          "codebook_id": 1,
+          "codebook_secret": "admin",
+          "desc": "相关业务描述信息",
+          "handler": "string",
+          "kind": "string",
+          "name": "示例名称",
+          "parameter_defaults": "string",
+          "program_kind": "string",
+          "tags": [
+            "item1",
+            "item2"
+          ],
+          "target": "string",
+          "variables": [
+            "item1",
+            "item2"
+          ]
+        }
+      },
+      "RenameReq": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "示例名称"
+          }
+        },
+        "example": {
+          "id": 1,
+          "name": "示例名称"
+        }
+      },
+      "RunReq": {
+        "type": "object",
+        "properties": {
+          "max_execution_seconds": {
+            "type": "integer",
+            "example": 0
+          },
+          "params": {
+            "type": "string",
+            "example": "string"
+          },
+          "runner_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "variables": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "item1",
+              "item2"
+            ]
+          }
+        },
+        "example": {
+          "max_execution_seconds": 0,
+          "params": "string",
+          "runner_id": 1,
+          "variables": [
+            "item1",
+            "item2"
+          ]
+        }
+      },
+      "RunTaskReq": {
+        "type": "object",
+        "properties": {
+          "cron_expr": {
+            "type": "string",
+            "example": "string"
+          },
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "param_overrides": {
+            "type": "string",
+            "example": "string"
+          }
+        },
+        "example": {
+          "cron_expr": "string",
+          "id": 1,
+          "param_overrides": "string"
+        }
+      },
+      "SortReq": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "target_parent_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "target_position": {
+            "type": "integer",
+            "example": 0
+          }
+        },
+        "example": {
+          "id": 1,
+          "target_parent_id": 1,
+          "target_position": 0
+        }
+      },
+      "StatusReq": {
+        "type": "object",
+        "properties": {
+          "execution_id": {
+            "type": "integer",
+            "example": 1
+          }
+        },
+        "example": {
+          "execution_id": 1
+        }
+      },
+      "TerminateExecutionReq": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "example": "string"
+          }
+        },
+        "example": {
+          "reason": "string"
+        }
+      },
+      "UpdateProjectReq": {
+        "type": "object",
+        "properties": {
+          "artifact_enabled": {
+            "type": "boolean",
+            "example": true
+          },
+          "artifact_namespace": {
+            "type": "string",
+            "example": "示例名称"
+          },
+          "desc": {
+            "type": "string",
+            "example": "相关业务描述信息"
+          },
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "示例名称"
+          },
+          "sort_no": {
+            "type": "integer",
+            "example": 0
+          }
+        },
+        "example": {
+          "artifact_enabled": true,
+          "artifact_namespace": "示例名称",
+          "desc": "相关业务描述信息",
+          "id": 1,
+          "name": "示例名称",
+          "sort_no": 0
+        }
+      },
+      "UpdateReq": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "key": {
+            "type": "string",
+            "example": "string"
+          },
+          "secret": {
+            "type": "boolean",
+            "example": true
+          },
+          "value": {
+            "type": "string",
+            "example": "string"
+          }
+        },
+        "example": {
+          "id": 1,
+          "key": "string",
+          "secret": true,
+          "value": "string"
+        }
+      },
+      "UpdateRunnerReq": {
+        "type": "object",
+        "properties": {
+          "codebook_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "codebook_secret": {
+            "type": "string",
+            "example": "admin"
+          },
+          "desc": {
+            "type": "string",
+            "example": "相关业务描述信息"
+          },
+          "handler": {
+            "type": "string",
+            "example": "string"
+          },
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "kind": {
+            "type": "string",
+            "example": "string"
+          },
+          "name": {
+            "type": "string",
+            "example": "示例名称"
+          },
+          "parameter_defaults": {
+            "type": "string",
+            "example": "string"
+          },
+          "program_kind": {
+            "type": "string",
+            "example": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "item1",
+              "item2"
+            ]
+          },
+          "target": {
+            "type": "string",
+            "example": "string"
+          },
+          "variables": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "item1",
+              "item2"
+            ]
+          }
+        },
+        "example": {
+          "codebook_id": 1,
+          "codebook_secret": "admin",
+          "desc": "相关业务描述信息",
+          "handler": "string",
+          "id": 1,
+          "kind": "string",
+          "name": "示例名称",
+          "parameter_defaults": "string",
+          "program_kind": "string",
+          "tags": [
+            "item1",
+            "item2"
+          ],
+          "target": "string",
+          "variables": [
+            "item1",
+            "item2"
+          ]
+        }
+      },
+      "UpdateTaskReq": {
+        "type": "object",
+        "properties": {
+          "cron_expr": {
+            "type": "string",
+            "description": "cron 表达式（定时任务必填，一次性任务可选用于定时触发）",
+            "example": "string"
+          },
+          "execution_notifications": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "item1",
+              "item2"
+            ]
+          },
+          "grpc_config": {
+            "type": "string",
+            "example": "string"
+          },
+          "http_config": {
+            "type": "string",
+            "example": "string"
+          },
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "max_execution_seconds": {
+            "type": "integer",
+            "description": "最大执行秒数，默认24小时",
+            "example": 0
+          },
+          "metadata": {
+            "type": "string",
+            "description": "任务参数元数据",
+            "example": "string"
+          },
+          "name": {
+            "type": "string",
+            "example": "示例名称"
+          },
+          "param_override_rules": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "id_001",
+              "id_002"
+            ]
+          },
+          "program": {
+            "type": "string",
+            "description": "程序来源",
+            "example": "string"
+          },
+          "retry_config": {
+            "type": "string",
+            "example": "string"
+          },
+          "runner_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "schedule_params": {
+            "type": "string",
+            "description": "调度参数",
+            "example": "string"
+          },
+          "type": {
+            "type": "string",
+            "description": "任务类型: RECURRING-定时任务, ONE_TIME-一次性任务",
+            "example": "string"
+          }
+        },
+        "example": {
+          "cron_expr": "string",
+          "execution_notifications": [
+            "item1",
+            "item2"
+          ],
+          "grpc_config": "string",
+          "http_config": "string",
+          "id": 1,
+          "max_execution_seconds": 0,
+          "metadata": "string",
+          "name": "示例名称",
+          "param_override_rules": [
+            "id_001",
+            "id_002"
+          ],
+          "program": "string",
+          "retry_config": "string",
+          "runner_id": 1,
+          "schedule_params": "string",
+          "type": "string"
+        }
+      },
+      "UseVersionReq": {
+        "type": "object",
+        "properties": {
+          "node_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "version_id": {
+            "type": "integer",
+            "example": 1
+          }
+        },
+        "example": {
+          "node_id": 1,
+          "version_id": 1
+        }
+      },
+      "WorkspaceFileReq": {
+        "type": "object",
+        "properties": {
+          "artifact_path": {
+            "type": "string",
+            "example": "string"
+          },
+          "digest": {
+            "type": "string",
+            "example": "string"
+          },
+          "project_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "release_id": {
+            "type": "integer",
+            "example": 1
+          }
+        },
+        "example": {
+          "artifact_path": "string",
+          "digest": "string",
+          "project_id": 1,
+          "release_id": 1
+        }
+      }
+    },
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "请输入登录后获取的 JWT Bearer Token 进行接口调用鉴权"
+      }
+    }
+  }
+}
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+  </body>
+</html>

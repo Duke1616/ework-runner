@@ -198,7 +198,7 @@ func (s *Scheduler) stopTaskWithUnavailableProgram(ctx context.Context, schedule
 		elog.Int64("taskID", scheduled.ID), elog.String("taskName", scheduled.Name))
 }
 
-// taskContext 注入租户及原始租户，供后续 GORM 租户插件使用。
+// taskContext 注入租户及原始租户，供后续业务流程使用。
 func taskContext(ctx context.Context, tenantID int64) context.Context {
 	if tenantID <= 0 {
 		return ctx

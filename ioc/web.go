@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Duke1616/eiam/pkg/web/capability"
+	"github.com/Duke1616/eiam/pkg/web/capability/syncer"
 	"github.com/Duke1616/eiam/pkg/web/middleware"
 	"github.com/Duke1616/eiam/pkg/web/sdk"
 	artifactWeb "github.com/Duke1616/etask/internal/web/artifact"
@@ -22,10 +23,8 @@ import (
 	"github.com/gotomicro/ego/server/egin"
 )
 
-const Resource = "TASK"
-
 func InitGinWebServer(mdls []gin.HandlerFunc, sdk *sdk.SDK,
-	syncer capability.Syncer, providers []capability.PermissionProvider,
+	s syncer.Syncer, providers []capability.PermissionProvider,
 	taskHdl *manager.Handler, codebookHdl *codebookWeb.Handler, artifactHdl *artifactWeb.Handler,
 	codeassistHdl *codeassistWeb.Handler,
 	previewHdl *previewWeb.Handler,
@@ -82,8 +81,7 @@ func InitGinWebServer(mdls []gin.HandlerFunc, sdk *sdk.SDK,
 		// 延迟执行，确保路由完全就绪
 		time.Sleep(time.Second)
 
-		//  新版本 SDK 内部会启动后台协程维持租约，需传入长生命周期的 Context
-		if err := syncer.WithOption(
+		if err := s.WithOption(
 			capability.WithPermissions(providers...),
 			capability.WithRouter(server.Engine),
 		).Sync(context.Background()); err != nil {

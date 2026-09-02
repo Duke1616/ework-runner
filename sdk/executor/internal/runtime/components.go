@@ -12,6 +12,7 @@ import (
 	executorv1 "github.com/Duke1616/etask/api/proto/gen/etask/executor/v1"
 	reporterv1 "github.com/Duke1616/etask/api/proto/gen/etask/reporter/v1"
 	grpcpkg "github.com/Duke1616/etask/pkg/grpc"
+	"github.com/Duke1616/etask/pkg/grpc/interceptors/tenant"
 	artifactgrpc "github.com/Duke1616/etask/sdk/executor/artifact/grpc"
 	enginepkg "github.com/Duke1616/etask/sdk/executor/internal/engine"
 	"github.com/Duke1616/etask/sdk/executor/logging/egolog"
@@ -125,8 +126,9 @@ func (e *Executor) pullTasks(ctx context.Context) {
 		}
 		if response != nil && response.HasTask && response.TaskReq != nil {
 			e.logger.Info("拉取到待执行任务", elog.Int64("eid", response.TaskReq.GetEid()))
-			// 启动本地执行
-			if _, executeErr := e.Execute(context.Background(), response.TaskReq); executeErr != nil {
+			// 启动本地执行，显式注入任务绑定的租户上下文
+			taskCtx := tenant.Set(context.Background(), response.TaskReq.GetTenantId())
+			if _, executeErr := e.Execute(taskCtx, response.TaskReq); executeErr != nil {
 				e.logger.Error("启动拉取任务失败",
 					elog.Int64("eid", response.TaskReq.GetEid()), elog.FieldErr(executeErr))
 			}

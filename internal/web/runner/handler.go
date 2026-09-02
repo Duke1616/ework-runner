@@ -8,6 +8,8 @@ import (
 	"github.com/Duke1616/etask/internal/errs"
 	"github.com/Duke1616/etask/internal/pkg/security"
 	runnerSvc "github.com/Duke1616/etask/internal/service/runner"
+	"github.com/Duke1616/etask/pkg/contract/model"
+	"github.com/Duke1616/etask/pkg/contract/perm"
 	"github.com/Duke1616/etask/pkg/cryptox"
 	"github.com/ecodeclub/ekit/slice"
 	"github.com/ecodeclub/ginx"
@@ -24,7 +26,7 @@ type Handler struct {
 func NewHandler(svc runnerSvc.Service) *Handler {
 	return &Handler{
 		svc:       svc,
-		IRegistry: capability.NewRegistry("task", "runner", "脚本引擎/执行单元"),
+		IRegistry: capability.NewRegistry("task", "runner", "执行单元"),
 	}
 }
 
@@ -36,38 +38,34 @@ func (h *Handler) IdentifyRoutes(_ *gin.Engine) {
 
 func (h *Handler) PrivateRoutes(server *gin.Engine) {
 	g := server.Group("/api/runner")
-	g.POST("/register", h.Capability("注册执行单元", "add").
-		Handle(ginx.B[RegisterRunnerReq](h.Register)),
+	g.POST("/register", h.Define("注册执行单元", "add").
+		Bind(ginx.B[RegisterRunnerReq](h.Register)),
 	)
-	g.POST("/list", h.Capability("执行单元列表", "view").
-		Needs(
-			"task:runner:ids",
-			"task:runner:view_by_codebook_id",
-			"task:runner:view_exclude_codebook_id",
-		).
-		Handle(ginx.B[ListRunnerReq](h.List)),
+	g.POST("/list", h.Define("执行单元列表", "view").
+		Needs(perm.Runner.Ids, perm.Codebook.ViewRunners, perm.Runner.ViewExcludeCodebookId).
+		Bind(ginx.B[ListRunnerReq](h.List)),
 	)
-	g.GET("/detail/:id", h.Capability("执行单元详情", "get").
-		Handle(ginx.W(h.Detail)),
+	g.GET("/detail/:id", h.Define("执行单元详情", "get").
+		Bind(ginx.W(h.Detail)),
 	)
-	g.POST("/update", h.Capability("更新执行单元", "edit").
-		Needs("task:runner:get").
-		Handle(ginx.B[UpdateRunnerReq](h.Update)),
+	g.POST("/update", h.Define("更新执行单元", "edit").
+		Needs(perm.Runner.Get).
+		Bind(ginx.B[UpdateRunnerReq](h.Update)),
 	)
-	g.DELETE("/delete/:id", h.Capability("删除执行单元", "delete").
-		Handle(ginx.W(h.Delete)),
+	g.DELETE("/delete/:id", h.Define("删除执行单元", "delete").
+		Bind(ginx.W(h.Delete)),
 	)
-	g.POST("/list/by_ids", h.Capability("批量查询执行单元", "ids").
+	g.POST("/list/by_ids", h.Define("批量查询执行单元", "ids").
 		NoSync().
-		Handle(ginx.B[ListRunnerByIDsReq](h.ListByIDs)),
+		Bind(ginx.B[ListRunnerByIDsReq](h.ListByIDs)),
 	)
-	g.GET("/list/:codebook_id", h.Capability("当前绑定执行单元", "view_by_codebook_id").
+	g.GET("/list/:codebook_id", h.For(model.Codebook).Define("当前绑定执行单元", "view_runners").
 		NoSync().
-		Handle(ginx.W(h.ListByCodebookID)),
+		Bind(ginx.W(h.ListByCodebookID)),
 	)
-	g.POST("/list/exclude_codebook_id", h.Capability("复用执行单元", "view_exclude_codebook_id").
+	g.POST("/list/exclude_codebook_id", h.Define("复用执行单元", "view_exclude_codebook_id").
 		NoSync().
-		Handle(ginx.B[ListExcludeCodebookIDReq](h.ListExcludeCodebookID)),
+		Bind(ginx.B[ListExcludeCodebookIDReq](h.ListExcludeCodebookID)),
 	)
 }
 

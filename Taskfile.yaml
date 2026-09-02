@@ -51,6 +51,16 @@ tasks:
     cmds:
       - go run github.com/google/wire/cmd/wire@v0.7.0 ./ioc
 
+  perm:
+    desc: "权限 AST 静态扫描与强类型契约生成"
+    cmds:
+      - ~/go/bin/permgen -s ./internal/web
+
+  swagger:
+    desc: "生成 OpenAPI 3.0 / Swagger 接口文档与交互页面"
+    cmds:
+      - go run github.com/Duke1616/eiam/cmd/swaggergen -s ./internal/web -o ./api/docs/swagger.json --html ./api/docs/index.html -t "ETask API Documentation"
+
   # --- 数据库迁移 ---
 
   migrate:up:

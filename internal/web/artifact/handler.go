@@ -7,6 +7,7 @@ import (
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/errs"
 	artifactSvc "github.com/Duke1616/etask/internal/service/artifact"
+	"github.com/Duke1616/etask/pkg/contract/perm"
 	"github.com/ecodeclub/ginx"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
@@ -22,7 +23,7 @@ type Handler struct {
 func NewHandler(svc artifactSvc.Service) *Handler {
 	return &Handler{
 		svc:       svc,
-		IRegistry: capability.NewRegistry("task", "artifact", "脚本引擎"),
+		IRegistry: capability.NewRegistry("task", "artifact", "脚本引擎/制品仓库"),
 	}
 }
 
@@ -31,23 +32,20 @@ func (h *Handler) PublicRoutes(_ *gin.Engine) {}
 func (h *Handler) IdentifyRoutes(_ *gin.Engine) {}
 
 func (h *Handler) PrivateRoutes(server *gin.Engine) {
-	permission := func(name, code string) *capability.Builder {
-		return h.Capability(name, code).Group("脚本引擎/制品仓库")
-	}
 	g := server.Group("/api/artifact")
-	g.POST("/publish", permission("发布制品", "publish").
-		Handle(ginx.B[PublishReq](h.Publish)),
+	g.POST("/publish", h.Define("发布制品", "publish").
+		Bind(ginx.B[PublishReq](h.Publish)),
 	)
-	g.POST("/list", permission("制品发布记录", "view").
-		Needs("task:artifact:status").
-		Handle(ginx.B[ListReq](h.List)),
+	g.POST("/list", h.Define("制品发布记录", "view").
+		Needs(perm.Artifact.Status).
+		Bind(ginx.B[ListReq](h.List)),
 	)
-	g.POST("/activate", permission("切换制品", "activate").
-		Handle(ginx.B[ActivateReq](h.Activate)),
+	g.POST("/activate", h.Define("切换制品", "activate").
+		Bind(ginx.B[ActivateReq](h.Activate)),
 	)
-	g.POST("/status", permission("制品状态", "status").
+	g.POST("/status", h.Define("制品状态", "status").
 		NoSync().
-		Handle(ginx.B[StatusReq](h.Status)),
+		Bind(ginx.B[StatusReq](h.Status)),
 	)
 }
 

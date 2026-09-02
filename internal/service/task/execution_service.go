@@ -157,7 +157,7 @@ func (s *executionService) Create(ctx context.Context, execution domain.TaskExec
 		return created, err
 	}
 
-	s.broadcastExecutionEvent(created.ID)
+	s.broadcastExecutionEvent(ctx, created.ID)
 	return created, nil
 }
 
@@ -171,7 +171,7 @@ func (s *executionService) CreatePreview(ctx context.Context, execution domain.T
 	if err != nil {
 		return domain.TaskExecution{}, err
 	}
-	s.broadcastExecutionEvent(created.ID)
+	s.broadcastExecutionEvent(ctx, created.ID)
 	return created, nil
 }
 
@@ -200,7 +200,7 @@ func (s *executionService) CreateWorkflow(ctx context.Context, execution domain.
 		}
 		return domain.TaskExecution{}, false, err
 	}
-	s.broadcastExecutionEvent(created.ID)
+	s.broadcastExecutionEvent(ctx, created.ID)
 	return created, true, nil
 }
 
@@ -290,6 +290,10 @@ func (s *executionService) FindReschedulableExecutions(ctx context.Context, limi
 	return s.repo.FindReschedulableExecutions(ctx, limit)
 }
 
+func (s *executionService) FindTimeoutExecutions(ctx context.Context, limit int) ([]domain.TaskExecution, error) {
+	return s.repo.FindTimeoutExecutions(ctx, limit)
+}
+
 func (s *executionService) FindExecutionByTaskIDAndPlanExecID(ctx context.Context, taskID, planExecID int64) (domain.TaskExecution, error) {
 	return s.repo.FindExecutionByTaskIDAndPlanExecID(ctx, taskID, planExecID)
 }
@@ -298,16 +302,12 @@ func (s *executionService) HasNonTerminalByTaskID(ctx context.Context, taskID in
 	return s.repo.HasNonTerminalByTaskID(ctx, taskID)
 }
 
-func (s *executionService) FindTimeoutExecutions(ctx context.Context, limit int) ([]domain.TaskExecution, error) {
-	return s.repo.FindTimeoutExecutions(ctx, limit)
-}
-
 func (s *executionService) SetRunningState(ctx context.Context, id int64, progress int32, executorNodeID string) error {
 	err := s.repo.SetRunningState(ctx, id, progress, executorNodeID)
 	if err != nil {
 		return err
 	}
-	s.broadcastExecutionEvent(id)
+	s.broadcastExecutionEvent(ctx, id)
 	return nil
 }
 
@@ -316,7 +316,7 @@ func (s *executionService) UpdateRunningProgress(ctx context.Context, id int64, 
 	if err != nil {
 		return err
 	}
-	s.broadcastExecutionEvent(id)
+	s.broadcastExecutionEvent(ctx, id)
 	return nil
 }
 
@@ -328,7 +328,7 @@ func (s *executionService) UpdateRetryResult(ctx context.Context, id, retryCount
 	if err != nil {
 		return err
 	}
-	s.broadcastExecutionEvent(id)
+	s.broadcastExecutionEvent(ctx, id)
 	return nil
 }
 
@@ -348,7 +348,7 @@ func (s *executionService) UpdateScheduleResult(ctx context.Context, id int64,
 		}
 		return false, nil
 	}
-	s.broadcastExecutionEvent(id)
+	s.broadcastExecutionEvent(ctx, id)
 	return true, nil
 }
 
@@ -601,12 +601,17 @@ func (s *executionService) ListByTaskID(ctx context.Context, taskID int64, offse
 }
 
 // broadcastExecutionEvent 异步获取最新执行记录并广播
-func (s *executionService) broadcastExecutionEvent(id int64) {
+func (s *executionService) broadcastExecutionEvent(ctx context.Context, id int64) {
+	tenantID := ctxutil.GetTenantID(ctx).Int64()
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
+		if tenantID > 0 {
+			bgCtx = ctxutil.WithTenantID(bgCtx, tenantID)
+			bgCtx = ctxutil.WithOriginTenantID(bgCtx, tenantID)
+		}
 
-		exec, err := s.FindByID(ctx, id)
+		exec, err := s.FindByID(bgCtx, id)
 		if err != nil {
 			s.logger.Error("广播执行事件时获取记录失败", elog.Int64("id", id), elog.FieldErr(err))
 			return

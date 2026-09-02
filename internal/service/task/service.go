@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Duke1616/eiam/pkg/ctxutil"
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/errs"
 	"github.com/Duke1616/etask/internal/repository"
@@ -66,6 +67,13 @@ func NewService(repo repository.TaskRepository, authorizer poolSvc.ExecutionPool
 }
 
 func (s *service) Create(ctx context.Context, task domain.Task) (domain.Task, error) {
+	if task.TenantID <= 0 {
+		task.TenantID = ctxutil.GetTenantID(ctx).Int64()
+	}
+	if task.TenantID <= 0 {
+		return domain.Task{}, fmt.Errorf("%w: 缺少有效租户上下文，无法创建任务", errs.ErrInvalidParameter)
+	}
+
 	if err := s.prepareTaskConfiguration(ctx, &task); err != nil {
 		return domain.Task{}, err
 	}

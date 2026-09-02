@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func TestWithExecutionStatusCAS(t *testing.T) {
@@ -51,4 +52,27 @@ func TestTaskUpdateFieldsCanClearProgram(t *testing.T) {
 	program, exists := fields["program"]
 	require.True(t, exists)
 	require.Equal(t, sqlx.JSONColumn[domain.ProgramSpec]{}, program)
+}
+
+func TestClaimPullTaskSQL(t *testing.T) {
+	db, err := gorm.Open(mysql.New(mysql.Config{
+		DSN:                       "gorm:gorm@tcp(localhost:9910)/gorm?charset=utf8mb4&parseTime=True&loc=Local",
+		SkipInitializeWithVersion: true,
+	}), &gorm.Config{
+		DryRun:               true,
+		DisableAutomaticPing: true,
+	})
+	require.NoError(t, err)
+
+	var claimed TaskExecution
+	sql := db.ToSQL(func(tx *gorm.DB) *gorm.DB {
+		return tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
+			Where("id IN ?", []int64{8204}).
+			Where("status = ?", TaskExecutionStatusWaitingPull).
+			Order("ctime ASC").
+			Take(&claimed)
+	})
+
+	require.Contains(t, sql, "SELECT * FROM `task_executions`")
+	require.Contains(t, sql, "FOR UPDATE SKIP LOCKED")
 }

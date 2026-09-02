@@ -236,19 +236,17 @@ func (s *Server) Init() error {
 	return s.config.Validate()
 }
 
-// Start 实现 server.Server 接口
+// Start 实现 server.Server 接口 (阻塞执行直到服务停止，遵循 ego 框架规范)
 func (s *Server) Start() error {
 	listener, err := s.startServer()
 	if err != nil {
 		return err
 	}
 
-	// 异步启动 gRPC 服务
-	go func() {
-		if serveErr := s.Server.Serve(listener); serveErr != nil && !errors.Is(serveErr, grpc.ErrServerStopped) {
-			s.logger.Error("gRPC 服务器错误", elog.FieldErr(serveErr))
-		}
-	}()
+	if serveErr := s.Server.Serve(listener); serveErr != nil && !errors.Is(serveErr, grpc.ErrServerStopped) {
+		s.logger.Error("gRPC 服务器错误", elog.FieldErr(serveErr))
+		return serveErr
+	}
 
 	return nil
 }

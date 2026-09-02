@@ -15,6 +15,7 @@ import (
 	"github.com/Duke1616/etask/internal/service/task"
 	terminationSvc "github.com/Duke1616/etask/internal/service/termination"
 	"github.com/Duke1616/etask/internal/sse"
+	"github.com/Duke1616/etask/pkg/contract/perm"
 	"github.com/Duke1616/etask/pkg/grpc/interceptors/bizid"
 	"github.com/ecodeclub/ekit/slice"
 	"github.com/ecodeclub/ginx"
@@ -31,7 +32,6 @@ type Handler struct {
 	termination terminationSvc.Service
 	events      *sse.Hubs
 	capability.IRegistry
-	executionRegistry capability.IRegistry
 }
 
 func (h *Handler) PublicRoutes(_ *gin.Engine) {
@@ -43,13 +43,12 @@ func (h *Handler) IdentifyRoutes(_ *gin.Engine) {}
 func NewHandler(svc task.Service, logSvc task.LogService, execSvc task.ExecutionService,
 	events *sse.Hubs, termination terminationSvc.Service) *Handler {
 	return &Handler{
-		svc:               svc,
-		logSvc:            logSvc,
-		execSvc:           execSvc,
-		termination:       termination,
-		events:            events,
-		IRegistry:         capability.NewRegistry("task", "manager", "任务管理"),
-		executionRegistry: capability.NewRegistry("task", "execution", "任务执行"),
+		svc:         svc,
+		logSvc:      logSvc,
+		execSvc:     execSvc,
+		termination: termination,
+		events:      events,
+		IRegistry:   capability.NewRegistry("task", "manager", "任务管理"),
 	}
 }
 
@@ -58,64 +57,66 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 	// --- 实时事件流 ---
 	// 流式接口统一收敛到 /api/streams/<module>/，便于网关按稳定前缀应用 SSE 策略。
 	streams := server.Group("/api/streams/manager")
-	streams.GET("/task-events", h.Capability("订阅任务状态事件", "task_events").
+	streams.GET("/task-events", h.Define("订阅任务状态事件", "task_events").
 		NoSync().
-		Handle(ginx.W(h.StreamEvents)),
+		Bind(ginx.W(h.StreamEvents)),
 	)
-	streams.GET("/tasks/:id/executions", h.Capability("订阅任务执行事件", "execution_events").
+	streams.GET("/tasks/:id/executions", h.Define("订阅任务执行事件", "execution_events").
 		NoSync().
-		Handle(ginx.W(h.StreamTaskExecutions)),
+		Bind(ginx.W(h.StreamTaskExecutions)),
 	)
-	streams.GET("/executions/:id/logs", h.executionRegistry.Capability("查看执行日志流", "logs").
+	streams.GET("/executions/:id/logs", h.Define("查看执行日志流", "execution_logs").
 		NoSync().
-		Handle(ginx.W(h.StreamExecutionLogs)),
+		Bind(ginx.W(h.StreamExecutionLogs)),
 	)
 
 	// --- 任务管理 ---
-	g.POST("/create", h.Capability("创建任务", "add").
-		Needs("ticket:executor:view").
-		Handle(ginx.B[CreateTaskReq](h.Create)),
+	g.POST("/create", h.Define("创建任务", "add").
+		Bind(ginx.B[CreateTaskReq](h.Create)),
 	)
-	g.POST("/update", h.Capability("更新任务", "edit").
-		Needs("ticket:executor:view").
-		Handle(ginx.B[UpdateTaskReq](h.Update)),
+	g.POST("/update", h.Define("更新任务", "edit").
+		Needs(perm.Manager.Get).
+		Bind(ginx.B[UpdateTaskReq](h.Update)),
 	)
-	g.POST("/list", h.Capability("任务列表", "view").
-		Needs("task:manager:task_events").
-		Handle(ginx.B[PageReq](h.List)),
+	g.POST("/list", h.Define("任务列表", "view").
+		Needs(perm.Manager.TaskEvents).
+		Bind(ginx.B[PageReq](h.List)),
 	)
-	g.GET("/detail/:id", h.Capability("任务详情", "get").
-		Handle(ginx.W(h.Detail)),
+	g.GET("/detail/:id", h.Define("任务详情", "get").
+		Bind(ginx.W(h.Detail)),
 	)
-	g.DELETE("/delete/:id", h.Capability("删除任务", "delete").
-		Handle(ginx.W(h.Delete)),
+	g.DELETE("/delete/:id", h.Define("删除任务", "delete").
+		Needs(perm.Manager.Get).
+		Bind(ginx.W(h.Delete)),
 	)
 
 	// --- 执行监控 ---
-	g.POST("/logs", h.Capability("任务日志", "logs").
-		Needs("task:execution:logs", "task:manager:executions", "task:manager:execution_events").
-		Handle(ginx.B[GetLogsReq](h.GetLogs)),
+	g.POST("/logs", h.Define("任务日志", "logs").
+		Needs(perm.Manager.Executions, perm.Manager.ExecutionLogs).
+		Bind(ginx.B[GetLogsReq](h.GetLogs)),
 	)
 
-	g.POST("/executions", h.Capability("执行记录", "executions").
-		Needs("task:manager:execution_events").
-		Handle(ginx.B[ListExecutionsReq](h.ListExecutions)),
+	g.POST("/executions", h.Define("执行记录", "executions").
+		Needs(perm.Manager.View, perm.Manager.ExecutionEvents).
+		Bind(ginx.B[ListExecutionsReq](h.ListExecutions)),
 	)
-	g.GET("/executions/:id/parameters", h.Capability("执行参数", "execution_parameters").
-		Needs("task:manager:executions").
-		Handle(ginx.W(h.ExecutionParameters)),
+	g.GET("/executions/:id/parameters", h.Define("执行参数", "execution_parameters").
+		Needs(perm.Manager.Executions).
+		Bind(ginx.W(h.ExecutionParameters)),
 	)
-	g.POST("/executions/:id/terminate", h.executionRegistry.Capability("终止执行", "terminate").
-		Handle(ginx.B[TerminateExecutionReq](h.TerminateExecution)),
+	g.POST("/executions/:id/terminate", h.Define("终止执行", "terminate").
+		Needs(perm.Manager.Executions).
+		Bind(ginx.B[TerminateExecutionReq](h.TerminateExecution)),
 	)
 
 	// --- 任务控制 ---
-	g.POST("/stop/:id", h.Capability("停止任务", "stop").
-		Needs("task:execution:terminate").
-		Handle(ginx.W(h.Stop)),
+	g.POST("/stop/:id", h.Define("停止任务", "stop").
+		Needs(perm.Manager.Get).
+		Bind(ginx.W(h.Stop)),
 	)
-	g.POST("/run", h.Capability("运行任务", "start").
-		Handle(ginx.B[RunTaskReq](h.Run)),
+	g.POST("/run", h.Define("运行任务", "start").
+		Needs(perm.Manager.Get).
+		Bind(ginx.B[RunTaskReq](h.Run)),
 	)
 }
 

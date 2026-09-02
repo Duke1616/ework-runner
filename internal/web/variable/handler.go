@@ -9,6 +9,7 @@ import (
 	"github.com/Duke1616/etask/internal/pkg/security"
 	variablepkg "github.com/Duke1616/etask/internal/pkg/variable"
 	variableSvc "github.com/Duke1616/etask/internal/service/variable"
+	"github.com/Duke1616/etask/pkg/contract/perm"
 	"github.com/Duke1616/etask/pkg/cryptox"
 	"github.com/ecodeclub/ginx"
 	"github.com/gin-gonic/gin"
@@ -25,7 +26,7 @@ type Handler struct {
 func NewHandler(svc variableSvc.Service) *Handler {
 	return &Handler{
 		svc:       svc,
-		IRegistry: capability.NewRegistry("task", "variable", "脚本引擎/全局变量"),
+		IRegistry: capability.NewRegistry("task", "variable", "全局变量"),
 	}
 }
 
@@ -37,20 +38,23 @@ func (h *Handler) IdentifyRoutes(_ *gin.Engine) {
 
 func (h *Handler) PrivateRoutes(server *gin.Engine) {
 	g := server.Group("/api/variable")
-	g.POST("/create", h.Capability("创建全局变量", "add").
-		Handle(ginx.B[CreateReq](h.Create)),
+	g.POST("/create", h.Define("创建全局变量", "add").
+		Bind(ginx.B[CreateReq](h.Create)),
 	)
-	g.POST("/list", h.Capability("全局变量列表", "view").
-		Handle(ginx.B[ListReq](h.List)),
+	g.POST("/list", h.Define("全局变量列表", "view").
+		Needs(perm.Variable.Get).
+		Bind(ginx.B[ListReq](h.List)),
 	)
-	g.GET("/detail/:id", h.Capability("全局变量详情", "get").
-		Handle(ginx.W(h.Detail)),
+	g.GET("/detail/:id", h.Define("全局变量详情", "get").
+		Bind(ginx.W(h.Detail)),
 	)
-	g.POST("/update", h.Capability("更新全局变量", "edit").
-		Handle(ginx.B[UpdateReq](h.Update)),
+	g.POST("/update", h.Define("更新全局变量", "edit").
+		Needs(perm.Variable.Get).
+		Bind(ginx.B[UpdateReq](h.Update)),
 	)
-	g.DELETE("/delete/:id", h.Capability("删除全局变量", "delete").
-		Handle(ginx.W(h.Delete)),
+	g.DELETE("/delete/:id", h.Define("删除全局变量", "delete").
+		Needs(perm.Variable.Get).
+		Bind(ginx.W(h.Delete)),
 	)
 }
 

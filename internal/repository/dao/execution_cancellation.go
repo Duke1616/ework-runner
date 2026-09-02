@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Duke1616/eiam/pkg/gormx"
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/errs"
 	"gorm.io/gorm"
@@ -264,6 +265,7 @@ func (g *GORMExecutionCancellationDAO) ListPending(ctx context.Context,
 	limit int) ([]ExecutionCancellation, error) {
 	var cancellations []ExecutionCancellation
 	err := g.db.WithContext(ctx).
+		Scopes(gormx.IgnoreTenant()).
 		Where("delivery_status = ? AND execution_id IS NOT NULL AND next_attempt_at <= ?",
 			domain.CancellationPending, time.Now().UnixMilli()).
 		Order("next_attempt_at ASC, id ASC").Limit(limit).Find(&cancellations).Error

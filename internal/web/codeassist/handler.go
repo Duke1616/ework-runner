@@ -9,6 +9,7 @@ import (
 	"github.com/Duke1616/eiam/pkg/web/capability"
 	"github.com/Duke1616/etask/internal/domain"
 	codeassistSvc "github.com/Duke1616/etask/internal/service/codeassist"
+	"github.com/Duke1616/etask/pkg/contract/perm"
 	"github.com/ecodeclub/ginx"
 	"github.com/gin-gonic/gin"
 )
@@ -36,19 +37,19 @@ func (h *Handler) IdentifyRoutes(_ *gin.Engine) {}
 
 func (h *Handler) PrivateRoutes(server *gin.Engine) {
 	g := server.Group("/api/code-assist")
-	g.POST("/conversation/create", h.Capability("创建 AI 会话", "add_conversation").
-		Handle(ginx.B[CreateConversationReq](h.CreateConversation)))
-	g.POST("/conversation/list", h.Capability("AI 会话列表", "view").
-		Needs("task:code_assist:get_conversation").
-		Handle(ginx.B[ListConversationsReq](h.ListConversations)))
-	g.POST("/conversation/detail", h.Capability("AI 会话详情", "get_conversation").
+	g.POST("/conversation/create", h.Define("创建 AI 会话", "add_conversation").
+		Bind(ginx.B[CreateConversationReq](h.CreateConversation)))
+	g.POST("/conversation/list", h.Define("AI 会话列表", "view").
+		Needs(perm.CodeAssist.GetConversation).
+		Bind(ginx.B[ListConversationsReq](h.ListConversations)))
+	g.POST("/conversation/detail", h.Define("AI 会话详情", "get_conversation").
 		NoSync().
-		Handle(ginx.B[ConversationDetailReq](h.ConversationDetail)))
-	g.POST("/message/stream", h.Capability("发送 AI 消息", "chat").
-		Handle(ginx.B[ChatReq](h.StreamChat)))
-	g.POST("/change-set/apply", h.Capability("应用 AI 项目变更", "apply_change_set").
-		Needs("task:codebook:add", "task:codebook:add_version", "task:codebook:use_version").
-		Handle(ginx.B[ApplyChangeSetReq](h.ApplyChangeSet)))
+		Bind(ginx.B[ConversationDetailReq](h.ConversationDetail)))
+	g.POST("/message/stream", h.Define("发送 AI 消息", "chat").
+		Bind(ginx.B[ChatReq](h.StreamChat)))
+	g.POST("/change-set/apply", h.Define("应用 AI 项目变更", "apply_change_set").
+		Needs(perm.Codebook.Add, perm.Codebook.AddVersion, perm.Codebook.UseVersion).
+		Bind(ginx.B[ApplyChangeSetReq](h.ApplyChangeSet)))
 }
 
 func (h *Handler) CreateConversation(ctx *ginx.Context,

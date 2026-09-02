@@ -3,7 +3,7 @@ module github.com/Duke1616/etask
 go 1.25.0
 
 require (
-	github.com/Duke1616/eiam v0.0.19
+	github.com/Duke1616/eiam v0.0.22
 	github.com/cloudwego/eino v0.9.12
 	github.com/cloudwego/eino-ext/components/model/qwen v0.1.9
 	github.com/ecodeclub/ekit v0.0.10

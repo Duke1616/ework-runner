@@ -5,8 +5,8 @@ filippo.io/edwards25519 v1.2.0/go.mod h1:xzAOLCNug/yB62zG1bQ8uziwrIqIuxhctzJT18Q
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/toml v1.1.0 h1:ksErzDEI1khOiGPgpwuI7x2ebx/uXQNw7xJpn9Eq1+I=
 github.com/BurntSushi/toml v1.1.0/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbicEuybxQ=
-github.com/Duke1616/eiam v0.0.19 h1:R4mzpm+Ag8TfOGGWBKt5sLBSrv405hVq1GN5TVZwQCk=
-github.com/Duke1616/eiam v0.0.19/go.mod h1:hEj14gu/lJ3xQLl7IGnDsjWVtIh6vXWKr2e/9MNG3C0=
+github.com/Duke1616/eiam v0.0.22 h1:u3B4FLOaRLvribel+BJrgghm1UyUxAut2dcWFGdm1uU=
+github.com/Duke1616/eiam v0.0.22/go.mod h1:fI6GDigg6ohCFlYY3zKEDYNy6HhPzqYkHtfH7rDtbIQ=
 github.com/Knetic/govaluate v3.0.1-0.20171022003610-9aa49832a739+incompatible/go.mod h1:r7JcOSlj0wfOMncg0iLm8Leh48TZaKVeNIfJntJ2wa0=
 github.com/RaMin0/gin-health-check v0.0.0-20180807004848-a677317b3f01 h1:GHwYgY6lZR2QKIuYH5k8DFK4e2h2oEEOtyI9E6qrpII=
 github.com/RaMin0/gin-health-check v0.0.0-20180807004848-a677317b3f01/go.mod h1:vZ/F780spvlix7Qg0/17Uj0SayI+CqtybQHtPEV9RTE=

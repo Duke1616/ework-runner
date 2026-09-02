@@ -21,6 +21,9 @@ import (
 const finalReportTimeout = 10 * time.Second
 
 func (e *Executor) startExecution(ctx context.Context, req *executorv1.ExecuteRequest) (*executorv1.ExecuteResponse, error) {
+	if req.GetTenantId() > 0 {
+		ctx = tenant.Set(ctx, req.GetTenantId())
+	}
 	eid := req.GetEid()
 	if e.executionClient != nil {
 		// 启动前核实任务是否已在调度端取消或结束

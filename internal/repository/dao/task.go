@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Duke1616/eiam/pkg/gormx"
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/errs"
 	"github.com/Duke1616/etask/pkg/sqlx"
@@ -158,6 +159,7 @@ func (g *GORMTaskDAO) FindScheduleTasks(ctx context.Context, preemptedTimeoutMs 
 	// 1. ACTIVE 状态且到了执行时间的任务
 	// 2. PREEMPTED 状态但超时未续约、且没有未终态 execution 的任务（疑似僵尸任务）
 	err := g.db.WithContext(ctx).
+		Scopes(gormx.IgnoreTenant()).
 		Where(`next_time <= ? AND (
 			status = ? OR
 			(status = ? AND utime <= ? AND NOT EXISTS (
@@ -213,6 +215,7 @@ func (g *GORMTaskDAO) Acquire(ctx context.Context, id, version int64, scheduleNo
 
 func (g *GORMTaskDAO) Renew(ctx context.Context, scheduleNodeID string) error {
 	result := g.db.WithContext(ctx).
+		Scopes(gormx.IgnoreTenant()).
 		Model(&Task{}).
 		Where("schedule_node_id = ? AND status = ?", scheduleNodeID, StatusPreempted).
 		Updates(map[string]any{

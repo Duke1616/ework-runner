@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Duke1616/eiam/pkg/gormx"
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/errs"
 	"github.com/Duke1616/etask/pkg/sqlx"
@@ -291,7 +292,10 @@ func (g *GORMTaskExecutionDAO) BatchCreate(ctx context.Context, executions []Tas
 
 func (g *GORMTaskExecutionDAO) GetByID(ctx context.Context, id int64) (TaskExecution, error) {
 	var execution TaskExecution
-	err := g.db.WithContext(ctx).Where("id = ?", id).First(&execution).Error
+	err := g.db.WithContext(ctx).
+		Scopes(gormx.IgnoreTenant()).
+		Where("id = ?", id).
+		First(&execution).Error
 	if err != nil {
 		return TaskExecution{}, fmt.Errorf("%w: ID=%d, %w", errs.ErrExecutionNotFound, id, err)
 	}
@@ -301,6 +305,7 @@ func (g *GORMTaskExecutionDAO) GetByID(ctx context.Context, id int64) (TaskExecu
 func (g *GORMTaskExecutionDAO) FindByRequestID(ctx context.Context, source, requestID string) (TaskExecution, error) {
 	var execution TaskExecution
 	err := g.db.WithContext(ctx).
+		Scopes(gormx.IgnoreTenant()).
 		Where("source = ? AND request_id = ?", source, requestID).
 		First(&execution).Error
 	return execution, err
@@ -330,6 +335,7 @@ func (g *GORMTaskExecutionDAO) FindRetryableExecutions(ctx context.Context, limi
 	now := time.Now().UnixMilli()
 
 	err := g.db.WithContext(ctx).
+		Scopes(gormx.IgnoreTenant()).
 		Where("status = ? AND next_retry_time <= ?", TaskExecutionStatusFailedRetryable, now).
 		Limit(limit).
 		Find(&executions).Error
@@ -368,7 +374,10 @@ func (g *GORMTaskExecutionDAO) SetRunningState(ctx context.Context, id int64, pr
 
 	// 首先查询任务执行记录
 	var execution TaskExecution
-	err := g.db.WithContext(ctx).Where("id = ?", id).First(&execution).Error
+	err := g.db.WithContext(ctx).
+		Scopes(gormx.IgnoreTenant()).
+		Where("id = ?", id).
+		First(&execution).Error
 	if err != nil {
 		return fmt.Errorf("%w: 查询执行记录失败: %w", errs.ErrSetExecutionStateRunningFailed, err)
 	}
@@ -377,6 +386,7 @@ func (g *GORMTaskExecutionDAO) SetRunningState(ctx context.Context, id int64, pr
 	newDeadline := now + execution.TaskMaxExecutionSeconds*milliseconds
 
 	result := g.db.WithContext(ctx).
+		Scopes(gormx.IgnoreTenant()).
 		Model(&TaskExecution{}).
 		Where("id = ? AND (status = ? OR status = ? OR status = ?) ",
 			id, TaskExecutionStatusPrepare, TaskExecutionStatusFailedRetryable, TaskExecutionStatusFailedRescheduled).
@@ -400,6 +410,7 @@ func (g *GORMTaskExecutionDAO) SetRunningState(ctx context.Context, id int64, pr
 
 func (g *GORMTaskExecutionDAO) UpdateProgress(ctx context.Context, id int64, progress int32, executorNodeID string) error {
 	result := g.db.WithContext(ctx).
+		Scopes(gormx.IgnoreTenant()).
 		Model(&TaskExecution{}).
 		Where("id = ? AND status = ?", id, TaskExecutionStatusRunning).
 		Updates(map[string]any{
@@ -444,7 +455,7 @@ func (g *GORMTaskExecutionDAO) UpdateScheduleResult(ctx context.Context, id int6
 
 // withExecutionStatusCAS 将来源状态写入更新条件，保证状态检查和写入在同一条 SQL 中完成。
 func withExecutionStatusCAS(db *gorm.DB, id int64, expectedStatuses []string) *gorm.DB {
-	return db.Where("id = ? AND status IN ?", id, expectedStatuses)
+	return db.Scopes(gormx.IgnoreTenant()).Where("id = ? AND status IN ?", id, expectedStatuses)
 }
 
 func executionStatusConflict(id int64) error {
@@ -456,6 +467,7 @@ func (g *GORMTaskExecutionDAO) FindReschedulableExecutions(ctx context.Context, 
 	var executions []TaskExecution
 	// 查找可重调度的执行记录
 	err := g.db.WithContext(ctx).
+		Scopes(gormx.IgnoreTenant()).
 		Where("status = ?", TaskExecutionStatusFailedRescheduled).
 		Order("utime ASC").
 		Limit(limit).
@@ -468,6 +480,7 @@ func (g *GORMTaskExecutionDAO) FindTimeoutExecutions(ctx context.Context, limit 
 	now := time.Now().UnixMilli()
 
 	err := g.db.WithContext(ctx).
+		Scopes(gormx.IgnoreTenant()).
 		Where("deadline <= ? AND status = ?", now, TaskExecutionStatusRunning).
 		Order("deadline ASC").
 		Limit(limit).
@@ -486,26 +499,30 @@ func (g *GORMTaskExecutionDAO) ClaimPullTask(ctx context.Context, serviceName, e
 	}
 	now := time.Now().UnixMilli()
 
-	var claimed TaskExecution
-	err := g.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// 阶段一：无锁并发只读查询最多 5 个就绪任务候选 ID，绝不阻塞任何外部 INSERT 事务
-		var candidateIDs []int64
-		err := tx.Model(&TaskExecution{}).
-			Where("status = ?", TaskExecutionStatusWaitingPull).
-			Where("task_grpc_config->>'$.serviceName' = ?", serviceName).
-			Where("task_grpc_config->>'$.handlerName' IN ?", handlerNames).
-			Order("ctime ASC").
-			Limit(5).
-			Pluck("id", &candidateIDs).Error
-		if err != nil {
-			return err
-		}
-		if len(candidateIDs) == 0 {
-			return errs.ErrExecutionNotFound
-		}
+	// 阶段一：无锁并发只读查询最多 5 个就绪任务候选 ID，绝不阻塞任何外部 INSERT 事务
+	// 放在事务外执行不仅避免了无谓的事务开销，更彻底杜绝了 Pluck 污染后续事务的查询投影
+	var candidateIDs []int64
+	err := g.db.WithContext(ctx).
+		Scopes(gormx.IgnoreTenant()).
+		Model(&TaskExecution{}).
+		Where("status = ?", TaskExecutionStatusWaitingPull).
+		Where("task_grpc_config->>'$.serviceName' = ?", serviceName).
+		Where("task_grpc_config->>'$.handlerName' IN ?", handlerNames).
+		Order("ctime ASC").
+		Limit(5).
+		Pluck("id", &candidateIDs).Error
+	if err != nil {
+		return TaskExecution{}, err
+	}
+	if len(candidateIDs) == 0 {
+		return TaskExecution{}, errs.ErrExecutionNotFound
+	}
 
+	var claimed TaskExecution
+	err = g.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		tx = tx.Scopes(gormx.IgnoreTenant())
 		// 阶段二：针对主键执行 FOR UPDATE SKIP LOCKED。走 PRIMARY KEY 唯一索引只加单行 Record 锁，
-		// 坚决杜绝 Gap Lock 间隙锁；已被并发事务持锁的任务行会被 MySQL 自动跳过
+		// 坚决杜绝 Gap Lock 间隙锁；tx 是全新的事务连接，完整查询映射 TaskExecution 全部字段
 		err = tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
 			Where("id IN ?", candidateIDs).
 			Where("status = ?", TaskExecutionStatusWaitingPull).

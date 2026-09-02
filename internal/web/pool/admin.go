@@ -43,24 +43,24 @@ func (h *AdminHandler) IdentifyRoutes(_ *gin.Engine) {
 func (h *AdminHandler) PrivateRoutes(server *gin.Engine) {
 	g := server.Group("/api/execution-pool/admin")
 
-	g.POST("/list", h.Capability("资源池管理列表", "admin_view").
-		Handle(ginx.B[ListPoolsReq](h.ListPools)),
+	g.POST("/list", h.Define("资源池管理列表", "admin_view").
+		Bind(ginx.B[ListPoolsReq](h.ListPools)),
 	)
-	g.POST("/bindings/list", h.Capability("资源池绑定管理列表", "admin_bindings_view").
+	g.POST("/bindings/list", h.Define("资源池绑定管理列表", "admin_bindings_view").
 		Needs("iam:tenant:view_by_ids").
-		Handle(middleware.BTO[ListBindingsReq](h.ListBindings)),
+		Bind(middleware.BTO[ListBindingsReq](h.ListBindings)),
 	)
-	g.POST("/bindings/bind", h.Capability("管理绑定资源池", "admin_bind").
-		Handle(middleware.BTO[BindReq](h.Bind)),
+	g.POST("/bindings/bind", h.Define("管理绑定资源池", "admin_bind").
+		Bind(middleware.BTO[BindReq](h.Bind)),
 	)
-	g.DELETE("/bindings/unbind", h.Capability("管理解绑资源池", "admin_unbind").
-		Handle(middleware.BTO[BindingKeyReq](h.Unbind)),
+	g.DELETE("/bindings/unbind", h.Define("管理解绑资源池", "admin_unbind").
+		Bind(middleware.BTO[BindingKeyReq](h.Unbind)),
 	)
-	g.POST("/bindings/enable", h.Capability("管理启用资源池绑定", "admin_enable").
-		Handle(middleware.BTO[BindingKeyReq](h.Enable)),
+	g.POST("/bindings/enable", h.Define("管理启用资源池绑定", "admin_enable").
+		Bind(middleware.BTO[BindingKeyReq](h.Enable)),
 	)
-	g.POST("/bindings/disable", h.Capability("管理禁用资源池绑定", "admin_disable").
-		Handle(middleware.BTO[BindingKeyReq](h.Disable)),
+	g.POST("/bindings/disable", h.Define("管理禁用资源池绑定", "admin_disable").
+		Bind(middleware.BTO[BindingKeyReq](h.Disable)),
 	)
 }
 

@@ -4,6 +4,7 @@ import (
 	"github.com/Duke1616/eiam/pkg/web/capability"
 	"github.com/Duke1616/etask/internal/domain"
 	previewSvc "github.com/Duke1616/etask/internal/service/preview"
+	"github.com/Duke1616/etask/pkg/contract/perm"
 	"github.com/ecodeclub/ekit/slice"
 	"github.com/ecodeclub/ginx"
 	"github.com/gin-gonic/gin"
@@ -20,7 +21,7 @@ type Handler struct {
 func NewHandler(svc previewSvc.Service) *Handler {
 	return &Handler{
 		svc:       svc,
-		IRegistry: capability.NewRegistry("task", "preview", "脚本引擎"),
+		IRegistry: capability.NewRegistry("task", "preview", "脚本引擎/试运行"),
 	}
 }
 
@@ -32,20 +33,17 @@ func (h *Handler) IdentifyRoutes(_ *gin.Engine) {}
 
 // PrivateRoutes 注册需要权限校验的试运行路由。
 func (h *Handler) PrivateRoutes(server *gin.Engine) {
-	permission := func(name, code string) *capability.Builder {
-		return h.Capability(name, code).Group("脚本引擎/试运行")
-	}
 	g := server.Group("/api/codebook/preview")
-	g.POST("/run", permission("执行脚本试运行", "run").
-		Handle(ginx.B[RunReq](h.Run)),
+	g.POST("/run", h.Define("执行脚本试运行", "run").
+		Bind(ginx.B[RunReq](h.Run)),
 	)
-	g.POST("/status", permission("查看试运行", "view").
-		Needs("task:execution:logs", "task:preview:view_logs").
-		Handle(ginx.B[StatusReq](h.Status)),
+	g.POST("/status", h.Define("查看试运行", "view").
+		Needs(perm.Preview.ViewLogs).
+		Bind(ginx.B[StatusReq](h.Status)),
 	)
-	g.POST("/logs", permission("查看试运行日志", "view_logs").
+	g.POST("/logs", h.Define("查看试运行日志", "view_logs").
 		NoSync().
-		Handle(ginx.B[LogsReq](h.Logs)),
+		Bind(ginx.B[LogsReq](h.Logs)),
 	)
 }
 

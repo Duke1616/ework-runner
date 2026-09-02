@@ -8,6 +8,7 @@ import (
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/errs"
 	codebookSvc "github.com/Duke1616/etask/internal/service/codebook"
+	"github.com/Duke1616/etask/pkg/contract/perm"
 	"github.com/ecodeclub/ginx"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
@@ -30,7 +31,7 @@ func NewHandler(svc codebookSvc.Service, workspace codebookSvc.WorkspaceService,
 		workspace: workspace,
 		files:     files,
 		deletion:  deletion,
-		IRegistry: capability.NewRegistry("task", "codebook", "脚本引擎"),
+		IRegistry: capability.NewRegistry("task", "codebook", "脚本引擎/脚本模板"),
 	}
 }
 
@@ -38,104 +39,108 @@ func (h *Handler) PublicRoutes(_ *gin.Engine) {
 }
 
 func (h *Handler) PrivateRoutes(server *gin.Engine) {
-	cb := func(name, code string) *capability.Builder {
-		return h.Capability(name, code).Group("脚本引擎/脚本模板")
-	}
-	version := func(name, code string) *capability.Builder {
-		return h.Capability(name, code).Group("脚本引擎/版本管理")
-	}
-	project := func(name, code string) *capability.Builder {
-		return h.Capability(name, code).Group("脚本引擎/项目管理")
-	}
 	g := server.Group("/api/codebook")
-	g.POST("/create", cb("创建模板", "add").
-		Needs("task:codebook:import").
-		Handle(ginx.B[CreateReq](h.Create)),
+	g.POST("/create", h.Define("创建模板", "add").
+		Needs(perm.Codebook.Import).
+		Bind(ginx.B[CreateReq](h.Create)),
 	)
-	g.POST("/children", cb("代码资源子节点", "children").
+	g.POST("/children", h.Define("代码资源子节点", "children").
 		NoSync().
-		Handle(ginx.B[ChildrenReq](h.Children)),
+		Bind(ginx.B[ChildrenReq](h.Children)),
 	)
-	g.GET("/tree/:project_id", cb("代码资源树", "view_tree").
-		Needs("task:codebook:children").
-		Handle(ginx.W(h.Tree)),
+	g.GET("/tree/:project_id", h.Define("代码资源树", "view_tree").
+		Needs(perm.Codebook.Children).
+		Bind(ginx.W(h.Tree)),
 	)
-	g.POST("/workspace/file", cb("读取制品文件", "view_workspace_tree").
-		Handle(ginx.B[WorkspaceFileReq](h.WorkspaceFile)),
+	g.POST("/workspace/file", h.Define("读取制品文件", "view_workspace_tree").
+		Bind(ginx.B[WorkspaceFileReq](h.WorkspaceFile)),
 	)
-	g.GET("/detail/:id", cb("模板详情", "get").
-		Needs("task:codebook:download").
-		Handle(ginx.W(h.Detail)),
+	g.GET("/detail/:id", h.Define("模板详情", "get").
+		Needs(perm.Codebook.Download).
+		Bind(ginx.W(h.Detail)),
 	)
-	g.POST("/update", cb("更新模板", "edit").
-		Handle(ginx.B[UpdateReq](h.Update)),
+	g.POST("/update", h.Define("更新模板", "edit").
+		Bind(ginx.B[UpdateReq](h.Update)),
 	)
-	g.POST("/rename", cb("重命名模板", "rename").
-		Needs("task:codebook:edit").
-		Handle(ginx.B[RenameReq](h.Rename)),
+	g.POST("/rename", h.Define("重命名模板", "rename").
+		Needs(perm.Codebook.Edit).
+		Bind(ginx.B[RenameReq](h.Rename)),
 	)
-	g.POST("/sort", cb("模板排序", "sort").
-		Handle(ginx.B[SortReq](h.Sort)),
+	g.POST("/sort", h.Define("模板排序", "sort").
+		Bind(ginx.B[SortReq](h.Sort)),
 	)
-	g.POST("/import", cb("导入项目文件", "import").
+	g.POST("/import", h.Define("导入项目文件", "import").
 		NoSync().
-		Handle(ginx.W(h.Import)),
+		Bind(ginx.W(h.Import)),
 	)
-	g.GET("/file/:id/download", cb("下载项目文件", "download").
+	g.GET("/file/:id/download", h.Define("下载项目文件", "download").
 		NoSync().
-		Handle(ginx.W(h.Download)),
+		Bind(ginx.W(h.Download)),
 	)
-	g.DELETE("/delete/:id", cb("删除脚本模板", "delete").
-		Handle(ginx.W(h.Delete)),
+	g.DELETE("/delete/:id", h.Define("删除脚本模板", "delete").
+		Bind(ginx.W(h.Delete)),
 	)
 
 	vg := g.Group("/version")
-	vg.POST("/create", version("创建版本", "add_version").
-		Handle(ginx.B[CreateVersionReq](h.CreateVersion)),
+	vg.POST("/create", h.Define("创建版本", "add_version").
+		Group("脚本引擎/版本管理").
+		Bind(ginx.B[CreateVersionReq](h.CreateVersion)),
 	)
-	vg.POST("/list", version("版本列表", "view_version").
-		Handle(ginx.B[ListVersionsReq](h.ListVersions)),
+	vg.POST("/list", h.Define("版本列表", "view_version").
+		Group("脚本引擎/版本管理").
+		Bind(ginx.B[ListVersionsReq](h.ListVersions)),
 	)
-	vg.GET("/detail/:id", version("版本详情", "get_version").
-		Handle(ginx.W(h.VersionDetail)),
+	vg.GET("/detail/:id", h.Define("版本详情", "get_version").
+		Group("脚本引擎/版本管理").
+		Bind(ginx.W(h.VersionDetail)),
 	)
-	vg.POST("/use", version("使用版本", "use_version").
-		Handle(ginx.B[UseVersionReq](h.UseVersion)),
+	vg.POST("/use", h.Define("使用版本", "use_version").
+		Group("脚本引擎/版本管理").
+		Bind(ginx.B[UseVersionReq](h.UseVersion)),
 	)
 
 	// 项目路由
 	pg := g.Group("/project")
-	pg.POST("/create", project("创建项目", "add_project").
-		Handle(ginx.B[CreateProjectReq](h.CreateProject)),
+	pg.POST("/create", h.Define("创建项目", "add_project").
+		Group("脚本引擎/项目管理").
+		Bind(ginx.B[CreateProjectReq](h.CreateProject)),
 	)
-	pg.POST("/list", project("项目列表", "view_project").
-		Needs("task:codebook:get_project", "task:codebook:reference_projects").
-		Handle(ginx.B[ListProjectsReq](h.ListProject)),
+	pg.POST("/list", h.Define("项目列表", "view_project").
+		Group("脚本引擎/项目管理").
+		Needs(perm.Codebook.GetProject, perm.Codebook.ReferenceProjects).
+		Bind(ginx.B[ListProjectsReq](h.ListProject)),
 	)
-	pg.GET("/detail/:id", project("项目详情", "get_project").
+	pg.GET("/detail/:id", h.Define("项目详情", "get_project").
+		Group("脚本引擎/项目管理").
 		NoSync().
-		Handle(ginx.W(h.ProjectDetail)),
+		Bind(ginx.W(h.ProjectDetail)),
 	)
-	pg.POST("/references", project("可引用项目列表", "reference_projects").
+	pg.POST("/references", h.Define("可引用项目列表", "reference_projects").
+		Group("脚本引擎/项目管理").
 		NoSync().
-		Handle(ginx.B[ListReferenceProjectsReq](h.ListReferenceProjects)),
+		Bind(ginx.B[ListReferenceProjectsReq](h.ListReferenceProjects)),
 	)
-	pg.POST("/update", project("更新项目", "edit_project").
-		Handle(ginx.B[UpdateProjectReq](h.UpdateProject)),
+	pg.POST("/update", h.Define("更新项目", "edit_project").
+		Group("脚本引擎/项目管理").
+		Bind(ginx.B[UpdateProjectReq](h.UpdateProject)),
 	)
-	pg.POST("/archive/:id", project("归档项目", "delete_project").
-		Handle(ginx.W(h.ArchiveProject)),
+	pg.POST("/archive/:id", h.Define("归档项目", "delete_project").
+		Group("脚本引擎/项目管理").
+		Bind(ginx.W(h.ArchiveProject)),
 	)
-	pg.POST("/restore/:id", project("恢复项目", "restore_project").
-		Handle(ginx.W(h.RestoreProject)),
+	pg.POST("/restore/:id", h.Define("恢复项目", "restore_project").
+		Group("脚本引擎/项目管理").
+		Bind(ginx.W(h.RestoreProject)),
 	)
-	pg.GET("/delete-impact/:id", project("项目删除影响", "project_delete_impact").
+	pg.GET("/delete-impact/:id", h.Define("项目删除影响", "project_delete_impact").
+		Group("脚本引擎/项目管理").
 		NoSync().
-		Handle(ginx.W(h.ProjectDeleteImpact)),
+		Bind(ginx.W(h.ProjectDeleteImpact)),
 	)
-	pg.DELETE("/delete/:id", project("删除项目", "purge_project").
-		Needs("task:codebook:project_delete_impact").
-		Handle(ginx.B[ProjectDeleteReq](h.DeleteProject)),
+	pg.DELETE("/delete/:id", h.Define("删除项目", "purge_project").
+		Group("脚本引擎/项目管理").
+		Needs(perm.Codebook.ProjectDeleteImpact).
+		Bind(ginx.B[ProjectDeleteReq](h.DeleteProject)),
 	)
 }
 
