@@ -23,12 +23,16 @@ func TestPullLoopFollowsServerLifecycle(t *testing.T) {
 	}, registryStub{})
 	require.NoError(t, err)
 	require.NoError(t, executor.InitComponents())
-	require.Nil(t, executor.pullCancel)
+	require.False(t, executor.IsPulling())
 
-	require.NoError(t, executor.Start())
-	require.NotNil(t, executor.pullCancel)
+	go func() {
+		_ = executor.Start()
+	}()
+	require.Eventually(t, func() bool {
+		return executor.IsPulling()
+	}, 2*time.Second, 10*time.Millisecond)
 	require.NoError(t, executor.Stop())
-	require.Nil(t, executor.pullCancel)
+	require.False(t, executor.IsPulling())
 }
 
 func TestGracefulStopWaitsForBackgroundExecutions(t *testing.T) {

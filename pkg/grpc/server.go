@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -54,6 +55,7 @@ type Server struct {
 	ServiceName    string
 	listenAddr     string // 监听地址
 	advertiseAddr  string // 广播地址(可选)
+	addrMu         sync.RWMutex
 	registeredAddr string // 注册到注册中心的地址
 	started        atomic.Bool
 	logger         *elog.Component
@@ -200,7 +202,9 @@ func (s *Server) Serve() error {
 }
 
 func (s *Server) register(addr string) error {
+	s.addrMu.Lock()
 	s.registeredAddr = addr
+	s.addrMu.Unlock()
 	if s.registry == nil {
 		return nil
 	}
@@ -285,11 +289,14 @@ func (s *Server) stop(ctx context.Context, graceful bool) error {
 }
 
 func (s *Server) unregister(ctx context.Context) error {
-	if s.registry == nil || s.registeredAddr == "" {
+	s.addrMu.RLock()
+	addr := s.registeredAddr
+	s.addrMu.RUnlock()
+	if s.registry == nil || addr == "" {
 		return nil
 	}
 	err := s.registry.UnRegister(ctx, registry.ServiceInstance{
-		ID: s.serviceID, Name: s.ServiceName, Address: s.registeredAddr,
+		ID: s.serviceID, Name: s.ServiceName, Address: addr,
 	})
 	if err != nil {
 		s.logger.Error("注销服务失败", elog.FieldErr(err))
