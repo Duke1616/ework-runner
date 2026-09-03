@@ -1,13 +1,16 @@
 package ioc
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
 
+	executionevent "github.com/Duke1616/etask/internal/event/execution"
 	"github.com/ecodeclub/ekit/retry"
 	"github.com/ecodeclub/mq-api"
 	"github.com/ecodeclub/mq-api/kafka"
+	"github.com/gotomicro/ego/core/elog"
 	"github.com/spf13/viper"
 )
 
@@ -15,6 +18,18 @@ var (
 	q          mq.MQ
 	mqInitOnce sync.Once
 )
+
+// TopicSpec 消息队列主题规格定义
+type TopicSpec struct {
+	Name       string
+	Partitions int
+}
+
+// RequiredTopics 声明 etask 系统运行所需的核心 Topic 拓扑（统一使用 1 分区保证严格有序与轻量部署）
+var RequiredTopics = []TopicSpec{
+	{Name: "complete_topic", Partitions: 1},          // 任务执行完成回传事件 (与 eflow 统一)
+	{Name: executionevent.EventTopic, Partitions: 1}, // Agent 执行日志与状态上报 (execution_result_events)
+}
 
 func InitMQ() mq.MQ {
 	mqInitOnce.Do(func() {
@@ -54,5 +69,19 @@ func initMQ() (mq.MQ, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// 幂等自愈创建系统所需的全部核心 Topic，消除新环境部署时主题缺失导致的消费报错
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	for _, spec := range RequiredTopics {
+		if createErr := qq.CreateTopic(ctx, spec.Name, spec.Partitions); createErr != nil {
+			elog.Warn("自动创建 Topic 跳过或失败（若 Topic 已预建可忽略）",
+				elog.String("topic", spec.Name),
+				elog.Int("partitions", spec.Partitions),
+				elog.FieldErr(createErr))
+		}
+	}
+
 	return qq, nil
 }
