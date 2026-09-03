@@ -21,7 +21,7 @@ func InitCompleteEventConsumer(q mq.MQ,
 	events *internalSSE.Hubs,
 	notifier notification.CompletionNotifier,
 ) *CompleteConsumer {
-	topic := "complete_topic"
+	topic := "task_execution_complete_events"
 	group := "reporter"
 	con := mqx.NewConsumer(name(topic, group), q, topic)
 	comConsumer := complete.NewConsumer(execSvc, taskSvc, acquire, events, notifier)

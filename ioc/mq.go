@@ -27,7 +27,7 @@ type TopicSpec struct {
 
 // RequiredTopics 声明 etask 系统运行所需的核心 Topic 拓扑（统一使用 1 分区保证严格有序与轻量部署）
 var RequiredTopics = []TopicSpec{
-	{Name: "complete_topic", Partitions: 1},          // 任务执行完成回传事件 (与 eflow 统一)
+	{Name: "task_execution_complete_events", Partitions: 1},          // 任务执行完成回传事件 (与 eflow 统一)
 	{Name: executionevent.EventTopic, Partitions: 1}, // Agent 执行日志与状态上报 (execution_result_events)
 }
 
