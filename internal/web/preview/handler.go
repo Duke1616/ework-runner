@@ -4,7 +4,7 @@ import (
 	"github.com/Duke1616/eiam/pkg/web/capability"
 	"github.com/Duke1616/etask/internal/domain"
 	previewSvc "github.com/Duke1616/etask/internal/service/preview"
-	"github.com/Duke1616/etask/pkg/contract/perm"
+	"github.com/Duke1616/etask/pkg/contract/permission"
 	"github.com/ecodeclub/ekit/slice"
 	"github.com/ecodeclub/ginx"
 	"github.com/gin-gonic/gin"
@@ -38,7 +38,7 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 		Bind(ginx.B[RunReq](h.Run)),
 	)
 	g.POST("/status", h.Define("查看试运行", "view").
-		Needs(perm.Preview.ViewLogs).
+		Needs(permission.Preview.ViewLogs).
 		Bind(ginx.B[StatusReq](h.Status)),
 	)
 	g.POST("/logs", h.Define("查看试运行日志", "view_logs").

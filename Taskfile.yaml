@@ -5,6 +5,7 @@ dotenv: ['.env']
 env:
   EGO_DEBUG: "true"
   SCRIPT_TEMP_DIR: "{{.ROOT_DIR}}/app"
+  PATH: "{{.HOME}}/go/bin:{{.PATH}}"
 
 tasks:
   default:
@@ -34,32 +35,39 @@ tasks:
     cmds:
       - go run main.go server --mode executor --config ./config/config.yaml
 
-  # --- 代码与生成 ---
+  # --- 代码与契约生成 ---
 
   gen:
+    desc: "全量代码生成 (Wire + Proto + Perm)"
+    cmds:
+      - task: wire
+      - task: proto
+      - task: perm
+
+  wire:
+    desc: "依赖注入代码生成"
+    cmds:
+      - wire ./ioc
+
+  proto:
     desc: "代码生成 (Protobuf)"
     cmds:
       - buf generate api/proto
+
+  perm:
+    desc: "权限 AST 静态扫描与强类型契约生成"
+    cmds:
+      - permgen -s ./internal/web
+
+  swagger:
+    desc: "生成 OpenAPI 3.0 / Swagger 接口文档与交互页面"
+    cmds:
+      - swaggergen -s ./internal/web -o ./api/docs/swagger.json --html ./api/docs/index.html -t "ETask API Documentation"
 
   mocks:
     desc: "测试 Mock 代码生成"
     cmds:
       - go generate ./internal/... ./pkg/tasklog
-
-  wire:
-    desc: "依赖注入代码生成"
-    cmds:
-      - go run github.com/google/wire/cmd/wire@v0.7.0 ./ioc
-
-  perm:
-    desc: "权限 AST 静态扫描与强类型契约生成"
-    cmds:
-      - ~/go/bin/permgen -s ./internal/web
-
-  swagger:
-    desc: "生成 OpenAPI 3.0 / Swagger 接口文档与交互页面"
-    cmds:
-      - go run github.com/Duke1616/eiam/cmd/swaggergen -s ./internal/web -o ./api/docs/swagger.json --html ./api/docs/index.html -t "ETask API Documentation"
 
   # --- 数据库迁移 ---
 
@@ -82,3 +90,13 @@ tasks:
     desc: "创建新的迁移文件（用法：task migrate:create NAME=add_new_table）"
     cmds:
       - goose -dir deploy/migrations -s create {{.NAME}} sql
+
+  # --- 工具链安装 ---
+
+  install:tools:
+    desc: "安装生态通用工具链 (wire, permgen, swaggergen, goose, buf)"
+    cmds:
+      - go install github.com/google/wire/cmd/wire@latest
+      - go install github.com/Duke1616/eiam/cmd/permgen@latest
+      - go install github.com/Duke1616/eiam/cmd/swaggergen@latest
+      - go install github.com/pressly/goose/v3/cmd/goose@latest

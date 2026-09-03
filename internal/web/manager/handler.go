@@ -15,7 +15,7 @@ import (
 	"github.com/Duke1616/etask/internal/service/task"
 	terminationSvc "github.com/Duke1616/etask/internal/service/termination"
 	"github.com/Duke1616/etask/internal/sse"
-	"github.com/Duke1616/etask/pkg/contract/perm"
+	"github.com/Duke1616/etask/pkg/contract/permission"
 	"github.com/Duke1616/etask/pkg/grpc/interceptors/bizid"
 	"github.com/ecodeclub/ekit/slice"
 	"github.com/ecodeclub/ginx"
@@ -75,47 +75,47 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 		Bind(ginx.B[CreateTaskReq](h.Create)),
 	)
 	g.POST("/update", h.Define("更新任务", "edit").
-		Needs(perm.Manager.Get).
+		Needs(permission.Manager.Get).
 		Bind(ginx.B[UpdateTaskReq](h.Update)),
 	)
 	g.POST("/list", h.Define("任务列表", "view").
-		Needs(perm.Manager.TaskEvents).
+		Needs(permission.Manager.TaskEvents).
 		Bind(ginx.B[PageReq](h.List)),
 	)
 	g.GET("/detail/:id", h.Define("任务详情", "get").
 		Bind(ginx.W(h.Detail)),
 	)
 	g.DELETE("/delete/:id", h.Define("删除任务", "delete").
-		Needs(perm.Manager.Get).
+		Needs(permission.Manager.Get).
 		Bind(ginx.W(h.Delete)),
 	)
 
 	// --- 执行监控 ---
 	g.POST("/logs", h.Define("任务日志", "logs").
-		Needs(perm.Manager.Executions, perm.Manager.ExecutionLogs).
+		Needs(permission.Manager.Executions, permission.Manager.ExecutionLogs).
 		Bind(ginx.B[GetLogsReq](h.GetLogs)),
 	)
 
 	g.POST("/executions", h.Define("执行记录", "executions").
-		Needs(perm.Manager.View, perm.Manager.ExecutionEvents).
+		Needs(permission.Manager.View, permission.Manager.ExecutionEvents).
 		Bind(ginx.B[ListExecutionsReq](h.ListExecutions)),
 	)
 	g.GET("/executions/:id/parameters", h.Define("执行参数", "execution_parameters").
-		Needs(perm.Manager.Executions).
+		Needs(permission.Manager.Executions).
 		Bind(ginx.W(h.ExecutionParameters)),
 	)
 	g.POST("/executions/:id/terminate", h.Define("终止执行", "terminate").
-		Needs(perm.Manager.Executions).
+		Needs(permission.Manager.Executions).
 		Bind(ginx.B[TerminateExecutionReq](h.TerminateExecution)),
 	)
 
 	// --- 任务控制 ---
 	g.POST("/stop/:id", h.Define("停止任务", "stop").
-		Needs(perm.Manager.Get).
+		Needs(permission.Manager.Get).
 		Bind(ginx.W(h.Stop)),
 	)
 	g.POST("/run", h.Define("运行任务", "start").
-		Needs(perm.Manager.Get).
+		Needs(permission.Manager.Get).
 		Bind(ginx.B[RunTaskReq](h.Run)),
 	)
 }

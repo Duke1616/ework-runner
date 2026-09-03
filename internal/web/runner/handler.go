@@ -9,7 +9,7 @@ import (
 	"github.com/Duke1616/etask/internal/pkg/security"
 	runnerSvc "github.com/Duke1616/etask/internal/service/runner"
 	"github.com/Duke1616/etask/pkg/contract/model"
-	"github.com/Duke1616/etask/pkg/contract/perm"
+	"github.com/Duke1616/etask/pkg/contract/permission"
 	"github.com/Duke1616/etask/pkg/cryptox"
 	"github.com/ecodeclub/ekit/slice"
 	"github.com/ecodeclub/ginx"
@@ -42,14 +42,14 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 		Bind(ginx.B[RegisterRunnerReq](h.Register)),
 	)
 	g.POST("/list", h.Define("执行单元列表", "view").
-		Needs(perm.Runner.Ids, perm.Codebook.ViewRunners, perm.Runner.ViewExcludeCodebookId).
+		Needs(permission.Runner.Ids, permission.Codebook.ViewRunners, permission.Runner.ViewExcludeCodebookId).
 		Bind(ginx.B[ListRunnerReq](h.List)),
 	)
 	g.GET("/detail/:id", h.Define("执行单元详情", "get").
 		Bind(ginx.W(h.Detail)),
 	)
 	g.POST("/update", h.Define("更新执行单元", "edit").
-		Needs(perm.Runner.Get).
+		Needs(permission.Runner.Get).
 		Bind(ginx.B[UpdateRunnerReq](h.Update)),
 	)
 	g.DELETE("/delete/:id", h.Define("删除执行单元", "delete").

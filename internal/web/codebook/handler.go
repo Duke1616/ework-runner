@@ -8,7 +8,7 @@ import (
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/errs"
 	codebookSvc "github.com/Duke1616/etask/internal/service/codebook"
-	"github.com/Duke1616/etask/pkg/contract/perm"
+	"github.com/Duke1616/etask/pkg/contract/permission"
 	"github.com/ecodeclub/ginx"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
@@ -41,7 +41,7 @@ func (h *Handler) PublicRoutes(_ *gin.Engine) {
 func (h *Handler) PrivateRoutes(server *gin.Engine) {
 	g := server.Group("/api/codebook")
 	g.POST("/create", h.Define("创建模板", "add").
-		Needs(perm.Codebook.Import).
+		Needs(permission.Codebook.Import).
 		Bind(ginx.B[CreateReq](h.Create)),
 	)
 	g.POST("/children", h.Define("代码资源子节点", "children").
@@ -49,21 +49,21 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 		Bind(ginx.B[ChildrenReq](h.Children)),
 	)
 	g.GET("/tree/:project_id", h.Define("代码资源树", "view_tree").
-		Needs(perm.Codebook.Children).
+		Needs(permission.Codebook.Children).
 		Bind(ginx.W(h.Tree)),
 	)
 	g.POST("/workspace/file", h.Define("读取制品文件", "view_workspace_tree").
 		Bind(ginx.B[WorkspaceFileReq](h.WorkspaceFile)),
 	)
 	g.GET("/detail/:id", h.Define("模板详情", "get").
-		Needs(perm.Codebook.Download).
+		Needs(permission.Codebook.Download).
 		Bind(ginx.W(h.Detail)),
 	)
 	g.POST("/update", h.Define("更新模板", "edit").
 		Bind(ginx.B[UpdateReq](h.Update)),
 	)
 	g.POST("/rename", h.Define("重命名模板", "rename").
-		Needs(perm.Codebook.Edit).
+		Needs(permission.Codebook.Edit).
 		Bind(ginx.B[RenameReq](h.Rename)),
 	)
 	g.POST("/sort", h.Define("模板排序", "sort").
@@ -107,7 +107,7 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 	)
 	pg.POST("/list", h.Define("项目列表", "view_project").
 		Group("脚本引擎/项目管理").
-		Needs(perm.Codebook.GetProject, perm.Codebook.ReferenceProjects).
+		Needs(permission.Codebook.GetProject, permission.Codebook.ReferenceProjects).
 		Bind(ginx.B[ListProjectsReq](h.ListProject)),
 	)
 	pg.GET("/detail/:id", h.Define("项目详情", "get_project").
@@ -139,7 +139,7 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 	)
 	pg.DELETE("/delete/:id", h.Define("删除项目", "purge_project").
 		Group("脚本引擎/项目管理").
-		Needs(perm.Codebook.ProjectDeleteImpact).
+		Needs(permission.Codebook.ProjectDeleteImpact).
 		Bind(ginx.B[ProjectDeleteReq](h.DeleteProject)),
 	)
 }

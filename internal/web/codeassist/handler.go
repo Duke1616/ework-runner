@@ -9,7 +9,7 @@ import (
 	"github.com/Duke1616/eiam/pkg/web/capability"
 	"github.com/Duke1616/etask/internal/domain"
 	codeassistSvc "github.com/Duke1616/etask/internal/service/codeassist"
-	"github.com/Duke1616/etask/pkg/contract/perm"
+	"github.com/Duke1616/etask/pkg/contract/permission"
 	"github.com/ecodeclub/ginx"
 	"github.com/gin-gonic/gin"
 )
@@ -40,7 +40,7 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 	g.POST("/conversation/create", h.Define("创建 AI 会话", "add_conversation").
 		Bind(ginx.B[CreateConversationReq](h.CreateConversation)))
 	g.POST("/conversation/list", h.Define("AI 会话列表", "view").
-		Needs(perm.CodeAssist.GetConversation).
+		Needs(permission.CodeAssist.GetConversation).
 		Bind(ginx.B[ListConversationsReq](h.ListConversations)))
 	g.POST("/conversation/detail", h.Define("AI 会话详情", "get_conversation").
 		NoSync().
@@ -48,7 +48,7 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 	g.POST("/message/stream", h.Define("发送 AI 消息", "chat").
 		Bind(ginx.B[ChatReq](h.StreamChat)))
 	g.POST("/change-set/apply", h.Define("应用 AI 项目变更", "apply_change_set").
-		Needs(perm.Codebook.Add, perm.Codebook.AddVersion, perm.Codebook.UseVersion).
+		Needs(permission.Codebook.Add, permission.Codebook.AddVersion, permission.Codebook.UseVersion).
 		Bind(ginx.B[ApplyChangeSetReq](h.ApplyChangeSet)))
 }
 

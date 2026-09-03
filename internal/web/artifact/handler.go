@@ -7,7 +7,7 @@ import (
 	"github.com/Duke1616/etask/internal/domain"
 	"github.com/Duke1616/etask/internal/errs"
 	artifactSvc "github.com/Duke1616/etask/internal/service/artifact"
-	"github.com/Duke1616/etask/pkg/contract/perm"
+	"github.com/Duke1616/etask/pkg/contract/permission"
 	"github.com/ecodeclub/ginx"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
@@ -37,7 +37,7 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 		Bind(ginx.B[PublishReq](h.Publish)),
 	)
 	g.POST("/list", h.Define("制品发布记录", "view").
-		Needs(perm.Artifact.Status).
+		Needs(permission.Artifact.Status).
 		Bind(ginx.B[ListReq](h.List)),
 	)
 	g.POST("/activate", h.Define("切换制品", "activate").

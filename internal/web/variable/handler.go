@@ -9,7 +9,7 @@ import (
 	"github.com/Duke1616/etask/internal/pkg/security"
 	variablepkg "github.com/Duke1616/etask/internal/pkg/variable"
 	variableSvc "github.com/Duke1616/etask/internal/service/variable"
-	"github.com/Duke1616/etask/pkg/contract/perm"
+	"github.com/Duke1616/etask/pkg/contract/permission"
 	"github.com/Duke1616/etask/pkg/cryptox"
 	"github.com/ecodeclub/ginx"
 	"github.com/gin-gonic/gin"
@@ -42,18 +42,18 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 		Bind(ginx.B[CreateReq](h.Create)),
 	)
 	g.POST("/list", h.Define("全局变量列表", "view").
-		Needs(perm.Variable.Get).
+		Needs(permission.Variable.Get).
 		Bind(ginx.B[ListReq](h.List)),
 	)
 	g.GET("/detail/:id", h.Define("全局变量详情", "get").
 		Bind(ginx.W(h.Detail)),
 	)
 	g.POST("/update", h.Define("更新全局变量", "edit").
-		Needs(perm.Variable.Get).
+		Needs(permission.Variable.Get).
 		Bind(ginx.B[UpdateReq](h.Update)),
 	)
 	g.DELETE("/delete/:id", h.Define("删除全局变量", "delete").
-		Needs(perm.Variable.Get).
+		Needs(permission.Variable.Get).
 		Bind(ginx.W(h.Delete)),
 	)
 }
