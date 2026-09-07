@@ -147,11 +147,13 @@ func (s *service) RunRunner(ctx context.Context, command RunRunnerCommand) (RunR
 func (s *service) buildDraft(command RunRunnerCommand, runner domain.Runner,
 	program *domain.Program, params map[string]string, variables []domain.RunnerVariable) domain.TaskExecution {
 	return domain.TaskExecution{
+		TenantID:  runner.TenantID,
 		RequestID: command.RequestID,
 		Status:    domain.TaskExecutionStatusPrepare,
 		StartTime: time.Now().UnixMilli(),
 		Task: domain.Task{
 			RunnerID:            runner.ID,
+			TenantID:            runner.TenantID,
 			Name:                "工作流执行: " + runner.Name,
 			MaxExecutionSeconds: defaultTimeoutSeconds,
 			RetryConfig:         &domain.RetryConfig{MaxRetries: 0},
