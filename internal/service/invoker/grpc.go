@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Duke1616/eiam/pkg/ctxutil"
 	executorv1 "github.com/Duke1616/etask/api/proto/gen/etask/executor/v1"
 	"github.com/Duke1616/etask/internal/domain"
 	programmapper "github.com/Duke1616/etask/internal/execution/program"
@@ -56,10 +55,6 @@ func (r *GRPCInvoker) Run(ctx context.Context, exec domain.TaskExecution) (domai
 	// 设置调用超时(30秒), 防止无 executor 节点时无限等待
 	callCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-
-	if exec.TenantID > 0 {
-		callCtx = ctxutil.WithTenantID(callCtx, exec.TenantID)
-	}
 
 	resp, err := client.Execute(callCtx, &executorv1.ExecuteRequest{
 		Eid:             exec.ID,
