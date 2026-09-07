@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Duke1616/eiam/pkg/gormx"
 	codebookcmd "github.com/Duke1616/etask/cmd/codebook"
 	"github.com/Duke1616/etask/cmd/migrate"
 	"github.com/Duke1616/etask/ioc"
@@ -66,7 +65,7 @@ func startServer() {
 	// 3. 启动已加载模块的服务和后台任务
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	app.StartBackgroundTasks(gormx.IgnoreTenantContext(ctx))
+	app.StartBackgroundTasks(ctx)
 
 	if err := ego.New().Serve(app.GetServers()...).Run(); err != nil {
 		// Ego 使用 context deadline 表示关闭窗口耗尽；任务状态会由调度补偿器继续收敛，

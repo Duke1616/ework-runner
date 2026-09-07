@@ -56,13 +56,18 @@ func (r *GRPCInvoker) Run(ctx context.Context, exec domain.TaskExecution) (domai
 	callCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
+	tenantID := exec.TenantID
+	if tenantID <= 0 {
+		tenantID = exec.Task.TenantID
+	}
+
 	resp, err := client.Execute(callCtx, &executorv1.ExecuteRequest{
 		Eid:             exec.ID,
 		TaskId:          exec.Task.ID,
 		TaskName:        exec.Task.Name,
 		TaskHandlerName: exec.Task.GrpcConfig.HandlerName,
 		Params:          exec.GRPCParams(),
-		TenantId:        exec.Task.TenantID,
+		TenantId:        tenantID,
 		Artifacts:       artifacts,
 		Program:         program,
 		VariableSet:     exec.Variables.ToProto(),

@@ -360,6 +360,7 @@ func (s *executionService) AppendExecutionLogs(ctx context.Context,
 	if executionID <= 0 {
 		return fmt.Errorf("执行 ID 非法: %d", executionID)
 	}
+
 	persisted, err := s.logSvc.AddLog(ctx, domain.TaskExecutionLog{
 		ExecutionID: executionID,
 		TaskID:      taskID,
